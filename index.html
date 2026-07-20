@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Befalia OS</title>
+<meta name="theme-color" content="#0a1c2e">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Befalia OS">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<style>
+  :root{--bg:#081726;--bg2:#0d2740;--ink:#eaf4fb;--muted:#a9c4d6;--dim:#6f8ba0;--aqua:#67d3e6;--aqua2:#5fb8d9;--line:rgba(255,255,255,.09);--glass:rgba(255,255,255,.055);}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  body{margin:0;background:linear-gradient(180deg,#061320 0%,#0a1f33 55%,#081726 100%);background-attachment:fixed;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:calc(env(safe-area-inset-top) + 14px) 14px calc(env(safe-area-inset-bottom) + 28px);line-height:1.5;}
+  header{display:flex;align-items:center;gap:10px;margin:4px 2px 16px;}
+  header .logo{width:34px;height:34px;border-radius:10px;background:radial-gradient(circle at 30% 30%,#8fe3f0,#3a91b8);box-shadow:0 4px 14px rgba(103,211,230,.3);}
+  header h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.2px;}
+  header .sub{font-size:11px;color:var(--dim);margin-top:1px;}
+  .serif{font-family:Georgia,"Times New Roman",serif;}
+  .card{background:var(--glass);border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:14px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}
+  .card h2{font-size:12px;letter-spacing:.6px;text-transform:uppercase;color:var(--aqua2);margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+  .card h2 .r{margin-left:auto;font-size:12px;text-transform:none;letter-spacing:0;color:var(--aqua);background:none;border:0;padding:0;font-weight:600;}
+  textarea,input{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:14px;color:var(--ink);font:inherit;font-size:16px;padding:12px 14px;resize:vertical;}
+  textarea::placeholder{color:var(--dim);}
+  .btn{width:100%;margin-top:10px;background:var(--aqua);color:#062033;border:0;border-radius:14px;padding:14px;font-size:16px;font-weight:700;}
+  .btn:active{opacity:.8;}
+  .goal{display:flex;gap:9px;align-items:flex-start;font-size:15px;margin-top:9px;}
+  .tag{font-size:9px;font-weight:800;letter-spacing:.5px;color:#062033;background:var(--aqua);border-radius:6px;padding:3px 7px;margin-top:2px;flex:none;}
+  .tag.y{background:var(--aqua2);}
+  .from{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--aqua2);}
+  .title{font-size:15px;font-weight:600;margin-top:6px;}
+  .title a{color:var(--aqua);text-decoration:none;}
+  .take{font-size:13.5px;color:var(--muted);margin-top:6px;}
+  .hint{font-size:12px;color:var(--dim);margin-top:8px;}
+  .links{display:flex;flex-wrap:wrap;gap:8px;}
+  .links a{font-size:13px;font-weight:600;color:var(--aqua);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:9px 14px;}
+  .status{font-size:12px;color:var(--aqua2);margin-top:8px;min-height:14px;}
+  .loading{color:var(--dim);font-size:13px;}
+  footer{text-align:center;color:var(--dim);font-size:11px;margin-top:8px;line-height:1.6;}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo"></div>
+  <div><h1 class="serif">Befalia OS</h1><div class="sub" id="hello">your life, in your pocket</div></div>
+</header>
+
+<div class="card">
+  <h2>🖊️ Capture</h2>
+  <textarea id="cap" rows="3" placeholder="Anything on your mind. It saves to your Journal in Notion, dated."></textarea>
+  <button class="btn" id="cap-btn">Save to Notion</button>
+  <div class="status" id="cap-status"></div>
+</div>
+
+<div class="card">
+  <h2>🌟 North Star</h2>
+  <div id="goals" class="loading">Loading…</div>
+</div>
+
+<div class="card">
+  <h2>♻️ Resurface <button class="r" id="res-btn">↻ Another</button></h2>
+  <div id="res" class="loading">Loading…</div>
+</div>
+
+<div class="card">
+  <h2>💡 Today's takeaways</h2>
+  <div id="recap" class="loading">Loading…</div>
+</div>
+
+<div class="card">
+  <h2>🔗 Open in Notion</h2>
+  <div class="links">
+    <a href="https://www.notion.so/3a3eb411ed7a81ff8bceddada1bdc996">Goals</a>
+    <a href="https://www.notion.so/39eeb411ed7a81fcba99efa6066168b7">Journal</a>
+    <a href="https://www.notion.so/39deb411ed7a8190bc40d4d89998ad58">Everything</a>
+  </div>
+  <div class="hint">Tip: install the Notion app for full editing. This app is for quick capture and a glance.</div>
+</div>
+
+<footer>Befalia OS · reads &amp; logs to your Notion · thinking &amp; agents live on desktop</footer>
+
+<script>
+const PAGES = {
+  goals: '3a3eb411ed7a81ff8bceddada1bdc996',
+  learning: '3a2eb411ed7a81b48113ff7926d9107e',
+  journal: '39eeb411ed7a81fcba99efa6066168b7',
+  recap: '3a2eb411ed7a8130a6b1c75fd3817995'
+};
+function api(payload){return fetch('/api/notion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(r){return r.json();});}
+function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function today(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function mdLink(s){var m=s.match(/\[([^\]]+)\]\(([^)]+)\)/);if(m){var u=m[2];if(/^https?:\/\//.test(u))return {title:m[1],url:u};}return {title:s,url:''};}
+
+// Capture
+document.getElementById('cap-btn').onclick = function(){
+  var box=document.getElementById('cap'); var v=(box.value||'').trim();
+  var st=document.getElementById('cap-status'); if(!v){st.textContent='Write something first.';return;}
+  var btn=document.getElementById('cap-btn'); btn.disabled=true; st.textContent='Saving…';
+  var title=today()+' · '+v.split(/\s+/).slice(0,6).join(' ');
+  api({action:'capture',pageId:PAGES.journal,title:title,text:v}).then(function(d){
+    if(d.ok){st.textContent='Saved to your Journal ✓'; box.value='';}
+    else{st.textContent='Could not save: '+(d.error||'error');}
+    btn.disabled=false;
+  }).catch(function(){st.textContent='Network error — try again.'; btn.disabled=false;});
+};
+
+// Goals
+api({action:'read',pageId:PAGES.goals}).then(function(d){
+  var el=document.getElementById('goals'); var lines=(d.lines||[]);
+  if(d.error){el.innerHTML='<div class="hint">'+esc(d.error)+'</div>';return;}
+  function grab(re){for(var i=0;i<lines.length;i++){if(re.test(lines[i])){for(var j=i+1;j<lines.length;j++){var s=lines[j].replace(/^[#>*\-\s]+/,'').trim();if(s){if(/^\(/.test(s))return '';return s;}}return '';}}return '';}
+  var main=grab(/main goal/i), y=grab(/2026 goal/i);
+  el.innerHTML='<div class="goal"><span class="tag">LIFE</span><span>'+(main?esc(main):'<span style="color:var(--dim)">set on desktop</span>')+'</span></div>'+
+               '<div class="goal"><span class="tag y">2026</span><span>'+(y?esc(y):'<span style="color:var(--dim)">set on desktop</span>')+'</span></div>';
+}).catch(function(){document.getElementById('goals').innerHTML='<div class="hint">Could not load.</div>';});
+
+// Resurface
+var RES=[];
+function renderRes(){
+  var el=document.getElementById('res');
+  if(!RES.length){el.innerHTML='<div class="hint">Notes will resurface here once you have a few.</div>';return;}
+  var l=RES[Math.floor(Math.random()*RES.length)];
+  var s=l.replace(/^[-*]\s*/,''); var dm=s.match(/^(\d{4}-\d{2}-\d{2})/); var date=dm?dm[1]:'';
+  s=s.replace(/^\d{4}-\d{2}-\d{2}\s*·?\s*/,'');
+  var parts=s.split('‖'); var head=parts[0]||''; var takes=parts.slice(1).map(function(x){return x.trim();}).filter(function(x){return x && !/pending/i.test(x);});
+  var lk=mdLink(head); var seg=head.split('·'); var topic=(seg.length>1?seg[seg.length-1]:'').trim();
+  var ago='';
+  if(date){var diff=Math.round((Date.now()-new Date(date+'T00:00:00').getTime())/86400000);ago=diff<=0?'today':(diff===1?'yesterday':(diff<30?diff+' days ago':(diff<365?Math.round(diff/30)+' months ago':Math.round(diff/365)+' years ago')));}
+  var take=takes.length?takes[Math.floor(Math.random()*takes.length)]:'';
+  el.innerHTML='<div class="from">From your notes · '+esc(ago)+(topic&&!/pending/i.test(topic)?(' · '+esc(topic)):'')+'</div>'+
+               '<div class="title">'+(lk.url?('<a href="'+lk.url+'">'+esc(lk.title)+'</a>'):esc(lk.title))+'</div>'+
+               (take?('<div class="take">'+esc(take)+'</div>'):'');
+}
+document.getElementById('res-btn').onclick=renderRes;
+api({action:'read',pageId:PAGES.learning}).then(function(d){
+  var lines=(d.lines||[]); var t=today();
+  RES=lines.filter(function(l){return /^-\s*\d{4}-\d{2}-\d{2}/.test(l) && l.replace(/^[-*]\s*/,'').indexOf(t)!==0;});
+  renderRes();
+}).catch(function(){document.getElementById('res').innerHTML='<div class="hint">Could not load.</div>';});
+
+// Recap
+api({action:'read',pageId:PAGES.recap}).then(function(d){
+  var el=document.getElementById('recap'); var lines=(d.lines||[]);
+  var body=lines.slice(0,8).map(function(l){return esc(l.replace(/^#\s*/,''));}).join('<br>');
+  el.innerHTML= body ? ('<div class="take">'+body+'</div>') : '<div class="hint">Your recap appears here after you log some learning.</div>';
+}).catch(function(){document.getElementById('recap').innerHTML='<div class="hint">Could not load.</div>';});
+
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){});}
+</script>
+</body>
+</html>
