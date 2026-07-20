@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>Befalia OS</title>
 <meta name="theme-color" content="#0a1c2e">
 <link rel="manifest" href="manifest.webmanifest">
@@ -11,142 +11,337 @@
 <meta name="apple-mobile-web-app-title" content="Befalia OS">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
 <style>
-  :root{--bg:#081726;--bg2:#0d2740;--ink:#eaf4fb;--muted:#a9c4d6;--dim:#6f8ba0;--aqua:#67d3e6;--aqua2:#5fb8d9;--line:rgba(255,255,255,.09);--glass:rgba(255,255,255,.055);}
+  :root{
+    --bg:#081726;--ink:#eef6fc;--muted:#a9c4d6;--dim:#6f8ba0;
+    --aqua:#67d3e6;--aqua2:#5fb8d9;--line:rgba(255,255,255,.10);
+    --glass:rgba(255,255,255,.06);--glass2:rgba(255,255,255,.03);
+    --serif:Georgia,"Times New Roman",serif;
+  }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
-  body{margin:0;background:linear-gradient(180deg,#061320 0%,#0a1f33 55%,#081726 100%);background-attachment:fixed;color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:calc(env(safe-area-inset-top) + 14px) 14px calc(env(safe-area-inset-bottom) + 28px);line-height:1.5;}
-  header{display:flex;align-items:center;gap:10px;margin:4px 2px 16px;}
-  header .logo{width:34px;height:34px;border-radius:10px;background:radial-gradient(circle at 30% 30%,#8fe3f0,#3a91b8);box-shadow:0 4px 14px rgba(103,211,230,.3);}
-  header h1{font-size:19px;margin:0;font-weight:700;letter-spacing:.2px;}
-  header .sub{font-size:11px;color:var(--dim);margin-top:1px;}
-  .serif{font-family:Georgia,"Times New Roman",serif;}
-  .card{background:var(--glass);border:1px solid var(--line);border-radius:20px;padding:16px;margin-bottom:14px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}
-  .card h2{font-size:12px;letter-spacing:.6px;text-transform:uppercase;color:var(--aqua2);margin:0 0 10px;display:flex;align-items:center;gap:8px;}
-  .card h2 .r{margin-left:auto;font-size:12px;text-transform:none;letter-spacing:0;color:var(--aqua);background:none;border:0;padding:0;font-weight:600;}
-  textarea,input{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:14px;color:var(--ink);font:inherit;font-size:16px;padding:12px 14px;resize:vertical;}
-  textarea::placeholder{color:var(--dim);}
+  html,body{margin:0;padding:0;}
+  body{
+    background:linear-gradient(180deg,#061320 0%,#0a1f33 55%,#081726 100%);
+    background-attachment:fixed;color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased;
+  }
+  /* sticky header + tabs (iOS large-title feel) */
+  .topbar{position:sticky;top:0;z-index:20;backdrop-filter:saturate(160%) blur(18px);-webkit-backdrop-filter:saturate(160%) blur(18px);
+    background:rgba(8,20,33,.72);border-bottom:1px solid var(--line);
+    padding:calc(env(safe-area-inset-top) + 8px) 0 0;}
+  .brand{display:flex;align-items:center;gap:10px;padding:2px 18px 8px;}
+  .brand .logo{width:30px;height:30px;border-radius:9px;background:radial-gradient(circle at 30% 30%,#8fe3f0,#3a91b8);box-shadow:0 3px 12px rgba(103,211,230,.35);flex:none;}
+  .brand h1{font-family:var(--serif);font-size:20px;margin:0;font-weight:700;}
+  .brand .sub{font-size:10.5px;color:var(--dim);}
+  .tabs{display:flex;gap:8px;overflow-x:auto;padding:4px 14px 12px;scrollbar-width:none;}
+  .tabs::-webkit-scrollbar{display:none;}
+  .tab{flex:none;font-size:14px;font-weight:600;color:var(--muted);background:var(--glass2);border:1px solid var(--line);
+    border-radius:999px;padding:8px 15px;white-space:nowrap;}
+  .tab.active{color:#062033;background:var(--aqua);border-color:var(--aqua);}
+  /* content */
+  main{padding:14px 14px calc(env(safe-area-inset-bottom) + 40px);max-width:640px;margin:0 auto;}
+  .pane{display:none;}
+  .pane.active{display:block;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  .seclabel{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--aqua2);font-weight:700;margin:16px 4px 8px;}
+  .card{background:var(--glass);border:1px solid var(--line);border-radius:22px;padding:16px;margin-bottom:13px;
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);}
+  .card h2{font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--aqua2);margin:0 0 10px;display:flex;align-items:center;gap:8px;}
+  .card h2 .r{margin-left:auto;font-size:12.5px;text-transform:none;letter-spacing:0;color:var(--aqua);font-weight:600;}
+  .blurb{font-size:12.5px;color:var(--dim);margin:-4px 0 10px;}
+  textarea,input{width:100%;background:var(--glass2);border:1px solid var(--line);border-radius:14px;color:var(--ink);
+    font:inherit;font-size:16px;padding:12px 14px;resize:vertical;}
+  textarea::placeholder,input::placeholder{color:var(--dim);}
   .btn{width:100%;margin-top:10px;background:var(--aqua);color:#062033;border:0;border-radius:14px;padding:14px;font-size:16px;font-weight:700;}
-  .btn:active{opacity:.8;}
+  .btn:active{opacity:.82;}
+  .btn.sec{background:var(--glass);color:var(--aqua);border:1px solid var(--line);}
+  .p{font-size:14px;color:var(--muted);margin:7px 0 0;line-height:1.55;}
+  .p b{color:var(--ink);font-weight:650;}
+  .p a{color:var(--aqua);text-decoration:none;}
+  .h{font-size:15px;color:var(--ink);font-weight:650;margin:12px 0 2px;}
+  .li{font-size:13.5px;color:var(--muted);padding:3px 0 3px 14px;position:relative;line-height:1.5;}
+  .li:before{content:'·';position:absolute;left:2px;color:var(--aqua2);}
   .goal{display:flex;gap:9px;align-items:flex-start;font-size:15px;margin-top:9px;}
   .tag{font-size:9px;font-weight:800;letter-spacing:.5px;color:#062033;background:var(--aqua);border-radius:6px;padding:3px 7px;margin-top:2px;flex:none;}
   .tag.y{background:var(--aqua2);}
   .from{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--aqua2);}
-  .title{font-size:15px;font-weight:600;margin-top:6px;}
+  .title{font-size:15px;font-weight:650;margin-top:6px;}
   .title a{color:var(--aqua);text-decoration:none;}
-  .take{font-size:13.5px;color:var(--muted);margin-top:6px;}
-  .hint{font-size:12px;color:var(--dim);margin-top:8px;}
-  .links{display:flex;flex-wrap:wrap;gap:8px;}
+  .links{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
   .links a{font-size:13px;font-weight:600;color:var(--aqua);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:9px 14px;}
   .status{font-size:12px;color:var(--aqua2);margin-top:8px;min-height:14px;}
   .loading{color:var(--dim);font-size:13px;}
-  footer{text-align:center;color:var(--dim);font-size:11px;margin-top:8px;line-height:1.6;}
+  .hint{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.5;}
+  .chip{font-size:9.5px;font-weight:800;letter-spacing:.4px;border-radius:6px;padding:3px 7px;}
+  .row{display:flex;gap:8px;align-items:center;}
+  footer{text-align:center;color:var(--dim);font-size:11px;margin-top:14px;line-height:1.6;}
 </style>
 </head>
 <body>
-<header>
-  <div class="logo"></div>
-  <div><h1 class="serif">Befalia OS</h1><div class="sub" id="hello">your life, in your pocket</div></div>
-</header>
-
-<div class="card">
-  <h2>🖊️ Capture</h2>
-  <textarea id="cap" rows="3" placeholder="Anything on your mind. It saves to your Journal in Notion, dated."></textarea>
-  <button class="btn" id="cap-btn">Save to Notion</button>
-  <div class="status" id="cap-status"></div>
-</div>
-
-<div class="card">
-  <h2>🌟 North Star</h2>
-  <div id="goals" class="loading">Loading…</div>
-</div>
-
-<div class="card">
-  <h2>♻️ Resurface <button class="r" id="res-btn">↻ Another</button></h2>
-  <div id="res" class="loading">Loading…</div>
-</div>
-
-<div class="card">
-  <h2>💡 Today's takeaways</h2>
-  <div id="recap" class="loading">Loading…</div>
-</div>
-
-<div class="card">
-  <h2>🔗 Open in Notion</h2>
-  <div class="links">
-    <a href="https://www.notion.so/3a3eb411ed7a81ff8bceddada1bdc996">Goals</a>
-    <a href="https://www.notion.so/39eeb411ed7a81fcba99efa6066168b7">Journal</a>
-    <a href="https://www.notion.so/39deb411ed7a8190bc40d4d89998ad58">Everything</a>
+<div class="topbar">
+  <div class="brand">
+    <div class="logo"></div>
+    <div><h1>Befalia OS</h1><div class="sub">your life, in your pocket · synced to Notion</div></div>
   </div>
-  <div class="hint">Tip: install the Notion app for full editing. This app is for quick capture and a glance.</div>
+  <div class="tabs" id="tabs"></div>
 </div>
 
-<footer>Befalia OS · reads &amp; logs to your Notion · thinking &amp; agents live on desktop</footer>
+<main>
+  <div class="pane active" id="tab-home"></div>
+  <div class="pane" id="tab-health"></div>
+  <div class="pane" id="tab-bonds"></div>
+  <div class="pane" id="tab-me"></div>
+  <div class="pane" id="tab-money"></div>
+  <div class="pane" id="tab-social"></div>
+  <div class="pane" id="tab-agents"></div>
+  <footer>Befalia OS · reads &amp; logs to your Notion, live · deeper edits &amp; agents on desktop</footer>
+</main>
 
 <script>
-const PAGES = {
-  goals: '3a3eb411ed7a81ff8bceddada1bdc996',
-  learning: '3a2eb411ed7a81b48113ff7926d9107e',
-  journal: '39eeb411ed7a81fcba99efa6066168b7',
-  recap: '3a2eb411ed7a8130a6b1c75fd3817995'
+/* ---------- Notion page IDs (same as desktop) ---------- */
+const P = {
+  root:'39deb411ed7a8190bc40d4d89998ad58',
+  goals:'3a3eb411ed7a81ff8bceddada1bdc996',
+  learning:'3a2eb411ed7a81b48113ff7926d9107e',
+  journal:'39eeb411ed7a81fcba99efa6066168b7',
+  recap:'3a2eb411ed7a8130a6b1c75fd3817995',
+  done:'3a2eb411ed7a81e7ab88f418e6a408a4',
+  hReports:'3a2eb411ed7a81ae8033c6502415e2da',
+  hProfile:'3a2eb411ed7a81dfb078f88afc9d8a3c',
+  diet:'3a1eb411ed7a81a7a25bef2da2efe75d',
+  connections:'3a2eb411ed7a81919ba0c70f35ee974b',
+  friends:'3a2eb411ed7a81f89789e1a2df267ee3',
+  family:'3a2eb411ed7a81398b04e61062b876f7',
+  personality:'3a2eb411ed7a81d694b7d9b1dbaa32f6',
+  room:'3a2eb411ed7a813982d2c5b20f4871b5',
+  finance:'3a2eb411ed7a814abbaac4cf8a05c80f',
+  social:'3a1eb411ed7a81dca2c4f1f711083f41',
+  smIdeas:'3a3eb411ed7a81db81fad03bc31258cd',
+  smMoney:'3a3eb411ed7a81af8db0ee520467b0fc',
+  smIG:'3a1eb411ed7a810cbbd4efd16b9126c6',
+  smTT:'3a1eb411ed7a818bbf95e9d85f8d3ea7',
+  smYT:'3a1eb411ed7a818f9c21f5f7737d3fac',
+  agentHQ:'3a3eb411ed7a813ebc78d6a6611186f3'
 };
+const CHIEF_CHAT={Pearl:'3a3eb411ed7a813296f1e7604b075261',Compass:'3a3eb411ed7a81208888ec8f56c38c58',Coral:'3a3eb411ed7a8139acb1fbb05a9f6a1a',Sage:'3a3eb411ed7a81c7ad57c638186baff7',Amara:'3a3eb411ed7a817ea370f6cc374aae8c',Ledger:'3a3eb411ed7a81e5bff8c5618dabe43b',Marlin:'3a3eb411ed7a8120a51eedf9e8e58fc7',Keeper:'3a3eb411ed7a81f3b439fa7618396a98',Sentinel:'3a3eb411ed7a81e7a141cf6f107e1e89'};
+
+/* ---------- helpers ---------- */
 function api(payload){return fetch('/api/notion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(r){return r.json();});}
 function esc(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function today(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-function mdLink(s){var m=s.match(/\[([^\]]+)\]\(([^)]+)\)/);if(m){var u=m[2];if(/^https?:\/\//.test(u))return {title:m[1],url:u};}return {title:s,url:''};}
+function notion(id){return 'https://www.notion.so/'+id.replace(/-/g,'');}
+function inl(s){
+  s=esc(s);
+  s=s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,function(m,a,b){return /^https?:\/\//.test(b)?('<a href="'+b+'" target="_blank" rel="noopener">'+a+'</a>'):a;});
+  s=s.replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>');
+  return s;
+}
+// render an array of Notion lines as clean cards content
+function renderLines(lines,max){
+  if(!lines||!lines.length)return '<div class="hint">Nothing here yet.</div>';
+  var out='';var n=0;
+  for(var i=0;i<lines.length && n<(max||40);i++){
+    var l=lines[i];if(!l)continue;n++;
+    if(l.indexOf('## ')===0)out+='<div class="h">'+inl(l.slice(3))+'</div>';
+    else if(l.indexOf('# ')===0)out+='<div class="h" style="color:var(--aqua2)">'+inl(l.slice(2))+'</div>';
+    else if(l.indexOf('- ')===0)out+='<div class="li">'+inl(l.slice(2))+'</div>';
+    else if(l.indexOf('[x] ')===0)out+='<div class="li" style="opacity:.6">✓ '+inl(l.slice(4))+'</div>';
+    else if(l.indexOf('[ ] ')===0)out+='<div class="li">'+inl(l.slice(4))+'</div>';
+    else if(l.indexOf('> ')===0)out+='<div class="p" style="font-style:italic">'+inl(l.slice(2))+'</div>';
+    else out+='<div class="p">'+inl(l)+'</div>';
+  }
+  return out;
+}
+function card(title,inner,openId,openLabel){
+  return '<div class="card"><h2>'+title+(openId?'<a class="r" href="'+notion(openId)+'" target="_blank" rel="noopener">'+(openLabel||'Open')+' →</a>':'')+'</h2>'+inner+'</div>';
+}
 
-// Capture
-document.getElementById('cap-btn').onclick = function(){
-  var box=document.getElementById('cap'); var v=(box.value||'').trim();
-  var st=document.getElementById('cap-status'); if(!v){st.textContent='Write something first.';return;}
-  var btn=document.getElementById('cap-btn'); btn.disabled=true; st.textContent='Saving…';
-  var title=today()+' · '+v.split(/\s+/).slice(0,6).join(' ');
-  api({action:'capture',pageId:PAGES.journal,title:title,text:v}).then(function(d){
-    if(d.ok){st.textContent='Saved to your Journal ✓'; box.value='';}
-    else{st.textContent='Could not save: '+(d.error||'error');}
-    btn.disabled=false;
-  }).catch(function(){st.textContent='Network error — try again.'; btn.disabled=false;});
-};
+/* ---------- tabs ---------- */
+const TABS=[['home','Home'],['health','Health'],['bonds','Relationship'],['me','About Me'],['money','Finance'],['social','Social'],['agents','Agents']];
+const LOADED={};
+function buildTabs(){
+  var bar=document.getElementById('tabs');
+  TABS.forEach(function(t,i){
+    var b=document.createElement('button');b.className='tab'+(i===0?' active':'');b.textContent=t[1];
+    b.onclick=function(){
+      document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});b.classList.add('active');
+      document.querySelectorAll('.pane').forEach(function(x){x.classList.remove('active');});
+      document.getElementById('tab-'+t[0]).classList.add('active');
+      window.scrollTo(0,0);
+      if(!LOADED[t[0]]){LOADED[t[0]]=true;LOADERS[t[0]]();}
+    };
+    bar.appendChild(b);
+  });
+}
 
-// Goals
-api({action:'read',pageId:PAGES.goals}).then(function(d){
-  var el=document.getElementById('goals'); var lines=(d.lines||[]);
-  if(d.error){el.innerHTML='<div class="hint">'+esc(d.error)+'</div>';return;}
-  function grab(re){for(var i=0;i<lines.length;i++){if(re.test(lines[i])){for(var j=i+1;j<lines.length;j++){var s=lines[j].replace(/^[#>*\-\s]+/,'').trim();if(s){if(/^\(/.test(s))return '';return s;}}return '';}}return '';}
-  var main=grab(/main goal/i), y=grab(/2026 goal/i);
-  el.innerHTML='<div class="goal"><span class="tag">LIFE</span><span>'+(main?esc(main):'<span style="color:var(--dim)">set on desktop</span>')+'</span></div>'+
-               '<div class="goal"><span class="tag y">2026</span><span>'+(y?esc(y):'<span style="color:var(--dim)">set on desktop</span>')+'</span></div>';
-}).catch(function(){document.getElementById('goals').innerHTML='<div class="hint">Could not load.</div>';});
+/* ---------- HOME ---------- */
+function loadHome(){
+  var el=document.getElementById('tab-home');
+  el.innerHTML=
+    card('🖊️ Capture','<div class="blurb">Anything on your mind — saves to your Journal in Notion, dated.</div><textarea id="cap" rows="3" placeholder="Take your time…"></textarea><button class="btn" id="cap-btn">Save to Notion</button><div class="status" id="cap-status"></div>')+
+    card('🌟 North Star','<div id="goals" class="loading">Loading…</div>',P.goals,'Edit')+
+    card('♻️ Resurface<button class="r" id="res-btn" style="border:0;background:none">↻ Another</button>','<div id="res" class="loading">Loading…</div>')+
+    card('💡 Today\'s takeaways','<div id="recap" class="loading">Loading…</div>',P.recap,'All')+
+    card('✅ Recently done','<div id="done" class="loading">Loading…</div>',P.done,'All');
 
-// Resurface
+  document.getElementById('cap-btn').onclick=function(){
+    var box=document.getElementById('cap'),v=(box.value||'').trim(),st=document.getElementById('cap-status');
+    if(!v){st.textContent='Write something first.';return;}
+    var btn=document.getElementById('cap-btn');btn.disabled=true;st.textContent='Saving…';
+    api({action:'capture',pageId:P.journal,title:today()+' · '+v.split(/\s+/).slice(0,6).join(' '),text:v}).then(function(d){
+      if(d.ok){st.textContent='Saved to your Journal ✓';box.value='';}else{st.textContent='Could not save: '+(d.error||'error');}
+      btn.disabled=false;
+    }).catch(function(){st.textContent='Network error.';btn.disabled=false;});
+  };
+
+  api({action:'read',pageId:P.goals}).then(function(d){
+    var lines=d.lines||[];
+    function grab(re){for(var i=0;i<lines.length;i++){if(re.test(lines[i])){for(var j=i+1;j<lines.length;j++){var s=lines[j].replace(/^[#>*\-\s]+/,'').trim();if(s){return /^\(/.test(s)?'':s;}}return '';}}return '';}
+    var m=grab(/main goal/i),y=grab(/2026 goal/i);
+    document.getElementById('goals').innerHTML=
+      '<div class="goal"><span class="tag">LIFE</span><span>'+(m?esc(m):'<span style="color:var(--dim)">set on desktop</span>')+'</span></div>'+
+      '<div class="goal"><span class="tag y">2026</span><span>'+(y?esc(y):'<span style="color:var(--dim)">set on desktop</span>')+'</span></div>';
+  });
+
+  api({action:'read',pageId:P.learning}).then(function(d){
+    var t=today();
+    RES=(d.lines||[]).filter(function(l){return /^-\s*\d{4}-\d{2}-\d{2}/.test(l)&&l.replace(/^[-*]\s*/,'').indexOf(t)!==0;});
+    renderRes();
+  });
+  document.getElementById('res-btn').onclick=renderRes;
+
+  api({action:'read',pageId:P.recap}).then(function(d){
+    var b=(d.lines||[]).slice(0,6).map(function(l){return inl(l.replace(/^#\s*/,''));}).join('<br>');
+    document.getElementById('recap').innerHTML=b?('<div class="p">'+b+'</div>'):'<div class="hint">Appears after you log learning.</div>';
+  });
+  api({action:'read',pageId:P.done}).then(function(d){
+    document.getElementById('done').innerHTML=renderLines(d.lines,8);
+  });
+}
 var RES=[];
 function renderRes(){
-  var el=document.getElementById('res');
-  if(!RES.length){el.innerHTML='<div class="hint">Notes will resurface here once you have a few.</div>';return;}
-  var l=RES[Math.floor(Math.random()*RES.length)];
-  var s=l.replace(/^[-*]\s*/,''); var dm=s.match(/^(\d{4}-\d{2}-\d{2})/); var date=dm?dm[1]:'';
+  var el=document.getElementById('res');if(!el)return;
+  if(!RES.length){el.innerHTML='<div class="hint">Notes resurface here once you have a few.</div>';return;}
+  var l=RES[Math.floor(Math.random()*RES.length)],s=l.replace(/^[-*]\s*/,''),dm=s.match(/^(\d{4}-\d{2}-\d{2})/),date=dm?dm[1]:'';
   s=s.replace(/^\d{4}-\d{2}-\d{2}\s*·?\s*/,'');
-  var parts=s.split('‖'); var head=parts[0]||''; var takes=parts.slice(1).map(function(x){return x.trim();}).filter(function(x){return x && !/pending/i.test(x);});
-  var lk=mdLink(head); var seg=head.split('·'); var topic=(seg.length>1?seg[seg.length-1]:'').trim();
-  var ago='';
-  if(date){var diff=Math.round((Date.now()-new Date(date+'T00:00:00').getTime())/86400000);ago=diff<=0?'today':(diff===1?'yesterday':(diff<30?diff+' days ago':(diff<365?Math.round(diff/30)+' months ago':Math.round(diff/365)+' years ago')));}
+  var parts=s.split('‖'),head=parts[0]||'',takes=parts.slice(1).map(function(x){return x.trim();}).filter(function(x){return x&&!/pending/i.test(x);});
+  var hm=head.match(/\[([^\]]+)\]\(([^)]+)\)/),title=hm?hm[1]:head.split('·')[0].trim(),url=hm?hm[2]:'';
+  var seg=head.split('·'),topic=(seg.length>1?seg[seg.length-1]:'').trim();
+  var ago='';if(date){var diff=Math.round((Date.now()-new Date(date+'T00:00:00').getTime())/86400000);ago=diff<=0?'today':(diff===1?'yesterday':(diff<30?diff+' days ago':(diff<365?Math.round(diff/30)+' months ago':Math.round(diff/365)+' years ago')));}
   var take=takes.length?takes[Math.floor(Math.random()*takes.length)]:'';
   el.innerHTML='<div class="from">From your notes · '+esc(ago)+(topic&&!/pending/i.test(topic)?(' · '+esc(topic)):'')+'</div>'+
-               '<div class="title">'+(lk.url?('<a href="'+lk.url+'">'+esc(lk.title)+'</a>'):esc(lk.title))+'</div>'+
-               (take?('<div class="take">'+esc(take)+'</div>'):'');
+    '<div class="title">'+(/^https?:/.test(url)?('<a href="'+url+'" target="_blank" rel="noopener">'+esc(title)+'</a>'):esc(title))+'</div>'+
+    (take?('<div class="p">'+esc(take)+'</div>'):'');
 }
-document.getElementById('res-btn').onclick=renderRes;
-api({action:'read',pageId:PAGES.learning}).then(function(d){
-  var lines=(d.lines||[]); var t=today();
-  RES=lines.filter(function(l){return /^-\s*\d{4}-\d{2}-\d{2}/.test(l) && l.replace(/^[-*]\s*/,'').indexOf(t)!==0;});
-  renderRes();
-}).catch(function(){document.getElementById('res').innerHTML='<div class="hint">Could not load.</div>';});
 
-// Recap
-api({action:'read',pageId:PAGES.recap}).then(function(d){
-  var el=document.getElementById('recap'); var lines=(d.lines||[]);
-  var body=lines.slice(0,8).map(function(l){return esc(l.replace(/^#\s*/,''));}).join('<br>');
-  el.innerHTML= body ? ('<div class="take">'+body+'</div>') : '<div class="hint">Your recap appears here after you log some learning.</div>';
-}).catch(function(){document.getElementById('recap').innerHTML='<div class="hint">Could not load.</div>';});
+/* ---------- generic single-page tab ---------- */
+function simpleTab(paneId,cards){
+  var el=document.getElementById(paneId);
+  el.innerHTML=cards.map(function(c){return card(c.title,'<div id="'+c.slot+'" class="loading">Loading…</div>',c.open,c.openLabel);}).join('');
+  cards.forEach(function(c){
+    api({action:'read',pageId:c.id}).then(function(d){
+      document.getElementById(c.slot).innerHTML=renderLines(d.lines,c.max||24);
+    }).catch(function(){document.getElementById(c.slot).innerHTML='<div class="hint">Could not load.</div>';});
+  });
+}
 
+/* ---------- HEALTH ---------- */
+function loadHealth(){
+  simpleTab('tab-health',[
+    {title:'🩺 Health assessment',id:P.hReports,slot:'h-rep',open:P.hReports,openLabel:'All reports',max:20},
+    {title:'🌿 Health profile',id:P.hProfile,slot:'h-prof',open:P.hProfile,max:16},
+    {title:'🥗 Today\'s food',id:P.diet,slot:'h-diet',open:P.diet,openLabel:'Diet log',max:10}
+  ]);
+}
+/* ---------- RELATIONSHIP ---------- */
+function loadBonds(){
+  var el=document.getElementById('tab-bonds');
+  el.innerHTML='<div class="blurb" style="margin:6px 4px 10px">Private. People and chapters — full notes and journaling open in the Notion app.</div>'+
+    card('💗 Love','<div id="b-love" class="loading">Loading…</div>',P.connections,'Open')+
+    card('🤝 Friendship','<div id="b-fr" class="loading">Loading…</div>',P.friends,'Open')+
+    card('👪 Family','<div id="b-fam" class="loading">Loading…</div>',P.family,'Open');
+  [['b-love',P.connections],['b-fr',P.friends],['b-fam',P.family]].forEach(function(x){
+    api({action:'childPages',pageId:x[1]}).then(function(d){
+      var pages=d.pages||[];
+      document.getElementById(x[0]).innerHTML = pages.length?
+        pages.map(function(p){return '<div class="li"><a href="'+notion(p.id)+'" target="_blank" rel="noopener" style="color:var(--aqua);text-decoration:none">'+esc(p.title)+'</a></div>';}).join('')
+        : '<div class="hint">No one added yet. Add people on desktop.</div>';
+    }).catch(function(){document.getElementById(x[0]).innerHTML='<div class="hint">Could not load.</div>';});
+  });
+}
+/* ---------- ABOUT ME ---------- */
+function loadMe(){
+  var el=document.getElementById('tab-me');
+  el.innerHTML=
+    card('🪩 Personality synthesis','<div id="me-pers" class="loading">Loading…</div>',P.personality,'Full')+
+    card('👑 My Room','<div id="me-room" class="loading">Loading…</div>',P.room,'Open')+
+    card('📓 Journals & about me','<div class="p">Your daily journals, BEFALIA journal and trackers live in Notion.</div><div class="links"><a href="'+notion(P.journal)+'" target="_blank" rel="noopener">Journal</a><a href="'+notion(P.personality)+'" target="_blank" rel="noopener">My Personality</a></div>');
+  api({action:'read',pageId:P.personality}).then(function(d){document.getElementById('me-pers').innerHTML=renderLines(d.lines,60);});
+  api({action:'childPages',pageId:P.room}).then(function(d){
+    var pages=d.pages||[];
+    document.getElementById('me-room').innerHTML=pages.length?pages.map(function(p){return '<div class="li"><a href="'+notion(p.id)+'" target="_blank" rel="noopener" style="color:var(--aqua);text-decoration:none">'+esc(p.title)+'</a></div>';}).join(''):'<div class="hint">Your achievements live here.</div>';
+  }).catch(function(){document.getElementById('me-room').innerHTML='<div class="hint">Could not load.</div>';});
+}
+/* ---------- FINANCE ---------- */
+function loadMoney(){
+  simpleTab('tab-money',[{title:'💰 Personal finance',id:P.finance,slot:'mn',open:P.finance,openLabel:'Open',max:40}]);
+}
+/* ---------- SOCIAL ---------- */
+function loadSocial(){
+  var el=document.getElementById('tab-social');
+  el.innerHTML=
+    card('📣 Accounts','<div class="links"><a href="https://instagram.com/befalia" target="_blank" rel="noopener">Instagram</a><a href="https://www.tiktok.com/@befalia" target="_blank" rel="noopener">TikTok</a><a href="https://www.tiktok.com/@seadiva.official" target="_blank" rel="noopener">Sea Diva TT</a></div>')+
+    card('🎬 Content studio','<div class="blurb">Drop an idea — it files to your Content Ideas in Notion for the Creator agent.</div><input id="sm-idea" placeholder="e.g. mermaid tail care"><button class="btn sec" id="sm-idea-btn" style="margin-top:8px">Save idea</button><div class="status" id="sm-idea-st"></div>',P.smIdeas,'Ideas')+
+    card('💵 Monetization plan','<div id="sm-money" class="loading">Loading…</div>',P.smMoney,'Full')+
+    card('📊 Monthly numbers','<div class="blurb">Log per platform (no live analytics on phone).</div><div class="links"><a href="'+notion(P.smIG)+'" target="_blank" rel="noopener">Instagram</a><a href="'+notion(P.smTT)+'" target="_blank" rel="noopener">TikTok</a><a href="'+notion(P.smYT)+'" target="_blank" rel="noopener">YouTube</a></div>');
+  api({action:'read',pageId:P.smMoney}).then(function(d){document.getElementById('sm-money').innerHTML=renderLines(d.lines,30);});
+  document.getElementById('sm-idea-btn').onclick=function(){
+    var v=(document.getElementById('sm-idea').value||'').trim(),st=document.getElementById('sm-idea-st');if(!v)return;
+    st.textContent='Saving…';
+    api({action:'append',pageId:P.smIdeas,text:today()+' · '+v+' (from phone — draft on desktop)'}).then(function(d){
+      st.textContent=d.ok?'Saved to Content Ideas ✓':'Could not save.';if(d.ok)document.getElementById('sm-idea').value='';
+    }).catch(function(){st.textContent='Network error.';});
+  };
+}
+/* ---------- AGENTS ---------- */
+const ORG=[
+ {ic:'🦪',name:'Pearl',role:'COO — orchestration'},
+ {ic:'🎯',name:'Compass',role:'Chief of Staff — your day'},
+ {ic:'🌿',name:'Coral',role:'Health'},
+ {ic:'🧠',name:'Sage',role:'Learning'},
+ {ic:'💗',name:'Amara',role:'Relationships'},
+ {ic:'💰',name:'Ledger',role:'Finance'},
+ {ic:'📣',name:'Marlin',role:'Social'},
+ {ic:'🏛️',name:'Keeper',role:'Memory'},
+ {ic:'🛡️',name:'Sentinel',role:'Quality'}
+];
+function loadAgents(){
+  var el=document.getElementById('tab-agents');
+  el.innerHTML='<div class="blurb" style="margin:6px 4px 10px">Message a chief; a reply lands when your chiefs run (ask on desktop, or they answer on a schedule).</div>'+
+    ORG.map(function(a){
+      var chat=CHIEF_CHAT[a.name];
+      return '<div class="card"><h2><span>'+a.ic+'</span>'+a.name+'<span class="r" style="color:var(--dim)">'+esc(a.role)+'</span></h2>'+
+        (chat?('<div class="row"><input id="ag-'+a.name+'" placeholder="Message '+a.name+'…"><button class="btn sec" style="width:auto;margin:0;padding:12px 16px" data-who="'+a.name+'" data-chat="'+chat+'">Send</button></div><div class="status" id="agst-'+a.name+'"></div><div class="links" style="margin-top:8px"><a href="'+notion(chat)+'" target="_blank" rel="noopener">Thread</a></div>'):'')+
+        '</div>';
+    }).join('')+
+    card('🏛️ Org & identity files','<div class="p">Full company structure and every agent\'s identity file.</div><div class="links"><a href="'+notion(P.agentHQ)+'" target="_blank" rel="noopener">Open Agent HQ</a></div>');
+  el.querySelectorAll('[data-who]').forEach(function(btn){
+    btn.onclick=function(){
+      var who=btn.getAttribute('data-who'),chat=btn.getAttribute('data-chat');
+      var inp=document.getElementById('ag-'+who),st=document.getElementById('agst-'+who),v=(inp.value||'').trim();
+      if(!v)return;st.textContent='Sending…';
+      var d=new Date(),stamp=(d.getMonth()+1)+'-'+d.getDate()+' '+d.toTimeString().slice(0,5);
+      api({action:'append',pageId:chat,text:'[You · '+stamp+'] '+v}).then(function(r){
+        st.textContent=r.ok?'Sent to '+who+' ✓ — reply when the chiefs run':'Could not send.';if(r.ok)inp.value='';
+      }).catch(function(){st.textContent='Network error.';});
+    };
+  });
+}
+
+const LOADERS={home:loadHome,health:loadHealth,bonds:loadBonds,me:loadMe,money:loadMoney,social:loadSocial,agents:loadAgents};
+
+buildTabs();
+LOADED.home=true;loadHome();
 if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){});}
 </script>
 </body>
