@@ -272,13 +272,13 @@ function __flushUndo(){__undoScheduled=false;if(!__pendingUndo.length)return;__u
 function reloadStateVars(){
   try{sleepLog=LS.get('plos_sleep',{});}catch(e){}
   try{weightLog=LS.get('plos_weightlog',{});}catch(e){}
-  try{bodyWeight=LS.get('plos_weight',bodyWeight);}catch(e){}
-  try{bodyHeight=LS.get('plos_height',bodyHeight);}catch(e){}
+  try{bodyWeight=LS.get('plos_weight',null);}catch(e){}
+  try{bodyHeight=LS.get('plos_height',null);}catch(e){}
   try{workoutLog=LS.get('plos_workout',{});}catch(e){}
   try{suppLog=LS.get('plos_supp',{});}catch(e){}
   try{periods=LS.get('plos_periods',[]);}catch(e){}
-  try{board=LS.get('plos_board',board);}catch(e){}
-  try{gratitude=LS.get('plos_gratitude',gratitude);}catch(e){}
+  try{board=LS.get('plos_board',{personal:[],divearts:[],seadiva:[]});}catch(e){}
+  try{gratitude=LS.get('plos_gratitude',{});}catch(e){}
 }
 function __showUndoBar(){var b=document.getElementById('undobar');if(!b){b=document.createElement('div');b.id='undobar';b.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 16px);z-index:999;background:rgba(10,30,48,.92);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:14px;padding:10px 12px 10px 16px;display:flex;align-items:center;gap:14px;font-size:13px;color:var(--ink);box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;transition:opacity .2s;pointer-events:none;';document.body.appendChild(b);}
   b.innerHTML='<span>Saved</span><button id="undo-btn" style="background:var(--aqua,#67d3e6);color:#062033;border:0;border-radius:9px;padding:7px 14px;font-size:13px;font-weight:700">Undo</button>';
