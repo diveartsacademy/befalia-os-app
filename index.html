@@ -88,6 +88,7 @@
   .goal-slot{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--ink);line-height:1.4;margin-top:8px;}
   .goal-tag{font-size:9.5px;font-weight:700;letter-spacing:.5px;color:var(--bg);background:var(--aqua);border-radius:5px;padding:2px 6px;margin-top:1px;flex:none;}
   .goal-tag.y26{background:var(--aqua2);}
+  .goal-tag.y27{background:var(--aquasoft);}
   .goal-empty{color:var(--dim);font-style:italic;}
   .sm-links{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
   .sm-links a{font-size:12px;font-weight:600;color:var(--aqua);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:6px 12px;}
@@ -528,10 +529,11 @@ function wireLearnFocus(){const inp=document.getElementById('learn-focus');const
 async function loadGoals(){const body=document.getElementById('goals-body');if(!body)return;try{const d=await fetchNotion(GOALS_ID);const c=extractContent(d.text||'');
   const lines=c.split('\n');
   const grab=(re)=>{for(let i=0;i<lines.length;i++){if(re.test(lines[i])){for(let j=i+1;j<lines.length;j++){const s=lines[j].replace(/^[#>*\-\s]+/,'').trim();if(s){if(/^\(/.test(s))return '';return s;}}return '';}}return '';};
-  const main=grab(/main goal/i);const y=grab(/2026 goal/i);
+  const main=grab(/main goal/i);const y=grab(/2026 goal/i);const y27=grab(/2027 goal/i);
   let html='';
   html+='<div class="goal-slot"><span class="goal-tag">LIFE</span><span>'+(main?escapeHtml(main):'<span class="goal-empty">Tell me your one main goal and I\'ll set it</span>')+'</span></div>';
   html+='<div class="goal-slot"><span class="goal-tag y26">2026</span><span>'+(y?escapeHtml(y):'<span class="goal-empty">Tell me your 2026 goal and I\'ll set it</span>')+'</span></div>';
+  if(y27)html+='<div class="goal-slot"><span class="goal-tag y27">2027</span><span>'+escapeHtml(y27)+'</span></div>';
   html+='<div class="note-hint" style="margin-top:10px">Everything in your OS should serve these. Your Sunday review checks whether your week matched them.</div>';
   body.className='';body.innerHTML=html;}catch(e){body.className='err';body.textContent='Could not load goals.';}}
 const CHIEF_ICON={Pearl:'🦪',Compass:'🎯',Coral:'🌿',Sage:'🧠',Amara:'💗',Ledger:'💰',Marlin:'📣',Keeper:'🏛️',Sentinel:'🛡️'};
