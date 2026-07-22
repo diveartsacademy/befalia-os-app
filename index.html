@@ -269,7 +269,17 @@ const UNDO_RENDER={plos_sleep:'renderSleep',plos_weightlog:'renderBody',plos_wei
 const __origLSset=LS.set;
 LS.set=function(k,v){try{if(__UNDO_READY&&Object.prototype.hasOwnProperty.call(UNDO_RENDER,k)){var raw=localStorage.getItem(k);__pendingUndo.push({key:k,prev:raw});if(!__undoScheduled){__undoScheduled=true;Promise.resolve().then(__flushUndo);}}}catch(e){}return __origLSset.call(LS,k,v);};
 function __flushUndo(){__undoScheduled=false;if(!__pendingUndo.length)return;__undoStack.push(__pendingUndo.slice());__pendingUndo=[];if(__undoStack.length>25)__undoStack.shift();__showUndoBar();}
-function reloadStateVars(){var m=[['sleepLog','plos_sleep',{}],['weightLog','plos_weightlog',{}],['bodyWeight','plos_weight',null],['workoutLog','plos_workout',{}],['suppLog','plos_supp',{}],['periods','plos_periods',[]],['board','plos_board',null],['gratitude','plos_gratitude',null]];m.forEach(function(x){try{if(typeof window[x[0]]!=='undefined'||true){eval(x[0]+'=LS.get("'+x[1]+'",'+JSON.stringify(x[2])+')');}}catch(e){}});}
+function reloadStateVars(){
+  try{sleepLog=LS.get('plos_sleep',{});}catch(e){}
+  try{weightLog=LS.get('plos_weightlog',{});}catch(e){}
+  try{bodyWeight=LS.get('plos_weight',bodyWeight);}catch(e){}
+  try{bodyHeight=LS.get('plos_height',bodyHeight);}catch(e){}
+  try{workoutLog=LS.get('plos_workout',{});}catch(e){}
+  try{suppLog=LS.get('plos_supp',{});}catch(e){}
+  try{periods=LS.get('plos_periods',[]);}catch(e){}
+  try{board=LS.get('plos_board',board);}catch(e){}
+  try{gratitude=LS.get('plos_gratitude',gratitude);}catch(e){}
+}
 function __showUndoBar(){var b=document.getElementById('undobar');if(!b){b=document.createElement('div');b.id='undobar';b.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 16px);z-index:999;background:rgba(10,30,48,.92);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:14px;padding:10px 12px 10px 16px;display:flex;align-items:center;gap:14px;font-size:13px;color:var(--ink);box-shadow:0 8px 30px rgba(0,0,0,.4);opacity:0;transition:opacity .2s;pointer-events:none;';document.body.appendChild(b);}
   b.innerHTML='<span>Saved</span><button id="undo-btn" style="background:var(--aqua,#67d3e6);color:#062033;border:0;border-radius:9px;padding:7px 14px;font-size:13px;font-weight:700">Undo</button>';
   b.style.opacity='1';b.style.pointerEvents='auto';clearTimeout(window.__undoT);window.__undoT=setTimeout(function(){b.style.opacity='0';b.style.pointerEvents='none';},9000);
