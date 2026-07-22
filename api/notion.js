@@ -1,90 +1,130 @@
-// Secure Notion proxy — runs on Vercel. Holds the Notion token server-side (env var),
-// so the phone app never sees it and Notion's browser (CORS) block is bypassed.
+// Secure Notion proxy for the phone. Holds the Notion token server-side (env var).
+// Two protocols:
+//   (A) MCP-emulation: { name, args } — mirrors the dashboard's Cowork connector so the SAME dashboard code runs on the phone.
+//   (B) Simple actions: { action, ... } — kept for the earlier phone build during transition.
 export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).json({ error: 'POST only' }); return; }
   const token = process.env.NOTION_TOKEN;
   if (!token) { res.status(500).json({ error: 'NOTION_TOKEN env var is not set in Vercel' }); return; }
-
+  const H = { 'Authorization': 'Bearer ' + token, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' };
   const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-  const { action, pageId, title, text, query } = body;
-  const H = {
-    'Authorization': 'Bearer ' + token,
-    'Notion-Version': '2022-06-28',
-    'Content-Type': 'application/json'
-  };
 
   try {
-    if (action === 'read') {
-      const lines = await readPage(pageId, H);
-      res.status(200).json({ lines });
-      return;
+    // ---------- (A) MCP emulation ----------
+    if (body.name) {
+      const name = body.name, a = body.args || {};
+      if (name.indexOf('notion-fetch') !== -1) {
+        const text = await fetchPageText(a.id, H);
+        res.status(200).json({ text }); return;
+      }
+      if (name.indexOf('notion-create-pages') !== -1) {
+        const parentId = (a.parent && (a.parent.page_id || a.parent.pageId)) || a.parent;
+        const out = [];
+        for (const p of (a.pages || [])) {
+          const title = (p.properties && p.properties.title) || p.title || 'Untitled';
+          const r = await fetch('https://api.notion.com/v1/pages', { method: 'POST', headers: H, body: JSON.stringify({
+            parent: { page_id: parentId },
+            properties: { title: { title: [{ text: { content: String(title) } }] } },
+            children: contentToBlocks(p.content || '')
+          }) });
+          const d = await r.json();
+          if (d.object !== 'error') out.push({ id: d.id, url: d.url });
+        }
+        res.status(200).json({ pages: out }); return;
+      }
+      if (name.indexOf('notion-update-page') !== -1) {
+        const id = a.page_id || a.pageId, cmd = a.command;
+        if (cmd === 'update_properties') {
+          const title = a.properties && a.properties.title;
+          if (title != null) await fetch('https://api.notion.com/v1/pages/' + id, { method: 'PATCH', headers: H, body: JSON.stringify({ properties: { title: { title: [{ text: { content: String(title) } }] } } }) });
+          res.status(200).json({ ok: true }); return;
+        }
+        if (cmd === 'replace_content') {
+          await clearChildren(id, H);
+          await appendBlocks(id, contentToBlocks(a.new_str || a.content || ''), H);
+          res.status(200).json({ ok: true }); return;
+        }
+        // insert_content (start or end). Notion's public API can only append; 'start' entries land at the end for now.
+        await appendBlocks(id, contentToBlocks(a.content || ''), H);
+        res.status(200).json({ ok: true, note: (a.position && a.position.type === 'start') ? 'appended (api cannot prepend)' : 'appended' }); return;
+      }
+      if (name.indexOf('list_events') !== -1) { res.status(200).json({ events: [] }); return; }
+      res.status(200).json({ ok: true }); return;
     }
-    if (action === 'readMulti') {
-      // pageId is an array; returns { <id>: [lines] }
-      const ids = Array.isArray(pageId) ? pageId : [pageId];
-      const out = {};
-      await Promise.all(ids.map(async function (id) { out[id] = await readPage(id, H).catch(function () { return []; }); }));
-      res.status(200).json({ pages: out });
-      return;
-    }
+
+    // ---------- (B) simple actions (legacy) ----------
+    const { action, pageId, title, text } = body;
+    if (action === 'read') { const lines = (await fetchPageText(pageId, H)).replace(/^<content>\n?|\n?<\/content>$/g, '').split('\n').filter(Boolean); res.status(200).json({ lines }); return; }
     if (action === 'childPages') {
-      // returns child sub-pages of a page: [{id,title}]
       const r = await fetch('https://api.notion.com/v1/blocks/' + pageId + '/children?page_size=100', { headers: H });
-      const d = await r.json();
-      if (d.object === 'error') { res.status(400).json({ error: d.message }); return; }
-      const pages = (d.results || []).filter(function (b) { return b.type === 'child_page'; })
-        .map(function (b) { return { id: b.id, title: (b.child_page && b.child_page.title) || 'Untitled' }; });
-      res.status(200).json({ pages });
-      return;
+      const d = await r.json(); if (d.object === 'error') { res.status(400).json({ error: d.message }); return; }
+      const pages = (d.results || []).filter(function (b) { return b.type === 'child_page'; }).map(function (b) { return { id: b.id, title: (b.child_page && b.child_page.title) || 'Untitled' }; });
+      res.status(200).json({ pages }); return;
     }
     if (action === 'capture') {
-      const r = await fetch('https://api.notion.com/v1/pages', {
-        method: 'POST', headers: H,
-        body: JSON.stringify({
-          parent: { page_id: pageId },
-          properties: { title: { title: [{ text: { content: (title || 'Journal') } }] } },
-          children: [{ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ text: { content: (text || '') } }] } }]
-        })
-      });
-      const d = await r.json();
-      if (d.object === 'error') { res.status(400).json({ error: d.message }); return; }
-      res.status(200).json({ ok: true, url: d.url });
-      return;
+      const r = await fetch('https://api.notion.com/v1/pages', { method: 'POST', headers: H, body: JSON.stringify({ parent: { page_id: pageId }, properties: { title: { title: [{ text: { content: (title || 'Journal') } }] } }, children: [{ object: 'block', type: 'paragraph', paragraph: { rich_text: [{ text: { content: (text || '') } }] } }] }) });
+      const d = await r.json(); if (d.object === 'error') { res.status(400).json({ error: d.message }); return; }
+      res.status(200).json({ ok: true, url: d.url }); return;
     }
-    if (action === 'append') {
-      // add a bullet line to the TOP of a page (used for chief chat / social ideas / focus)
-      const r = await fetch('https://api.notion.com/v1/blocks/' + pageId + '/children', {
-        method: 'PATCH', headers: H,
-        body: JSON.stringify({ children: [{ object: 'block', type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ text: { content: (text || '') } }] } }] })
-      });
-      const d = await r.json();
-      if (d.object === 'error') { res.status(400).json({ error: d.message }); return; }
-      res.status(200).json({ ok: true });
-      return;
-    }
-    res.status(400).json({ error: 'unknown action' });
-  } catch (e) {
-    res.status(500).json({ error: String(e) });
-  }
+    if (action === 'append') { await appendBlocks(pageId, [{ object: 'block', type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ text: { content: (text || '') } }] } }], H); res.status(200).json({ ok: true }); return; }
+    res.status(400).json({ error: 'unknown request' });
+  } catch (e) { res.status(500).json({ error: String(e) }); }
 }
 
-async function readPage(pageId, H) {
-  const r = await fetch('https://api.notion.com/v1/blocks/' + pageId + '/children?page_size=100', { headers: H });
+async function fetchPageText(id, H) {
+  const r = await fetch('https://api.notion.com/v1/blocks/' + id + '/children?page_size=100', { headers: H });
   const d = await r.json();
   if (d.object === 'error') throw new Error(d.message);
-  return (d.results || []).map(blockText).filter(function (s) { return s !== null && s !== undefined; });
+  let out = '<content>\n';
+  for (const b of (d.results || [])) {
+    const t = b.type, node = b[t] || {};
+    if (t === 'child_page') { out += '<page url="https://www.notion.so/' + (b.id || '').replace(/-/g, '') + '">' + ((b.child_page && b.child_page.title) || 'Untitled') + '</page>\n'; continue; }
+    const s = (node.rich_text || []).map(function (x) { return x.plain_text; }).join('');
+    if (t === 'code') { out += '```' + (node.language || '') + '\n' + s + '\n```\n'; continue; }
+    if (!s) continue;
+    if (t === 'heading_1') out += '# ' + s + '\n';
+    else if (t === 'heading_2' || t === 'heading_3') out += '## ' + s + '\n';
+    else if (t === 'bulleted_list_item' || t === 'numbered_list_item') out += '- ' + s + '\n';
+    else if (t === 'to_do') out += '- ' + (node.checked ? '[x] ' : '[ ] ') + s + '\n';
+    else if (t === 'quote' || t === 'callout') out += '> ' + s + '\n';
+    else out += s + '\n';
+  }
+  out += '</content>';
+  return out;
 }
 
-function blockText(b) {
-  const t = b.type;
-  const node = b[t] || {};
-  const rt = node.rich_text || [];
-  const s = rt.map(function (x) { return x.plain_text; }).join('');
-  if (t === 'child_page') return '## ' + ((b.child_page && b.child_page.title) || 'Untitled');
-  if (!s) return null;
-  if (t === 'bulleted_list_item' || t === 'numbered_list_item') return '- ' + s;
-  if (t === 'to_do') return (node.checked ? '[x] ' : '[ ] ') + s;
-  if (t === 'heading_1' || t === 'heading_2' || t === 'heading_3') return '# ' + s;
-  if (t === 'quote' || t === 'callout') return '> ' + s;
-  return s;
+function contentToBlocks(content) {
+  const lines = String(content || '').split('\n');
+  const blocks = []; let i = 0;
+  while (i < lines.length) {
+    let line = lines[i];
+    if (/^```/.test(line.trim())) { // code fence
+      const lang = line.trim().replace(/^```/, '').trim(); let code = []; i++;
+      while (i < lines.length && !/^```/.test(lines[i].trim())) { code.push(lines[i]); i++; }
+      i++;
+      blocks.push({ object: 'block', type: 'code', code: { rich_text: chunkRT(code.join('\n')), language: (lang || 'plain text') } });
+      continue;
+    }
+    if (line.trim() === '') { i++; continue; }
+    let type = 'paragraph', txt = line;
+    if (/^#\s/.test(line)) { type = 'heading_1'; txt = line.replace(/^#\s/, ''); }
+    else if (/^##\s/.test(line)) { type = 'heading_2'; txt = line.replace(/^##\s/, ''); }
+    else if (/^[-*]\s/.test(line)) { type = 'bulleted_list_item'; txt = line.replace(/^[-*]\s/, ''); }
+    const node = {}; node[type] = { rich_text: chunkRT(txt) };
+    blocks.push(Object.assign({ object: 'block', type: type }, node));
+    i++;
+  }
+  return blocks.length ? blocks : [{ object: 'block', type: 'paragraph', paragraph: { rich_text: [] } }];
+}
+// Notion rich_text has a 2000-char limit per item; chunk long strings.
+function chunkRT(s) { s = String(s || ''); const out = []; for (let i = 0; i < s.length; i += 1900) out.push({ text: { content: s.slice(i, i + 1900) } }); return out.length ? out : [{ text: { content: '' } }]; }
+
+async function appendBlocks(id, blocks, H) {
+  if (!blocks || !blocks.length) return;
+  await fetch('https://api.notion.com/v1/blocks/' + id + '/children', { method: 'PATCH', headers: H, body: JSON.stringify({ children: blocks }) });
+}
+async function clearChildren(id, H) {
+  const r = await fetch('https://api.notion.com/v1/blocks/' + id + '/children?page_size=100', { headers: H });
+  const d = await r.json(); if (d.object === 'error') return;
+  for (const b of (d.results || [])) { if (b.type !== 'child_page') { try { await fetch('https://api.notion.com/v1/blocks/' + b.id, { method: 'DELETE', headers: H }); } catch (e) {} } }
 }
