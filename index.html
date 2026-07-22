@@ -258,6 +258,7 @@ const UPDATE_TOOL="mcp__9ede63d4-9096-4f66-843e-00ab8101a9c1__notion-update-page
 const CAL_TOOL="mcp__03c3a937-c792-40f0-8a79-2880a69acf12__list_events";
 const DIET_LOG_ID='3a1eb411ed7a81a7a25bef2da2efe75d';
 const DAILY_LOG_ID='3a2eb411ed7a8181ba6ce96e90cdeb21';
+const CAL_CACHE_ID='3a5eb411ed7a81729e98c62a5e2fb7be';
 
 function escapeHtml(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
 function safeHref(u){u=(u||'').trim();return /^https?:\/\//i.test(u)?escapeHtml(u):'';}
@@ -400,7 +401,7 @@ function buildCommand(){
   const wrap=document.getElementById('command');
   const clk=document.createElement('div');clk.className='card wide';
   clk.innerHTML='<h2><span class="ic">🕐</span><span id="clock-time" style="font-family:var(--serif);font-size:26px;color:var(--aqua)">--:--</span><span id="clock-date" style="margin-left:12px;font-size:13px;color:var(--muted)"></span></h2><div data-body id="clock-events" class="loading">Loading your calendar…</div>';
-  wrap.appendChild(clk);tickClock();setInterval(tickClock,15000);loadClockEvents();
+  wrap.appendChild(clk);tickClock();setInterval(tickClock,15000);loadClockEvents();syncCalToNotion();
   const gl=document.createElement('div');gl.className='card feature';
   gl.innerHTML='<h2><span class="ic">🌟</span>North Star<button class="link-btn" id="goals-open" style="margin-left:auto">Edit →</button></h2><div class="blurb">Your one life goal and your 2026 goal. Everything else should point here.</div><div data-body id="goals-body" class="loading">Loading…</div>';
   wrap.appendChild(gl);document.getElementById('goals-open').onclick=()=>window.open('https://app.notion.com/p/'+GOALS_ID,'_blank');loadGoals();
@@ -466,6 +467,24 @@ async function loadPodPicks(){const body=document.getElementById('pod-picks');if
     if(ok){const li=e.target.closest('.todo');if(li){li.style.opacity='.4';e.target.textContent='✓';}}}});
 }catch(e){body.className='err';body.textContent='Could not load picks. Try Reload.';}}
 function tickClock(){const t=document.getElementById('clock-time');if(!t)return;const now=new Date();t.textContent=now.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'});const d=document.getElementById('clock-date');if(d)d.textContent=now.toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'});}
+async function syncCalToNotion(){
+  if(window.__PHONE__)return;
+  try{
+    const now=new Date();const end=new Date();end.setDate(end.getDate()+30);
+    const r=await window.cowork.callMcpTool(CAL_TOOL,{startTime:now.toISOString(),endTime:end.toISOString(),orderBy:'startTime',pageSize:25});
+    const data=r&&r.structuredContent?r.structuredContent:(r&&r.content&&r.content[0]?JSON.parse(r.content[0].text):r);
+    const events=(data&&data.events)||[];
+    const lines=events.map(function(e){
+      const d=(e.start&&(e.start.dateTime||e.start.date))||'';
+      const kind=(e.start&&e.start.date&&!e.start.dateTime)?'DATE':'TIME';
+      const sum=String(e.summary||'(no title)').replace(/\|/g,'/').replace(/\n/g,' ');
+      const link=e.htmlLink||'';
+      return d+'|'+kind+'|'+sum+'|'+link;
+    });
+    const body='Auto-synced from Google Calendar by the desktop dashboard. The phone app reads this. Do not edit by hand.\n\n'+lines.join('\n');
+    await window.cowork.callMcpTool(UPDATE_TOOL,{page_id:CAL_CACHE_ID,command:'replace_content',new_str:body});
+  }catch(e){}
+}
 async function loadClockEvents(){const body=document.getElementById('clock-events');if(!body)return;try{const now=new Date();const end=new Date();end.setDate(end.getDate()+7);const r=await window.cowork.callMcpTool(CAL_TOOL,{startTime:now.toISOString(),endTime:end.toISOString(),orderBy:'startTime',pageSize:6});let data=r&&r.structuredContent?r.structuredContent:(r&&r.content&&r.content[0]?JSON.parse(r.content[0].text):r);const events=(data&&data.events)||[];if(!events.length){body.className='';body.innerHTML='<div class="note-hint">Nothing on your calendar in the next 7 days.</div>';return;}let html='<ul class="notes">';events.slice(0,4).forEach(e=>{const s=e.start&&(e.start.dateTime||e.start.date);const dd=s?new Date(s):null;const allDay=!!(e.start&&e.start.date&&!e.start.dateTime);const when=dd?(allDay?dd.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric',timeZone:'Asia/Makassar'}):dd.toLocaleString(undefined,{weekday:'short',hour:'numeric',minute:'2-digit',timeZone:'Asia/Makassar'})):'';html+='<li><span style="color:var(--aqua2)">'+escapeHtml(when)+'</span> · '+escapeHtml(e.summary||'(no title)')+'</li>';});html+='</ul>';body.className='';body.innerHTML=html;}catch(e){body.className='err';body.textContent='Could not load calendar.';}}
 async function loadLearning(){const body=document.getElementById('lrn-body');if(!body)return;try{const d=await fetchNotion(LEARNING_LOG_ID);const c=extractContent(d.text||'');
   const lines=c.split('\n').map(l=>l.trim()).filter(l=>l&&!l.startsWith('#'));
