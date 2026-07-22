@@ -48,7 +48,7 @@ export default async function handler(req, res) {
         await appendBlocks(id, contentToBlocks(a.content || ''), H);
         res.status(200).json({ ok: true, note: (a.position && a.position.type === 'start') ? 'appended (api cannot prepend)' : 'appended' }); return;
       }
-      if (name.indexOf('list_events') !== -1) { res.status(200).json({ events: [] }); return; }
+      if (name.indexOf('list_events') !== -1) { const events = await fetchCalendarCache(a, H); res.status(200).json({ events }); return; }
       res.status(200).json({ ok: true }); return;
     }
 
@@ -69,6 +69,40 @@ export default async function handler(req, res) {
     if (action === 'append') { await appendBlocks(pageId, [{ object: 'block', type: 'bulleted_list_item', bulleted_list_item: { rich_text: [{ text: { content: (text || '') } }] } }], H); res.status(200).json({ ok: true }); return; }
     res.status(400).json({ error: 'unknown request' });
   } catch (e) { res.status(500).json({ error: String(e) }); }
+}
+
+// Calendar cache page (auto-synced by the desktop dashboard). Phone reads it here.
+const CAL_CACHE_ID = '3a5eb411ed7a81729e98c62a5e2fb7be';
+async function fetchCalendarCache(a, H) {
+  try {
+    const r = await fetch('https://api.notion.com/v1/blocks/' + CAL_CACHE_ID + '/children?page_size=100', { headers: H });
+    const d = await r.json();
+    if (d.object === 'error') return [];
+    const events = [];
+    for (const b of (d.results || [])) {
+      const t = b.type, node = b[t] || {};
+      const s = (node.rich_text || []).map(function (x) { return x.plain_text; }).join('');
+      if (!s || s.indexOf('|') === -1) continue;
+      const parts = s.split('|');
+      if (parts.length < 3) continue;
+      const when = parts[0].trim(), kind = (parts[1] || '').trim().toUpperCase(), summary = (parts[2] || '').trim(), link = (parts[3] || '').trim();
+      const ev = { summary: summary };
+      if (kind === 'DATE') ev.start = { date: when }; else ev.start = { dateTime: when };
+      if (link) ev.htmlLink = link;
+      events.push(ev);
+    }
+    const startT = a.startTime ? new Date(a.startTime).getTime() : null;
+    const endT = a.endTime ? new Date(a.endTime).getTime() : null;
+    let out = events.filter(function (e) {
+      const iso = e.start.dateTime || e.start.date; if (!iso) return true;
+      const ts = new Date(iso).getTime();
+      if (startT != null && ts < startT - 86400000) return false;
+      if (endT != null && ts > endT) return false;
+      return true;
+    });
+    out.sort(function (x, y) { return new Date(x.start.dateTime || x.start.date) - new Date(y.start.dateTime || y.start.date); });
+    return out.slice(0, a.pageSize || 10);
+  } catch (e) { return []; }
 }
 
 async function fetchPageText(id, H) {
