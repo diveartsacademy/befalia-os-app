@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Personal Life OS · by design</title>
+<title>BEFALIA OS</title>
 <meta name="theme-color" content="#02060d">
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -33,7 +33,7 @@
     border:1px solid rgba(46,230,255,.30);box-shadow:var(--shadow),0 0 40px rgba(46,230,255,.14),inset 0 0 30px rgba(46,230,255,.05);text-align:center;}
   .hero .frame{position:absolute;inset:10px;border:1px solid var(--aqualine);border-radius:16px;pointer-events:none;box-shadow:inset 0 0 18px rgba(46,230,255,.10);}
   .hero .kicker{font-family:var(--serif);font-size:11px;letter-spacing:6px;text-transform:uppercase;color:var(--aqua2);font-weight:600;position:relative;}
-  .hero h1{font-family:var(--serif);font-weight:700;margin:8px 0 0;font-size:46px;line-height:.98;letter-spacing:9px;
+  .hero h1{font-family:var(--serif);font-weight:700;margin:8px 0 0;font-size:42px;line-height:.98;letter-spacing:5px;
     text-transform:uppercase;color:var(--aqua);position:relative;text-shadow:0 0 22px rgba(46,230,255,.55),0 0 44px rgba(46,230,255,.25);}
   .hero .sub{font-family:var(--serif);font-style:italic;font-size:21px;color:var(--aquasoft);margin-top:2px;letter-spacing:2px;position:relative;}
   .hero .diamond{color:var(--aqua);font-size:14px;margin:10px 0 0;position:relative;}
@@ -107,6 +107,9 @@
   .foot{margin-top:auto;padding-top:14px;display:flex;gap:16px;flex-wrap:wrap;}
   .foot a{color:var(--aqua);font-weight:700;font-size:12px;text-decoration:none;letter-spacing:.3px;}
   .foot a:hover{color:var(--aquasoft);}
+  .card-tools{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:auto;padding-top:10px;}
+  .ctool{font-size:11px;font-weight:600;letter-spacing:.3px;color:var(--aqua2);background:rgba(46,230,255,.06);border:1px solid var(--aqualine);border-radius:999px;padding:4px 11px;cursor:pointer;text-decoration:none;transition:.15s;display:inline-flex;align-items:center;gap:4px;line-height:1.4;}
+  .ctool:hover{color:var(--aqua);border-color:var(--aqua2);box-shadow:var(--glowsoft);}
   .lock{font-size:11px;color:var(--aqua2);font-weight:600;margin-top:9px;opacity:.85;}
   .loading{color:var(--dim);font-size:12.5px;font-style:italic;padding:8px 0;}
   .err{color:#e58aa0;font-size:12.5px;padding:6px 0;}
@@ -196,8 +199,8 @@
   <header class="hero">
     <div class="frame"></div>
     <div class="kicker">Personal Life · Operating System</div>
-    <h1>LIFE</h1>
-    <div class="sub">by design</div>
+    <h1>BEFALIA OS</h1>
+    <div class="sub">your whole life, run by AI</div>
     <div class="diamond">◆</div>
   </header>
 
@@ -420,7 +423,7 @@ function buildCommand(){
   iv.innerHTML='<h2><span class="ic">🤝</span>Getting to know you<button class="link-btn" id="iv-open" style="margin-left:auto">Answers →</button></h2><div data-body id="iv-body" class="loading">Loading…</div>';
   wrap.appendChild(iv);document.getElementById('iv-open').onclick=()=>window.open('https://app.notion.com/p/'+MY_PERSONALITY_ID,'_blank');loadInterview();
   const theo=document.createElement('div');theo.className='card wide sensitive';
-  theo.innerHTML='<h2><span class="ic">🤍</span>Theo<a class="link-btn" href="https://app.notion.com/p/'+THEO_CHAT_ID+'" target="_blank" rel="noopener" style="margin-left:auto">Full thread →</a></h2><div class="blurb">Your private partner. Warm, honest, entirely yours. Type below; his reply lands when you ask me “reply as Theo” or on his check-ins.</div><div class="ag-thread" id="theo-thread" style="display:block;border:0;padding:0"></div>';
+  theo.innerHTML='<h2><span class="ic">🤍</span>Theo<a class="link-btn" href="https://app.notion.com/p/'+THEO_CHAT_ID+'" target="_blank" rel="noopener" style="margin-left:auto">Full thread →</a></h2><div class="blurb">Your private partner — warm, honest, entirely yours. He replies live.</div><div class="ag-thread" id="theo-thread" style="display:block;border:0;padding:0"></div>';
   wrap.appendChild(theo);openChiefChat('Theo',THEO_CHAT_ID,document.getElementById('theo-thread'));
   const bd=document.createElement('div');bd.className='card wide';
   bd.innerHTML='<h2><span class="ic">✅</span>To-Do Board<span class="badge" id="board-count">0</span></h2><div class="blurb">Your open tasks by area. Check one off and it moves to your Notion Daily Tasks Done with today\'s date.</div><div id="board-root"></div>';
@@ -705,7 +708,7 @@ function renderBody(){const dots=document.getElementById('body-dots');if(!dots)r
   dots.innerHTML='<span class="lbl">'+(latest?latest+' kg':'—')+(bodyHeight?(' · '+bodyHeight+' cm'):'')+'</span>';
   days.slice(-6).forEach(d=>{const el=document.createElement('span');el.style.cssText='font-size:11px;color:var(--muted);margin-right:8px';el.textContent=weightLog[d]+'kg';dots.appendChild(el);});}
 function buildReport(wrap){const c=document.createElement('div');c.className='card wide';
-  c.innerHTML='<h2><span class="ic">🩺</span>Health Assessment &amp; Advice<button class="link-btn" id="report-btn" style="margin-left:auto">Generate today\'s →</button></h2><div class="blurb">Today\'s food assessed against your goals — cholesterol, sugar, hemoglobin, freediving, vocal, lungs — with what to eat and take next.</div><div data-body id="report-body" class="loading">Loading your latest assessment…</div>';
+  c.innerHTML='<h2><span class="ic">🩺</span>Health Assessment &amp; Advice<button class="link-btn" id="report-btn" style="margin-left:auto">Generate today\'s →</button></h2><div class="blurb">Today\'s food vs your health goals, with what to eat and take next.</div><div data-body id="report-body" class="loading">Loading your latest assessment…</div>';
   wrap.appendChild(c);
   document.getElementById('report-btn').onclick=()=>{if(window.sendPrompt)window.sendPrompt('Generate my health assessment for today. Read my Notion Diet Log for today (what I ate) and my Health Profile page (goals: lower cholesterol, low sugar, better hemoglobin, freediving, vocal, lungs; supplement protocol; foods good/bad per goal). Give: (1) a short assessment of how today\'s intake fits each goal, (2) which nutrients or supplements I still need today, (3) specific foods or meals to eat next. Then SAVE it to my Notion "Health Reports" page (id '+HEALTH_REPORTS_ID+') as a new dated entry at the TOP. Practical and kind. Guidance, not medical advice.');};
   loadReport();}
@@ -750,7 +753,7 @@ async function renderDiet(){const body=document.getElementById('diet-body');if(!
   try{const d=await fetchNotion(DIET_LOG_ID);const kids=parseChildren(d.text||'');const t=today();const items=kids.filter(k=>k.title.indexOf(t)===0);let kcal=0,P=0,F=0,C=0,rows='';
     items.forEach(k=>{const x=parseDietTitle(k.title);kcal+=x.kcal;P+=x.p;F+=x.f;C+=x.c;rows+='<li class="todo"><a href="'+k.url+'" target="_blank" rel="noopener" style="flex:1;color:var(--ink);text-decoration:none">'+escapeHtml(x.food)+'</a><span style="flex:none;color:var(--aqua2);font-size:11.5px">'+x.kcal+' kcal · P'+x.p+' F'+x.f+' C'+x.c+'</span></li>';});
     const badge=document.getElementById('diet-total');if(badge)badge.textContent=kcal+' in · '+(kcal-burned)+' net';let html;
-    if(items.length){html='<ul class="todo-list">'+rows+'</ul><div style="margin-top:12px;display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)"><span>Protein <b style="color:var(--aquasoft)">'+P+'g</b></span><span>Fat <b style="color:var(--aquasoft)">'+F+'g</b></span><span>Carbs <b style="color:var(--aquasoft)">'+C+'g</b></span></div><div style="margin-top:8px;font-size:13.5px">Intake <b style="color:var(--aqua)">'+kcal+'</b> · Burned <b style="color:var(--rose)">'+burned+'</b> · Net <b style="color:var(--aquasoft)">'+(kcal-burned)+'</b> kcal</div><div class="caption">Estimates from your photos — rough, not exact.</div>';}
+    if(items.length){html='<ul class="todo-list">'+rows+'</ul><div style="display:flex;height:11px;border-radius:6px;overflow:hidden;margin-top:12px;border:1px solid var(--line)"><div style="background:#2ee6ff;width:'+Math.round(P*4/((P*4+F*9+C*4)||1)*100)+'%"></div><div style="background:#ffd27f;width:'+Math.round(F*9/((P*4+F*9+C*4)||1)*100)+'%"></div><div style="background:#8fd0e0;flex:1"></div></div><div style="margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)"><span><b style="color:#2ee6ff">●</b> Protein '+P+'g</span><span><b style="color:#ffd27f">●</b> Fat '+F+'g</span><span><b style="color:#8fd0e0">●</b> Carbs '+C+'g</span></div><div style="margin-top:8px;font-size:13.5px">Intake <b style="color:var(--aqua)">'+kcal+'</b> · Burned <b style="color:var(--rose)">'+burned+'</b> · Net <b style="color:var(--aquasoft)">'+(kcal-burned)+'</b> kcal</div><div class="caption">Estimates from your photos — rough, not exact.</div>';}
     else{html='<div class="note-hint">No food logged today yet. Upload a food photo to Claude in chat and it appears here.</div>';}
     body.className='';body.innerHTML=html;
   }catch(e){body.className='err';body.textContent='Could not load diet log. Try Reload.';}}
@@ -957,6 +960,22 @@ function buildAgents(){const wrap=document.getElementById('agents');if(!wrap)ret
     const tb=el.querySelector('.ag-talkbtn');if(tb){const panel=el.querySelector('[data-thread]');tb.onclick=()=>{if(panel.style.display==='none'){tb.textContent='Hide chat';openChiefChat(tb.dataset.who,tb.dataset.chat,panel);}else{panel.style.display='none';tb.textContent='💬 Talk to '+tb.dataset.who;}};}
   });}
 
+/* Per-card tools: an Undo + an "open in Notion" link on every bubble. Self-maintaining for cards added later. */
+const ROOT_NOTION='https://app.notion.com/p/39deb411ed7a8190bc40d4d89998ad58';
+function addCardTools(){
+  document.querySelectorAll('.card').forEach(function(card){
+    if(card.querySelector(':scope > .card-tools'))return;
+    var a=card.querySelector('a[href*="notion.so"],a[href*="notion.com"],a[href*="app.notion"]');
+    var href=a?a.getAttribute('href'):ROOT_NOTION;
+    var tools=document.createElement('div');tools.className='card-tools';
+    var u=document.createElement('button');u.className='ctool';u.type='button';u.textContent='↶ Undo';u.title='Undo my last change';
+    u.addEventListener('click',function(){try{doUndo();}catch(e){}});
+    var n=document.createElement('a');n.className='ctool';n.href=href;n.target='_blank';n.rel='noopener';n.textContent='Notion ↗';n.title='See this recorded in Notion';
+    tools.appendChild(u);tools.appendChild(n);card.appendChild(tools);
+  });
+}
+var __ctTimer;function scheduleCardTools(){clearTimeout(__ctTimer);__ctTimer=setTimeout(addCardTools,180);}
+function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools).observe(document.body,{childList:true,subtree:true});}catch(e){}}
 (async function init(){
   window.__day=today();setInterval(()=>{if(window.__day!==today()){window.__day=today();try{location.reload();}catch(e){}}},60000);
   buildTabs();
@@ -974,6 +993,7 @@ function buildAgents(){const wrap=document.getElementById('agents');if(!wrap)ret
   renderArea({icon:'👑',title:'High Value Woman notes',id:'39deb411ed7a81c38bade41e5ae70a23'},'aboutme');
   renderArea({icon:'📓',title:'My Journals',id:'39eeb411ed7a81fcba99efa6066168b7'},'aboutme');
   loadDay();
+  watchCards();
 })();
 </script>
 </body>
