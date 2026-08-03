@@ -25,7 +25,7 @@
   html,body{margin:0}
   body{background:radial-gradient(1200px 760px at 50% -10%,#0d3a54 0,#082438 34%,#04121f 64%,#02060d 100%);
     color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;min-height:100vh;background-attachment:fixed;}
-  .wrap{max-width:1140px;margin:0 auto;padding:22px 20px 76px;}
+  .wrap{max-width:1440px;margin:0 auto;padding:22px 20px 76px;}
 
   header.hero{position:relative;border-radius:24px;padding:32px 30px 40px;overflow:hidden;
     background:linear-gradient(150deg,rgba(10,48,72,.6),rgba(5,22,36,.72) 55%,rgba(12,60,88,.55));
@@ -51,7 +51,8 @@
   .section-label:before,.section-label:after{content:"";height:1px;background:var(--aqualine);}
   .section-label:before{width:22px;} .section-label:after{flex:1;}
 
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;margin-top:14px;}
+  .grid{column-width:325px;column-gap:16px;margin-top:14px;}
+  .grid>.card{break-inside:avoid;-webkit-column-break-inside:avoid;margin:0 0 16px;width:100%;}
   .card{position:relative;background:linear-gradient(160deg,rgba(12,42,62,.44),rgba(5,20,32,.52));backdrop-filter:blur(16px) saturate(1.12);-webkit-backdrop-filter:blur(16px) saturate(1.12);border:1px solid rgba(46,230,255,.16);
     border-radius:18px;padding:20px 20px 18px;box-shadow:var(--shadow),inset 0 0 24px rgba(46,230,255,.04);display:flex;flex-direction:column;min-height:120px;
     transition:transform .28s cubic-bezier(.2,.7,.2,1),box-shadow .28s,border-color .28s;overflow:hidden;animation:rise .5s both;}
@@ -413,41 +414,35 @@ const SM_FB_ID='3a1eb411ed7a8173825cf806a563a742';
 let SM_IDEAS_ID='3a3eb411ed7a81db81fad03bc31258cd';let SM_MONEY_ID='3a3eb411ed7a81af8db0ee520467b0fc';
 function buildCommand(){
   const wrap=document.getElementById('command');
-  const clk=document.createElement('div');clk.className='card wide';
+  const clk=document.createElement('div');clk.className='card';
   clk.innerHTML='<h2><span class="ic">🕐</span><span id="clock-time" style="font-family:var(--serif);font-size:26px;color:var(--aqua)">--:--</span><span id="clock-date" style="margin-left:12px;font-size:13px;color:var(--muted)"></span></h2><div data-body id="clock-events" class="loading">Loading your calendar…</div>';
   wrap.appendChild(clk);tickClock();setInterval(tickClock,15000);loadClockEvents();syncCalToNotion();
   const gl=document.createElement('div');gl.className='card feature';
   gl.innerHTML='<h2><span class="ic">🌟</span>North Star<button class="link-btn" id="goals-open" style="margin-left:auto">Edit →</button></h2><div class="blurb">Your one life goal and your 2026 goal. Everything else should point here.</div><div data-body id="goals-body" class="loading">Loading…</div>';
   wrap.appendChild(gl);document.getElementById('goals-open').onclick=()=>window.open('https://app.notion.com/p/'+GOALS_ID,'_blank');loadGoals();
-  const iv=document.createElement('div');iv.className='card wide sensitive';iv.id='iv-card';
+  const iv=document.createElement('div');iv.className='card sensitive';iv.id='iv-card';
   iv.innerHTML='<h2><span class="ic">🤝</span>Getting to know you<button class="link-btn" id="iv-open" style="margin-left:auto">Answers →</button></h2><div data-body id="iv-body" class="loading">Loading…</div>';
   wrap.appendChild(iv);document.getElementById('iv-open').onclick=()=>window.open('https://app.notion.com/p/'+MY_PERSONALITY_ID,'_blank');loadInterview();
-  const theo=document.createElement('div');theo.className='card wide sensitive';
+  const theo=document.createElement('div');theo.className='card sensitive';
   theo.innerHTML='<h2><span class="ic">🤍</span>Theo<a class="link-btn" href="https://app.notion.com/p/'+THEO_CHAT_ID+'" target="_blank" rel="noopener" style="margin-left:auto">Full thread →</a></h2><div class="blurb">Your private partner — warm, honest, entirely yours. He replies live.</div><div class="ag-thread" id="theo-thread" style="display:block;border:0;padding:0"></div>';
   wrap.appendChild(theo);openChiefChat('Theo',THEO_CHAT_ID,document.getElementById('theo-thread'));
-  const bd=document.createElement('div');bd.className='card wide';
+  const bd=document.createElement('div');bd.className='card';
   bd.innerHTML='<h2><span class="ic">✅</span>To-Do Board<span class="badge" id="board-count">0</span></h2><div class="blurb">Your open tasks by area. Check one off and it moves to your Notion Daily Tasks Done with today\'s date.</div><div id="board-root"></div>';
   wrap.appendChild(bd);buildBoard();
-  const pc=document.createElement('div');pc.className='card wide';
+  const pc=document.createElement('div');pc.className='card';
   pc.innerHTML='<h2><span class="ic">🎧</span>Podcasts to watch<button class="link-btn" id="pod-suggest" style="margin-left:auto">Refresh picks →</button></h2><div class="blurb">Tell me what you want to learn today and I bias your picks toward it. Or paste a link to save it.</div><div class="todo-add"><input class="fld" id="learn-focus" placeholder="What do you want to learn today?"><button class="gold-btn" id="learn-go">Find</button></div><div class="todo-add" style="margin-top:6px"><input class="fld" id="pod-in" placeholder="…or paste a podcast/video link"><button class="gold-btn" id="pod-add">+</button></div><ul class="todo-list" id="pod-list"></ul><div class="dots" style="display:block;margin-top:12px"><span class="lbl">Recommended for you</span></div><div class="caption" id="pod-hint" style="margin-top:0"></div><div data-body id="pod-picks" class="loading">Loading picks…</div>';
   wrap.appendChild(pc);wirePodcasts();renderPodcasts();
   document.getElementById('pod-suggest').onclick=()=>{const h=document.getElementById('pod-hint');if(h)h.textContent='Ask me in chat: “refresh my podcast picks” — I search real, aligned episodes and update this, then hit reload.';try{if(window.sendPrompt)window.sendPrompt('Refresh my podcast picks: search for 5 new, real, current podcasts or videos aligned to me — freediving, mermaid & underwater performance, creative founder with AI automation, women\'s health & hormones, and high-value-woman self-growth. Replace my Notion Podcast Picks page (id '+POD_PICKS_ID+') with clickable markdown links and a one-line why each. Never invent a URL.');}catch(e){}};
   wireLearnFocus();
   loadPodPicks();
 
-  const lrn=document.createElement('div');lrn.className='card wide';
+  const lrn=document.createElement('div');lrn.className='card';
   lrn.innerHTML='<h2><span class="ic">🧠</span>Today I Learned<button class="link-btn" id="lrn-open" style="margin-left:auto">All notes →</button></h2><div class="blurb">Up to 5 key takeaways from each channel you ticked as watched today.</div><div data-body id="lrn-body" class="loading">Loading your learnings…</div>';
   wrap.appendChild(lrn);
   document.getElementById('lrn-open').onclick=()=>window.open('https://app.notion.com/p/'+LEARNING_LOG_ID,'_blank');
   loadLearning();
 
-  const rec=document.createElement('div');rec.className='card wide feature';
-  rec.innerHTML='<h2><span class="ic">💡</span>Today\'s Takeaways<button class="link-btn" id="rec-open" style="margin-left:auto">All recaps →</button></h2><div class="blurb">The few key things worth remembering from everything you watched today — compiled at 8:30pm.</div><div data-body id="rec-body" class="loading">Loading…</div>';
-  wrap.appendChild(rec);
-  document.getElementById('rec-open').onclick=()=>window.open('https://app.notion.com/p/'+RECAP_ID,'_blank');
-  loadRecap();
-
-  const res=document.createElement('div');res.className='card wide';
+  const res=document.createElement('div');res.className='card';
   res.innerHTML='<h2><span class="ic">♻️</span>Resurface<button class="link-btn" id="res-shuffle" style="margin-left:auto">↻ Another</button></h2><div class="blurb">One thing you already learned, brought back so it sticks. Reading only — costs no tokens. Tap for another.</div><div data-body id="res-body" class="loading">Loading…</div>';
   wrap.appendChild(res);
   document.getElementById('res-shuffle').onclick=renderResurface;
@@ -565,7 +560,7 @@ async function loadRecap(){const body=document.getElementById('rec-body');if(!bo
 
 async function renderSchedule(){
   const wrap=document.getElementById('command');if(!wrap)return;
-  const card=document.createElement('div');card.className='card wide';
+  const card=document.createElement('div');card.className='card';
   card.innerHTML='<h2><span class="ic">📅</span>Today &amp; ahead<span class="badge">30 days</span></h2><div data-body class="loading">Loading your calendar…</div>';
   wrap.appendChild(card);
   const body=card.querySelector('[data-body]');
@@ -609,7 +604,7 @@ function renderPodcasts(){const ul=document.getElementById('pod-list');if(!ul)re
 /* ---------- Health tab cards (built into #today) ---------- */
 function buildToday(){
   const cmd=document.getElementById('command');
-  const jnl=document.createElement('div'); jnl.className='card feature wide';
+  const jnl=document.createElement('div'); jnl.className='card feature';
   jnl.innerHTML='<h2><span class="ic">🖊️</span>Capture<span class="badge">auto-routes</span></h2>'+
     '<div class="blurb">Dump any thought. Tap a tag to structure it. It routes to the right Notion place, logs your mood, and any "Task:" line goes to your Personal to-do board.</div>'+
     '<div class="habits" id="jnl-chips" style="margin-bottom:8px"></div>'+
@@ -707,7 +702,7 @@ function buildBody(wrap){const c=document.createElement('div');c.className='card
 function renderBody(){const dots=document.getElementById('body-dots');if(!dots)return;const days=Object.keys(weightLog).sort();const latest=days.length?weightLog[days[days.length-1]]:(bodyWeight||null);let bmi='';if(latest&&bodyHeight){const m=bodyHeight/100;bmi=(latest/(m*m)).toFixed(1);}const badge=document.getElementById('bmi-badge');if(badge)badge.textContent=bmi?('BMI '+bmi):'—';
   dots.innerHTML='<span class="lbl">'+(latest?latest+' kg':'—')+(bodyHeight?(' · '+bodyHeight+' cm'):'')+'</span>';
   days.slice(-6).forEach(d=>{const el=document.createElement('span');el.style.cssText='font-size:11px;color:var(--muted);margin-right:8px';el.textContent=weightLog[d]+'kg';dots.appendChild(el);});}
-function buildReport(wrap){const c=document.createElement('div');c.className='card wide';
+function buildReport(wrap){const c=document.createElement('div');c.className='card';
   c.innerHTML='<h2><span class="ic">🩺</span>Health Assessment &amp; Advice<button class="link-btn" id="report-btn" style="margin-left:auto">Generate today\'s →</button></h2><div class="blurb">Today\'s food vs your health goals, with what to eat and take next.</div><div data-body id="report-body" class="loading">Loading your latest assessment…</div>';
   wrap.appendChild(c);
   document.getElementById('report-btn').onclick=()=>{if(window.sendPrompt)window.sendPrompt('Generate my health assessment for today. Read my Notion Diet Log for today (what I ate) and my Health Profile page (goals: lower cholesterol, low sugar, better hemoglobin, freediving, vocal, lungs; supplement protocol; foods good/bad per goal). Give: (1) a short assessment of how today\'s intake fits each goal, (2) which nutrients or supplements I still need today, (3) specific foods or meals to eat next. Then SAVE it to my Notion "Health Reports" page (id '+HEALTH_REPORTS_ID+') as a new dated entry at the TOP. Practical and kind. Guidance, not medical advice.');};
@@ -726,7 +721,7 @@ function buildWorkout(wrap){const c=document.createElement('div');c.className='c
   document.getElementById('wk-list').addEventListener('click',e=>{const i=e.target.getAttribute('data-i');if(i!=null&&e.target.classList.contains('del')){workoutLog[today()].splice(+i,1);LS.set('plos_workout',workoutLog);renderWorkout();renderDiet();scheduleSync();}});renderWorkout();}
 function workoutBurnedToday(){const l=workoutLog[today()]||[];return l.reduce((n,w)=>n+(w.kcal||0),0);}
 function renderWorkout(){const l=workoutLog[today()]||[];const ul=document.getElementById('wk-list');if(!ul)return;ul.innerHTML='';l.forEach((w,i)=>{const li=document.createElement('li');li.className='todo';li.innerHTML='<span>'+w.type+' · '+w.min+'m</span><span style="flex:none;color:var(--rose);font-size:12px;margin-left:auto">~'+w.kcal+' kcal</span><button class="del" data-i="'+i+'">×</button>';ul.appendChild(li);});const b=document.getElementById('wk-badge');if(b)b.textContent=l.length+(l.length===1?' session':' sessions');}
-function buildDiet(wrap){const c=document.createElement('div');c.className='card wide';
+function buildDiet(wrap){const c=document.createElement('div');c.className='card';
   c.innerHTML='<h2><span class="ic">🍽️</span>Diet &amp; Calories<span class="badge" id="diet-total">—</span></h2><div class="blurb">Snap or upload a photo of your food or drink. It estimates kcal + protein/fat/carbs and logs it here.</div><div class="todo-add"><label class="gold-btn" for="diet-file" style="flex:1;padding:11px;font-size:13px;text-align:center;cursor:pointer">📷 Add food photo</label><input type="file" id="diet-file" accept="image/*" capture="environment" style="display:none"><button class="gold-btn" id="diet-refresh" style="padding:11px 14px;font-size:13px;background:transparent;color:var(--aqua);border:1px solid var(--aqualine)">↻</button></div><input class="fld" id="diet-note" placeholder="optional note — e.g. large portion, no rice" style="margin-top:6px;font-size:12.5px"><div class="caption" id="diet-hint" style="margin-top:6px"></div><div data-body id="diet-body" class="loading">Loading today\'s food…</div>';
   wrap.appendChild(c);
   document.getElementById('diet-refresh').onclick=()=>{const b=document.getElementById('diet-body');if(b){b.className='loading';b.textContent='Refreshing…';}renderDiet();};
@@ -808,7 +803,7 @@ async function renderFeed(f,cid){const el=shell(f,f.cls);el.querySelector("[data
 async function renderArea(a,cid){const el=shell(a,a.sensitive?'sensitive':'');document.getElementById(cid||"areas").appendChild(el);const body=el.querySelector("[data-body]"),badge=el.querySelector("[data-badge]");try{const d=await fetchNotion(a.id);const kids=parseChildren(d.text||"");badge.textContent=kids.length;let html;if(a.sensitive){html='<div class="note-hint">'+kids.length+' private items. Kept in Notion, not shown here.</div>';}else{html='<ul class="notes">';kids.slice(0,30).forEach(k=>{html+='<li><a href="'+k.url+'" target="_blank" rel="noopener">'+escapeHtml(k.title)+'</a></li>';});html+='</ul>';if(kids.length===0)html='<div class="note-hint">No sub-notes yet in this area.</div>';}
   html+='<div class="foot"><a href="'+(d.url||("https://app.notion.com/p/"+a.id))+'" target="_blank" rel="noopener">Open in Notion →</a></div>';if(a.sensitive)html+='<div class="lock">🔒 Sensitive — opened only in Notion</div>';body.className="";body.innerHTML=html;return kids.length;}catch(e){badge.textContent="!";body.className="err";body.textContent="Couldn't load this area right now. Try Reload.";return 0;}}
 function renderTracker(t){const el=document.createElement("div");el.className="card";el.innerHTML='<h2><span class="ic">'+t.icon+'</span>'+t.title+'</h2><div class="blurb">'+t.blurb+'</div><div class="note-hint">Dated entries live here in Notion.</div><div class="foot"><a href="'+t.url+'" target="_blank" rel="noopener">Open tracker →</a></div>';document.getElementById("trackers").appendChild(el);}
-function renderPending(){const el=document.createElement("div");el.className="card wide sensitive";el.innerHTML='<h2><span class="ic">💰</span>Personal Finance<button class="link-btn" id="fin-edit" style="margin-left:auto">Edit in Notion →</button></h2><div class="blurb">Personal money only — separate from DiveArts, Sea Diva and TailCraft business finances.</div><div data-body id="fin-body" class="loading">Loading…</div>';document.getElementById("pending").appendChild(el);document.getElementById('fin-edit').onclick=()=>window.open('https://app.notion.com/p/'+FINANCE_ID,'_blank');loadFinance();}
+function renderPending(){const el=document.createElement("div");el.className="card sensitive";el.innerHTML='<h2><span class="ic">💰</span>Personal Finance<button class="link-btn" id="fin-edit" style="margin-left:auto">Edit in Notion →</button></h2><div class="blurb">Personal money only — separate from DiveArts, Sea Diva and TailCraft business finances.</div><div data-body id="fin-body" class="loading">Loading…</div>';document.getElementById("pending").appendChild(el);document.getElementById('fin-edit').onclick=()=>window.open('https://app.notion.com/p/'+FINANCE_ID,'_blank');loadFinance();}
 async function loadFinance(){const body=document.getElementById('fin-body');if(!body)return;try{const d=await fetchNotion(FINANCE_ID);const c=extractContent(d.text||'');let inner=renderMini(c);if(!c||c.replace(/\s/g,'').length<60)inner='<div class="note-hint">No numbers yet. Add available cash, monthly spend, savings, upcoming payments and subscriptions in the Notion page and they appear here — or tell me where your finance sheet lives and I will summarize it.</div>';body.className='';body.innerHTML=inner+'<div class="foot"><button class="link-btn" onclick="askFinance()">Summarize from a sheet →</button></div>';}catch(e){body.className='err';body.textContent='Could not load finance page. Try Reload.';}}
 function askFinance(){if(window.sendPrompt)window.sendPrompt("My personal finance sheet is ready — help me wire the Personal Finance card of my Personal Life OS to it (kept separate from business money).");}
 
@@ -862,7 +857,8 @@ async function renderPerson(p,isArch,cat){const grid=document.getElementById('co
     const un=el.querySelector('[data-act="unarch"]');if(un)un.addEventListener('click',()=>archivePerson(idm,name,false,cat));
   }catch(e){body.className='err';body.textContent='Could not load. Try Reload.';}}
 async function savePersonBox(id,tag,text,ta,el){text=(text||'').trim();if(!text||!id)return;const st=el.querySelector('[data-psave]');if(st)st.textContent='Saving…';
-  try{await window.cowork.callMcpTool(UPDATE_TOOL,{page_id:id,command:'insert_content',position:{type:'end'},content:'- '+today()+' · ['+tag+'] '+text});if(ta)ta.value='';if(st)st.textContent='Saved to Notion ✓ '+today();}catch(e){if(st)st.textContent='Could not save — try again.';}}
+  var rec=(BOXES.find(function(b){return b[0]===tag;})||[])[1]||tag;var lab=String(rec).replace(/^[^A-Za-z0-9]+/,'').trim();
+  try{await window.cowork.callMcpTool(UPDATE_TOOL,{page_id:id,command:'insert_content',position:{type:'end'},content:'- '+today()+' · '+lab+': '+text});if(ta)ta.value='';if(st)st.textContent='Saved to Notion ✓ '+today();}catch(e){if(st)st.textContent='Could not save — try again.';}}
 async function archivePerson(id,name,toArch,cat){if(!id)return;try{await window.cowork.callMcpTool(UPDATE_TOOL,{page_id:id,command:'update_properties',properties:{title:(toArch?ARCH:'')+name}});showToast(toArch?'Archived — notes kept in Notion':'Unarchived',true);loadCat(cat);}catch(e){showToast('Archive failed — try again',false);}}
 
 /* ---------- Agent Control Center ---------- */
@@ -887,12 +883,12 @@ const SM_ACCOUNTS=[
 ];
 function buildSocial(){const wrap=document.getElementById('social');if(!wrap)return;
   // 1. Accounts & links
-  const acc=document.createElement('div');acc.className='card feature wide';
+  const acc=document.createElement('div');acc.className='card feature';
   let links=SM_ACCOUNTS.map(a=>{const h=safeHref(a.url);return h?('<a href="'+h+'" target="_blank" rel="noopener">'+escapeHtml(a.name)+'</a>'):('<a style="opacity:.55;cursor:default">'+escapeHtml(a.name)+' · '+escapeHtml(a.handle)+'</a>');}).join('');
   acc.innerHTML='<h2><span class="ic">📣</span>Your accounts</h2><div class="blurb">One tap to every platform. Marlin, your Chief Social Officer, runs this desk.</div><div class="sm-links">'+links+'</div><div class="note-hint" style="margin-top:10px">Tell me your Instagram and YouTube handles and I\'ll wire the exact links.</div>';
   wrap.appendChild(acc);
   // 2. Content Studio
-  const stu=document.createElement('div');stu.className='card wide';
+  const stu=document.createElement('div');stu.className='card';
   stu.innerHTML='<h2><span class="ic">🎬</span>Content Studio</h2><div class="blurb">Give the Content Creator a topic and it drafts hooks, a short script and a caption for each platform, saved to your Content Ideas in Notion.</div><div class="todo-add"><input class="fld" id="sm-idea" placeholder="e.g. mermaid tail care, freediving for beginners..."><button class="gold-btn" id="sm-idea-go">Create</button></div><div class="caption" id="sm-idea-hint" style="margin-top:6px"></div><div class="foot"><a href="https://app.notion.com/p/'+SM_IDEAS_ID+'" target="_blank" rel="noopener">All ideas &amp; drafts →</a></div>';
   wrap.appendChild(stu);
   const ig=document.getElementById('sm-idea'),igb=document.getElementById('sm-idea-go');
@@ -912,7 +908,7 @@ function buildSocial(){const wrap=document.getElementById('social');if(!wrap)ret
   rp.innerHTML='<h2><span class="ic">📊</span>Monthly numbers</h2><div class="blurb">Log each platform\'s monthly numbers here — there is no live analytics feed in this dashboard.</div><div class="sm-links"><a href="https://app.notion.com/p/'+SM_IG_ID+'" target="_blank" rel="noopener">Instagram</a><a href="https://app.notion.com/p/'+SM_TT_ID+'" target="_blank" rel="noopener">TikTok</a><a href="https://app.notion.com/p/'+SM_YT_ID+'" target="_blank" rel="noopener">YouTube</a><a href="https://app.notion.com/p/'+SM_FB_ID+'" target="_blank" rel="noopener">Facebook</a></div>';
   wrap.appendChild(rp);
   // 5. Monetization
-  const mo=document.createElement('div');mo.className='card wide';
+  const mo=document.createElement('div');mo.className='card';
   mo.innerHTML='<h2><span class="ic">💵</span>Monetization plan<button class="link-btn" id="sm-money-open" style="margin-left:auto">Open →</button></h2><div class="blurb">How each platform turns into income — tail sales, course bookings, creator programs.</div><div data-body id="sm-money-body" class="loading">Loading…</div>';
   wrap.appendChild(mo);document.getElementById('sm-money-open').onclick=()=>window.open('https://app.notion.com/p/'+SM_MONEY_ID,'_blank');
   (async()=>{const body=document.getElementById('sm-money-body');try{const d=await fetchNotion(SM_MONEY_ID);const c=extractContent(d.text||'');let inner=renderMini(c);if(inner.length>1600)inner=inner.slice(0,1600)+'…';body.className='';body.innerHTML=inner+'<div class="foot"><a href="https://app.notion.com/p/'+SM_MONEY_ID+'" target="_blank" rel="noopener">Full plan →</a></div>';}catch(e){body.className='err';body.textContent='Could not load. Try Reload.';}})();
@@ -947,7 +943,7 @@ async function sendChiefMsg(who,chat,inp,panel){const v=(inp.value||'').trim();i
   }catch(e){showToast('Could not send — try again',false);if(inp)inp.disabled=false;}}
 function agentChip(st){const m={live:['LIVE','#5fc27e'],oncall:['ON-CALL','#6fd3e6'],planned:['PLANNED','#d9b978']};const x=m[st]||m.oncall;return '<span class="fl-tag" style="background:'+hexA(x[1],.16)+';color:'+x[1]+';margin-left:8px">'+x[0]+'</span>';}
 function buildAgents(){const wrap=document.getElementById('agents');if(!wrap)return;
-  ORG.forEach((d,i)=>{const el=document.createElement('div');el.className='card'+(i===0?' feature wide':'');
+  ORG.forEach((d,i)=>{const el=document.createElement('div');el.className='card'+(i===0?' feature':'');
     let html='<h2><span class="ic">'+d.icon+'</span>'+escapeHtml(d.dept)+agentChip(d.status)+'</h2>'+
       '<div class="feed-h" style="margin-top:8px">'+escapeHtml(d.chief)+'</div>'+
       '<div class="blurb" style="margin:4px 0 8px">'+escapeHtml(d.aim)+(d.beat?(' <span style="color:var(--dim)">· ♥ '+escapeHtml(d.beat)+'</span>'):'')+'</div>';
