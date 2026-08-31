@@ -108,11 +108,19 @@ async function fetchCalendarCache(a, H) {
 }
 
 async function fetchPageText(id, H) {
-  const r = await fetch('https://api.notion.com/v1/blocks/' + id + '/children?page_size=100', { headers: H });
-  const d = await r.json();
-  if (d.object === 'error') throw new Error(d.message);
+  // Read every block, not just the first 100, so long journals are not truncated.
+  const results = [];
+  let cursor = null;
+  do {
+    const url = 'https://api.notion.com/v1/blocks/' + id + '/children?page_size=100' + (cursor ? '&start_cursor=' + cursor : '');
+    const r = await fetch(url, { headers: H });
+    const d = await r.json();
+    if (!r.ok || d.object === 'error') throw new Error(d.message || ('HTTP ' + r.status));
+    for (const b of (d.results || [])) results.push(b);
+    cursor = d.has_more ? d.next_cursor : null;
+  } while (cursor);
   let out = '<content>\n';
-  for (const b of (d.results || [])) {
+  for (const b of results) {
     const t = b.type, node = b[t] || {};
     if (t === 'child_page') { out += '<page url="https://www.notion.so/' + (b.id || '').replace(/-/g, '') + '">' + ((b.child_page && b.child_page.title) || 'Untitled') + '</page>\n'; continue; }
     const s = (node.rich_text || []).map(function (x) { return x.plain_text; }).join('');
@@ -170,7 +178,16 @@ async function appendBlocks(id, blocks, H) {
   }
 }
 async function clearChildren(id, H) {
-  const r = await fetch('https://api.notion.com/v1/blocks/' + id + '/children?page_size=100', { headers: H });
-  const d = await r.json(); if (d.object === 'error') return;
-  for (const b of (d.results || [])) { if (b.type !== 'child_page') { try { await fetch('https://api.notion.com/v1/blocks/' + b.id, { method: 'DELETE', headers: H }); } catch (e) {} } }
+  // Page through every child so a rewrite does not leave the tail behind.
+  let cursor = null;
+  const ids = [];
+  do {
+    const url = 'https://api.notion.com/v1/blocks/' + id + '/children?page_size=100' + (cursor ? '&start_cursor=' + cursor : '');
+    const r = await fetch(url, { headers: H });
+    const d = await r.json();
+    if (!r.ok || d.object === 'error') throw new Error('Notion rejected the read: ' + (d.message || ('HTTP ' + r.status)));
+    for (const b of (d.results || [])) { if (b.type !== 'child_page') ids.push(b.id); }
+    cursor = d.has_more ? d.next_cursor : null;
+  } while (cursor);
+  for (const bid of ids) { try { await fetch('https://api.notion.com/v1/blocks/' + bid, { method: 'DELETE', headers: H }); } catch (e) {} }
 }
