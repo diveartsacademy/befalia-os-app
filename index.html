@@ -257,7 +257,7 @@
 <script>
 /* ---- Phone bridge: only activates when the Cowork bridge is absent (i.e. on the hosted phone app). Desktop is untouched. ---- */
 if(!window.cowork){window.cowork={
-  callMcpTool:async function(name,args){try{const r=await fetch('/api/notion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,args:args})});const j=await r.json();return {structuredContent:j};}catch(e){return {isError:true};}},
+  callMcpTool:async function(name,args){const r=await fetch('/api/notion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,args:args})});let j={};try{j=await r.json();}catch(e){j={};}if(!r.ok||j.error){throw new Error(j.error||('save failed (HTTP '+r.status+')'));}return {structuredContent:j};},
   askClaude:async function(prompt){try{const r=await fetch('https://hook.eu1.make.com/3ga58ebevmcuol8c2jjnahrixxeclp1c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sys:"You are Befalia's precise assistant. Follow the instruction in the message exactly. If it asks for JSON, output only valid JSON and nothing else.",msg:String(prompt||'')})});return r.ok?(await r.text()):'';}catch(e){return '';}}
 };window.__PHONE__=true;if('serviceWorker' in navigator){try{navigator.serviceWorker.register('sw.js').catch(function(){});}catch(e){}}}
 if(typeof window.sendPrompt!=='function'){window.sendPrompt=function(){};}
@@ -853,7 +853,7 @@ async function renderPerson(p,isArch,cat){const grid=document.getElementById('co
   el.innerHTML='<h2><span class="ic">'+cat.icon+'</span>'+escapeHtml(name)+(isArch?' <span class="badge" style="background:var(--dim);color:#04121f">archived</span>':'')+'</h2><div data-pbody class="loading">Loading…</div>';
   grid.appendChild(el);const body=el.querySelector('[data-pbody]');
   try{const d=await fetchNotion(idm||p.url);const c=extractContent(d.text||'');
-    const entries=(c.match(/^- \d{4}-\d{2}-\d{2} · \[.+$/gm)||[]).slice(-8).reverse();
+    const entries=(c.match(/^- \d{4}-\d{2}-\d{2} · .+$/gm)||[]).slice(-8).reverse();
     let html='';
     if(entries.length)html+='<div class="dots" style="display:block;margin-bottom:6px"><span class="lbl">Recent</span></div>'+entries.map(e=>'<div class="feed-p">'+escapeHtml(e.replace(/^- /,''))+'</div>').join('');
     if(!isArch){html+='<div style="margin-top:12px">';
@@ -865,13 +865,18 @@ async function renderPerson(p,isArch,cat){const grid=document.getElementById('co
     html+='</div>';
     body.className='';body.innerHTML=html;
     el.querySelectorAll('[data-save]').forEach(btn=>btn.addEventListener('click',()=>{const tag=btn.getAttribute('data-save');const ta=el.querySelector('textarea[data-tag="'+tag+'"]');savePersonBox(idm,tag,ta.value,ta,el);}));
+    el.querySelectorAll('textarea[data-tag]').forEach(function(ta){try{const d=localStorage.getItem('plos_draft_'+(idm||name)+'_'+ta.getAttribute('data-tag'));if(d&&!ta.value){ta.value=d;const st=el.querySelector('[data-psave]');if(st)st.textContent='Unsent draft restored. Press + to save it.';}}catch(e){}});
     const cp=el.querySelector('[data-act="compat"]');if(cp)cp.addEventListener('click',()=>{if(window.sendPrompt)window.sendPrompt('Read the dynamic and compatibility between me and '+name+' ('+cat.label+'). Use their page in my Notion and my "My Personality" page — consider personality, zodiac and how we relate — and give me honest, practical guidance on handling problems with this kind of person. Save a short summary to their page.');});
     const ar=el.querySelector('[data-act="arch"]');if(ar)ar.addEventListener('click',()=>archivePerson(idm,name,true,cat));
     const un=el.querySelector('[data-act="unarch"]');if(un)un.addEventListener('click',()=>archivePerson(idm,name,false,cat));
   }catch(e){body.className='err';body.textContent='Could not load. Try Reload.';}}
 async function savePersonBox(id,tag,text,ta,el){text=(text||'').trim();if(!text||!id)return;const st=el.querySelector('[data-psave]');if(st)st.textContent='Saving…';
   var rec=(BOXES.find(function(b){return b[0]===tag;})||[])[1]||tag;var lab=String(rec).replace(/^[^A-Za-z0-9]+/,'').trim();
-  try{await window.cowork.callMcpTool(UPDATE_TOOL,{page_id:id,command:'insert_content',position:{type:'end'},content:'- '+today()+' · '+lab+': '+text});if(ta)ta.value='';if(st)st.textContent='Saved to Notion ✓ '+today();}catch(e){if(st)st.textContent='Could not save — try again.';}}
+  var dk='plos_draft_'+id+'_'+tag;try{localStorage.setItem(dk,text);}catch(e){}
+  try{await window.cowork.callMcpTool(UPDATE_TOOL,{page_id:id,command:'insert_content',position:{type:'end'},content:'- '+today()+' · '+lab+': '+text});
+    try{localStorage.removeItem(dk);}catch(e){}
+    if(ta)ta.value='';if(st)st.textContent='Saved to Notion ✓ '+today();}
+  catch(e){if(st)st.textContent='NOT saved: '+((e&&e.message)||'try again')+'. Your text is still here.';}}
 async function archivePerson(id,name,toArch,cat){if(!id)return;try{await window.cowork.callMcpTool(UPDATE_TOOL,{page_id:id,command:'update_properties',properties:{title:(toArch?ARCH:'')+name}});showToast(toArch?'Archived — notes kept in Notion':'Unarchived',true);loadCat(cat);}catch(e){showToast('Archive failed — try again',false);}}
 
 /* ---------- Agent Control Center ---------- */
