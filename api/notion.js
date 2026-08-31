@@ -25,10 +25,12 @@ export default async function handler(req, res) {
           const r = await fetch('https://api.notion.com/v1/pages', { method: 'POST', headers: H, body: JSON.stringify({
             parent: { page_id: parentId },
             properties: { title: { title: [{ text: { content: String(title) } }] } },
-            children: contentToBlocks(p.content || '')
+            children: (p.__blocks = contentToBlocks(p.content || '')).slice(0, 100)
           }) });
           const d = await r.json();
-          if (d.object !== 'error') out.push({ id: d.id, url: d.url });
+          if (!r.ok || d.object === 'error') { throw new Error('Notion rejected the page create: ' + (d.message || ('HTTP ' + r.status))); }
+          if (p.__blocks.length > 100) await appendBlocks(d.id, p.__blocks.slice(100), H);
+          out.push({ id: d.id, url: d.url });
         }
         res.status(200).json({ pages: out }); return;
       }
@@ -155,7 +157,17 @@ function chunkRT(s) { s = String(s || ''); const out = []; for (let i = 0; i < s
 
 async function appendBlocks(id, blocks, H) {
   if (!blocks || !blocks.length) return;
-  await fetch('https://api.notion.com/v1/blocks/' + id + '/children', { method: 'PATCH', headers: H, body: JSON.stringify({ children: blocks }) });
+  // Notion accepts at most 100 children per request. Send in batches, and fail loudly
+  // if Notion rejects one, so the caller never reports a save that did not happen.
+  for (let i = 0; i < blocks.length; i += 100) {
+    const batch = blocks.slice(i, i + 100);
+    const r = await fetch('https://api.notion.com/v1/blocks/' + id + '/children', { method: 'PATCH', headers: H, body: JSON.stringify({ children: batch }) });
+    let d = {};
+    try { d = await r.json(); } catch (e) { d = {}; }
+    if (!r.ok || d.object === 'error') {
+      throw new Error('Notion rejected the write: ' + (d.message || ('HTTP ' + r.status)));
+    }
+  }
 }
 async function clearChildren(id, H) {
   const r = await fetch('https://api.notion.com/v1/blocks/' + id + '/children?page_size=100', { headers: H });
