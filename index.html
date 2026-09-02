@@ -735,15 +735,25 @@ function buildWorkout(wrap){const c=document.createElement('div');c.className='c
 function workoutBurnedToday(){const l=workoutLog[today()]||[];return l.reduce((n,w)=>n+(w.kcal||0),0);}
 function renderWorkout(){const l=workoutLog[today()]||[];const ul=document.getElementById('wk-list');if(!ul)return;ul.innerHTML='';l.forEach((w,i)=>{const li=document.createElement('li');li.className='todo';li.innerHTML='<span>'+w.type+' · '+w.min+'m</span><span style="flex:none;color:var(--rose);font-size:12px;margin-left:auto">~'+w.kcal+' kcal</span><button class="del" data-i="'+i+'">×</button>';ul.appendChild(li);});const b=document.getElementById('wk-badge');if(b)b.textContent=l.length+(l.length===1?' session':' sessions');}
 function buildDiet(wrap){const c=document.createElement('div');c.className='card';
-  c.innerHTML='<h2><span class="ic">🍽️</span>Diet &amp; Calories<span class="badge" id="diet-total">—</span></h2><div class="blurb">Snap or upload a photo of your food or drink. It estimates kcal + protein/fat/carbs and logs it here.</div><div class="todo-add"><label class="gold-btn" for="diet-file" style="flex:1;padding:11px;font-size:13px;text-align:center;cursor:pointer">📷 Add food photo</label><input type="file" id="diet-file" accept="image/*" capture="environment" style="display:none"><button class="gold-btn" id="diet-refresh" style="padding:11px 14px;font-size:13px;background:transparent;color:var(--aqua);border:1px solid var(--aqualine)">↻</button></div><input class="fld" id="diet-note" placeholder="optional note — e.g. large portion, no rice" style="margin-top:6px;font-size:12.5px"><div class="caption" id="diet-hint" style="margin-top:6px"></div><div data-body id="diet-body" class="loading">Loading today\'s food…</div>';
+  c.innerHTML='<h2><span class="ic">🍽️</span>Diet &amp; Calories<span class="badge" id="diet-total">—</span></h2><div class="blurb">Upload a photo from your library, or take one with the camera. It estimates kcal + protein/fat/carbs and logs it here.</div><div class="todo-add"><label class="gold-btn" for="diet-file" style="flex:1;padding:11px;font-size:13px;text-align:center;cursor:pointer" title="Choose a photo from your library">🖼️ Upload photo</label><input type="file" id="diet-file" accept="image/*" style="display:none"><label class="gold-btn" for="diet-cam" style="flex:none;padding:11px 14px;font-size:13px;text-align:center;cursor:pointer;background:transparent;color:var(--aqua);border:1px solid var(--aqualine)" title="Take a photo now">📷</label><input type="file" id="diet-cam" accept="image/*" capture="environment" style="display:none"><button class="gold-btn" id="diet-refresh" style="padding:11px 14px;font-size:13px;background:transparent;color:var(--aqua);border:1px solid var(--aqualine)">↻</button></div><input class="fld" id="diet-note" placeholder="optional note — e.g. large portion, no rice" style="margin-top:6px;font-size:12.5px"><div class="caption" id="diet-hint" style="margin-top:6px"></div><div data-body id="diet-body" class="loading">Loading today\'s food…</div>';
   wrap.appendChild(c);
   document.getElementById('diet-refresh').onclick=()=>{const b=document.getElementById('diet-body');if(b){b.className='loading';b.textContent='Refreshing…';}renderDiet();};
-  document.getElementById('diet-file').onchange=(e)=>{const f=e.target.files&&e.target.files[0];if(f)logFoodPhoto(f);};
+  const pickFood=(e)=>{const f=e.target.files&&e.target.files[0];e.target.value='';if(f)logFoodPhoto(f);};
+  document.getElementById('diet-file').onchange=pickFood;
+  document.getElementById('diet-cam').onchange=pickFood;
   renderDiet();}
 function downscaleImage(file,maxDim,quality){return new Promise((resolve,reject)=>{const img=new Image();const url=URL.createObjectURL(file);img.onload=()=>{let w=img.width,h=img.height;if(w>=h&&w>maxDim){h=Math.round(h*maxDim/w);w=maxDim;}else if(h>w&&h>maxDim){w=Math.round(w*maxDim/h);h=maxDim;}const cv=document.createElement('canvas');cv.width=w;cv.height=h;cv.getContext('2d').drawImage(img,0,0,w,h);URL.revokeObjectURL(url);try{resolve(cv.toDataURL('image/jpeg',quality||0.72));}catch(err){reject(err);}};img.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('img'));};img.src=url;});}
-async function logFoodPhoto(file){const hint=document.getElementById('diet-hint');const setHint=(m)=>{if(hint)hint.textContent=m;};setHint('Reading photo…');
+async function logFoodPhoto(file){const hint=document.getElementById('diet-hint');const setHint=(m)=>{if(hint)hint.textContent=m;};
+  if(!file){setHint('No photo was picked. Try again.');return;}
+  const isHeic=/heic|heif/i.test((file.type||'')+' '+(file.name||''));
+  if(!/^image\//.test(file.type||'')&&!isHeic){setHint('That file is not a photo. Pick an image from your library, or use the camera.');return;}
+  if(file.size>30*1024*1024){setHint('That photo is '+Math.round(file.size/1048576)+' MB, too large to read here. Pick a smaller one.');return;}
+  setHint('Reading photo…');
+  let dataUrl;
+  try{dataUrl=await downscaleImage(file,1024,0.72);}
+  catch(err){setHint(isHeic?'This browser cannot read HEIC photos. On iPhone set Settings › Camera › Formats to Most Compatible, or export the photo as JPEG.':'Could not read that image file. Try a JPEG or PNG.');return;}
   try{
-    const dataUrl=await downscaleImage(file,1024,0.72);const b64=dataUrl.slice(dataUrl.indexOf(',')+1);
+    const b64=dataUrl.slice(dataUrl.indexOf(',')+1);
     const nt=document.getElementById('diet-note');const note=(nt&&nt.value||'').trim();
     setHint('Estimating calories…');
     const base=window.__PHONE__?'':'https://befalia-os-app.vercel.app';
@@ -753,7 +763,7 @@ async function logFoodPhoto(file){const hint=document.getElementById('diet-hint'
     const title=today()+' · '+(j.food||'Food')+' · '+(j.kcal||0)+' kcal P'+(j.protein||0)+' F'+(j.fat||0)+' C'+(j.carbs||0);
     await window.cowork.callMcpTool(CREATE_TOOL,{parent:{type:'page_id',page_id:DIET_LOG_ID},pages:[{properties:{title:title}}]});
     setHint('Logged: '+(j.food||'Food')+' · '+(j.kcal||0)+' kcal ✓');
-    if(nt)nt.value='';const fi=document.getElementById('diet-file');if(fi)fi.value='';
+    if(nt)nt.value='';['diet-file','diet-cam'].forEach(function(id){var fi=document.getElementById(id);if(fi)fi.value='';});
     renderDiet();
   }catch(err){setHint('Something went wrong reading the photo. Try again.');}}
 function parseDietTitle(title){const parts=title.split('·');const food=(parts[1]||title).trim();const ki=title.toLowerCase().indexOf('kcal');const kc=(title.match(/(\d+)\s*kcal/i)||[])[1];const tail=ki>=0?title.slice(ki):'';const p=(tail.match(/\bP\s*(\d+)/i)||[])[1];const f=(tail.match(/\bF\s*(\d+)/i)||[])[1];const c=(tail.match(/\bC\s*(\d+)/i)||[])[1];return {food:food||'Food',kcal:+kc||0,p:+p||0,f:+f||0,c:+c||0};}
@@ -762,7 +772,7 @@ async function renderDiet(){const body=document.getElementById('diet-body');if(!
     items.forEach(k=>{const x=parseDietTitle(k.title);kcal+=x.kcal;P+=x.p;F+=x.f;C+=x.c;rows+='<li class="todo"><a href="'+k.url+'" target="_blank" rel="noopener" style="flex:1;color:var(--ink);text-decoration:none">'+escapeHtml(x.food)+'</a><span style="flex:none;color:var(--aqua2);font-size:11.5px">'+x.kcal+' kcal · P'+x.p+' F'+x.f+' C'+x.c+'</span></li>';});
     const badge=document.getElementById('diet-total');if(badge)badge.textContent=kcal+' in · '+(kcal-burned)+' net';let html;
     if(items.length){html='<ul class="todo-list">'+rows+'</ul><div style="display:flex;height:11px;border-radius:6px;overflow:hidden;margin-top:12px;border:1px solid var(--line)"><div style="background:#2ee6ff;width:'+Math.round(P*4/((P*4+F*9+C*4)||1)*100)+'%"></div><div style="background:#ffd27f;width:'+Math.round(F*9/((P*4+F*9+C*4)||1)*100)+'%"></div><div style="background:#8fd0e0;flex:1"></div></div><div style="margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)"><span><b style="color:#2ee6ff">●</b> Protein '+P+'g</span><span><b style="color:#ffd27f">●</b> Fat '+F+'g</span><span><b style="color:#8fd0e0">●</b> Carbs '+C+'g</span></div><div style="margin-top:8px;font-size:13.5px">Intake <b style="color:var(--aqua)">'+kcal+'</b> · Burned <b style="color:var(--rose)">'+burned+'</b> · Net <b style="color:var(--aquasoft)">'+(kcal-burned)+'</b> kcal</div><div class="caption">Estimates from your photos — rough, not exact.</div>';}
-    else{html='<div class="note-hint">No food logged today yet. Upload a food photo to Claude in chat and it appears here.</div>';}
+    else{html='<div class="note-hint">No food logged today yet. Upload a food photo above, or take one with the camera.</div>';}
     body.className='';body.innerHTML=html;
   }catch(e){body.className='err';body.textContent='Could not load diet log. Try Reload.';}}
 function buildSupp(wrap){const c=document.createElement('div');c.className='card';c.innerHTML='<h2><span class="ic">💊</span>Supplements<span class="badge" id="supp-count">0</span></h2><div class="blurb">Tap what you took today.</div><div class="habits" id="supp-habits"></div>';wrap.appendChild(c);const h=document.getElementById('supp-habits');SUPPS.forEach(name=>{const b=document.createElement('button');b.className='habit';b.dataset.n=name;b.textContent=name;b.onclick=()=>{const t=today();const day=Object.assign({},suppLog[t]);day[name]=!day[name];suppLog[t]=day;LS.set('plos_supp',suppLog);renderSupp();scheduleSync();};h.appendChild(b);});renderSupp();}
