@@ -759,10 +759,10 @@ async function logFoodPhoto(file){const hint=document.getElementById('diet-hint'
     const base=window.__PHONE__?'':'https://befalia-os-app.vercel.app';
     const r=await fetch(base+'/api/vision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({img:b64,mime:'image/jpeg',note:note})});
     const j=await r.json().catch(()=>({error:'bad response'}));
-    if(!r.ok||j.error){setHint('Could not estimate ('+(j.error||('http '+r.status))+'). If this is the first time, the Anthropic key still needs adding in Vercel.');return;}
+    if(!r.ok||j.error){setHint(j.capped?j.error:('Could not estimate ('+(j.error||('http '+r.status))+'). If this is the first time, the Anthropic key still needs adding in Vercel.'));return;}
     const title=today()+' · '+(j.food||'Food')+' · '+(j.kcal||0)+' kcal P'+(j.protein||0)+' F'+(j.fat||0)+' C'+(j.carbs||0);
     await window.cowork.callMcpTool(CREATE_TOOL,{parent:{type:'page_id',page_id:DIET_LOG_ID},pages:[{properties:{title:title}}]});
-    setHint('Logged: '+(j.food||'Food')+' · '+(j.kcal||0)+' kcal ✓');
+    setHint('Logged: '+(j.food||'Food')+' · '+(j.kcal||0)+' kcal ✓'+(j.cap?(' · '+j.used+' of '+j.cap+' photos today'):''));
     if(nt)nt.value='';['diet-file','diet-cam'].forEach(function(id){var fi=document.getElementById(id);if(fi)fi.value='';});
     renderDiet();
   }catch(err){setHint('Something went wrong reading the photo. Try again.');}}
