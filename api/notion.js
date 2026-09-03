@@ -2,8 +2,13 @@
 // Two protocols:
 //   (A) MCP-emulation: { name, args } — mirrors the dashboard's Cowork connector so the SAME dashboard code runs on the phone.
 //   (B) Simple actions: { action, ... } — kept for the earlier phone build during transition.
+import { requireKey } from './_auth.js';
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).json({ error: 'POST only' }); return; }
+  // This route holds the Notion token for the whole personal OS. Unauthenticated
+  // it lets anyone with the URL read and write every page the token can reach.
+  if (!requireKey(req, res)) return;
   const token = process.env.NOTION_TOKEN;
   if (!token) { res.status(500).json({ error: 'NOTION_TOKEN env var is not set in Vercel' }); return; }
   const H = { 'Authorization': 'Bearer ' + token, 'Notion-Version': '2022-06-28', 'Content-Type': 'application/json' };

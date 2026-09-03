@@ -12,6 +12,8 @@
 // api/notion.js), VISION_DAILY_CAP (optional, default 15), VISION_METER_PAGE
 // (optional, defaults to the page created for this).
 
+import { requireKey } from './_auth.js';
+
 const METER_PAGE = process.env.VISION_METER_PAGE || '3cfeb411ed7a816c9045c52d6648dab3';
 const CAP = Math.max(1, parseInt(process.env.VISION_DAILY_CAP || '15', 10) || 15);
 const MAX_IMG_CHARS = 8 * 1024 * 1024; // base64 payload ceiling, roughly 6 MB of image
@@ -49,7 +51,7 @@ export default async function handler(req, res) {
   // meter below is what actually caps spend.
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-os-key');
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
   // GET is a free health check for the gate itself: open /api/vision in a browser
@@ -60,14 +62,15 @@ export default async function handler(req, res) {
     try {
       const meter = await readMeter(t);
       const d = todayWITA();
-      res.status(200).json({ ok: true, day: d, used: meter.date === d ? meter.used : 0, cap: CAP, meterPage: METER_PAGE });
+      res.status(200).json({ ok: true, day: d, used: meter.date === d ? meter.used : 0, cap: CAP });
     } catch (e) {
-      res.status(503).json({ ok: false, error: String(e.message || e), meterPage: METER_PAGE, hint: 'Open the Vision Meter page in Notion, click the three dots, Connections, and add the same integration that NOTION_TOKEN belongs to.' });
+      res.status(503).json({ ok: false, error: String(e.message || e), hint: 'Open the Vision Meter page in Notion, click the three dots, Connections, and add the same integration that NOTION_TOKEN belongs to.' });
     }
     return;
   }
 
   if (req.method !== 'POST') { res.status(405).json({ error: 'POST or GET only' }); return; }
+  if (!requireKey(req, res)) return;
 
   const key = process.env.ANTHROPIC_API_KEY;
   if (!key) { res.status(500).json({ error: 'ANTHROPIC_API_KEY env var is not set in Vercel' }); return; }

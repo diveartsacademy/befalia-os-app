@@ -255,9 +255,38 @@
 </div>
 
 <script>
+/* ---- OS key. Every /api route requires it. The dashboard is a public static
+   page, so the key cannot live in this file. It is typed once per device and
+   kept in that browser's localStorage, then sent as the x-os-key header. ---- */
+function osKeyGet(){try{return localStorage.getItem('os_key')||'';}catch(e){return '';}}
+function osKeySet(v){try{localStorage.setItem('os_key',v);}catch(e){}}
+function osKeyClear(){try{localStorage.removeItem('os_key');}catch(e){}}
+function osHeaders(){var h={'Content-Type':'application/json'};var k=osKeyGet();if(k)h['x-os-key']=k;return h;}
+function osKeyPrompt(msg){
+  if(document.getElementById('os-lock'))return;
+  var w=document.createElement('div');w.id='os-lock';
+  w.setAttribute('style','position:fixed;inset:0;z-index:9999;background:rgba(4,12,18,.95);display:flex;align-items:center;justify-content:center;padding:24px');
+  w.innerHTML='<div style="max-width:340px;width:100%;text-align:center;color:#dff3f8">'
+    +'<div style="font-size:34px;margin-bottom:10px">\u{1F512}</div>'
+    +'<div style="font-size:15px;letter-spacing:.08em;margin-bottom:6px">BEFALIA OS</div>'
+    +'<div style="font-size:12.5px;opacity:.75;margin-bottom:14px">'+(msg||'Enter your OS key to use this device.')+'</div>'
+    +'<input id="os-lock-in" type="password" autocomplete="off" style="width:100%;box-sizing:border-box;padding:11px;border-radius:9px;border:1px solid rgba(120,200,220,.35);background:rgba(255,255,255,.06);color:#dff3f8;font-size:14px">'
+    +'<button id="os-lock-go" style="margin-top:10px;width:100%;padding:11px;border-radius:9px;border:0;background:#2ee6ff;color:#04212b;font-size:14px;cursor:pointer">Unlock</button>'
+    +'<div style="font-size:11.5px;opacity:.55;margin-top:10px">Stored on this device only, and sent only to your own OS.</div></div>';
+  document.body.appendChild(w);
+  var go=function(){var v=(document.getElementById('os-lock-in').value||'').trim();if(!v)return;osKeySet(v);w.remove();location.reload();};
+  document.getElementById('os-lock-go').onclick=go;
+  document.getElementById('os-lock-in').addEventListener('keydown',function(e){if(e.key==='Enter')go();});
+  try{document.getElementById('os-lock-in').focus();}catch(e){}
+}
+function osUnauthorised(){osKeyClear();osKeyPrompt('That key was refused. Enter it again.');}
+if(!osKeyGet()){setTimeout(function(){osKeyPrompt();},0);}
+</script>
+<script>
+
 /* ---- Phone bridge: only activates when the Cowork bridge is absent (i.e. on the hosted phone app). Desktop is untouched. ---- */
 if(!window.cowork){window.cowork={
-  callMcpTool:async function(name,args){const r=await fetch('/api/notion',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:name,args:args})});let j={};try{j=await r.json();}catch(e){j={};}if(!r.ok||j.error){throw new Error(j.error||('save failed (HTTP '+r.status+')'));}return {structuredContent:j};},
+  callMcpTool:async function(name,args){const r=await fetch('/api/notion',{method:'POST',headers:osHeaders(),body:JSON.stringify({name:name,args:args})});if(r.status===401){osUnauthorised();throw new Error('OS key refused');}let j={};try{j=await r.json();}catch(e){j={};}if(!r.ok||j.error){throw new Error(j.error||('save failed (HTTP '+r.status+')'));}return {structuredContent:j};},
   askClaude:async function(prompt){try{const r=await fetch('https://hook.eu1.make.com/3ga58ebevmcuol8c2jjnahrixxeclp1c',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sys:"You are Befalia's precise assistant. Follow the instruction in the message exactly. If it asks for JSON, output only valid JSON and nothing else.",msg:String(prompt||'')})});return r.ok?(await r.text()):'';}catch(e){return '';}}
 };window.__PHONE__=true;if('serviceWorker' in navigator){try{navigator.serviceWorker.register('sw.js').catch(function(){});}catch(e){}}}
 if(typeof window.sendPrompt!=='function'){window.sendPrompt=function(){};}
@@ -757,7 +786,8 @@ async function logFoodPhoto(file){const hint=document.getElementById('diet-hint'
     const nt=document.getElementById('diet-note');const note=(nt&&nt.value||'').trim();
     setHint('Estimating calories…');
     const base=window.__PHONE__?'':'https://befalia-os-app.vercel.app';
-    const r=await fetch(base+'/api/vision',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({img:b64,mime:'image/jpeg',note:note})});
+    const r=await fetch(base+'/api/vision',{method:'POST',headers:osHeaders(),body:JSON.stringify({img:b64,mime:'image/jpeg',note:note})});
+    if(r.status===401){osUnauthorised();setHint('Your OS key was refused. Enter it again.');return;}
     const j=await r.json().catch(()=>({error:'bad response'}));
     if(!r.ok||j.error){setHint(j.capped?j.error:('Could not estimate ('+(j.error||('http '+r.status))+'). If this is the first time, the Anthropic key still needs adding in Vercel.'));return;}
     const title=today()+' · '+(j.food||'Food')+' · '+(j.kcal||0)+' kcal P'+(j.protein||0)+' F'+(j.fat||0)+' C'+(j.carbs||0);
