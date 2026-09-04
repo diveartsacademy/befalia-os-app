@@ -269,17 +269,17 @@ function osKeyPrompt(msg){
   w.innerHTML='<div style="max-width:340px;width:100%;text-align:center;color:#dff3f8">'
     +'<div style="font-size:34px;margin-bottom:10px">\u{1F512}</div>'
     +'<div style="font-size:15px;letter-spacing:.08em;margin-bottom:6px">BEFALIA OS</div>'
-    +'<div style="font-size:12.5px;opacity:.75;margin-bottom:14px">'+(msg||'Enter your OS key to use this device.')+'</div>'
+    +'<div style="font-size:12.5px;opacity:.75;margin-bottom:14px">'+(msg||'This is not an error. First time on this device, so paste your OS key from your password manager.')+'</div>'
     +'<input id="os-lock-in" type="password" autocomplete="off" style="width:100%;box-sizing:border-box;padding:11px;border-radius:9px;border:1px solid rgba(120,200,220,.35);background:rgba(255,255,255,.06);color:#dff3f8;font-size:14px">'
     +'<button id="os-lock-go" style="margin-top:10px;width:100%;padding:11px;border-radius:9px;border:0;background:#2ee6ff;color:#04212b;font-size:14px;cursor:pointer">Unlock</button>'
-    +'<div style="font-size:11.5px;opacity:.55;margin-top:10px">Stored on this device only, and sent only to your own OS.</div></div>';
+    +'<div style="font-size:11.5px;opacity:.55;margin-top:10px">Stored on this device only, and sent only to your own OS. You will not be asked again on this browser.</div></div>';
   document.body.appendChild(w);
   var go=function(){var v=(document.getElementById('os-lock-in').value||'').trim();if(!v)return;osKeySet(v);w.remove();location.reload();};
   document.getElementById('os-lock-go').onclick=go;
   document.getElementById('os-lock-in').addEventListener('keydown',function(e){if(e.key==='Enter')go();});
   try{document.getElementById('os-lock-in').focus();}catch(e){}
 }
-function osUnauthorised(){osKeyClear();osKeyPrompt('That key was refused. Enter it again.');}
+function osUnauthorised(){osKeyClear();osKeyPrompt('That key was refused. It may have been rotated. Paste the current one from your password manager.');}
 if(!osKeyGet()){setTimeout(function(){osKeyPrompt();},0);}
 </script>
 <script>
