@@ -197,6 +197,35 @@
   body.private .sensitive{position:relative;cursor:pointer;}
   body.private .sensitive:not(.revealed)::after{content:"🔒 tap to reveal";position:absolute;top:50%;left:0;right:0;text-align:center;transform:translateY(-50%);color:var(--aqua2);font-size:12px;letter-spacing:1px;font-weight:700;z-index:5;}
   .fl-tag{flex:none;font-size:10px;font-weight:800;letter-spacing:.4px;padding:3px 8px;border-radius:999px;margin-left:auto;text-transform:uppercase;}
+  /* ---------- Goals tab ---------- */
+  .gl-years{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;}
+  .gl-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:16px;margin-top:16px;align-items:start;}
+  @media(max-width:980px){.gl-grid{grid-template-columns:1fr;}}
+  .gl-grid .card{margin:0 0 16px;}
+  .gl-grid .card:hover,.gl-head.card:hover{transform:none;}
+  .gl-hl{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px;}
+  .gl-hl li{display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid var(--aqualine);border-radius:12px;background:rgba(255,214,120,.05);font-size:14px;}
+  .gl-hl li .ic{font-size:16px;}
+  .gl-hl li .ar{margin-left:auto;font-size:10.5px;color:var(--dim);}
+  .gl-area-h{font-family:var(--serif);font-size:13px;letter-spacing:1px;text-transform:uppercase;color:var(--aquasoft);margin:14px 0 4px;display:flex;gap:8px;}
+  .gl-area-h .n{margin-left:auto;font-family:var(--sans);font-size:11px;color:var(--dim);letter-spacing:0;text-transform:none;}
+  .gl-row{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line);font-size:14px;}
+  .gl-row .nm{flex:1;min-width:0;word-break:break-word;}
+  .gl-row.done .nm{color:var(--muted);text-decoration:line-through;text-decoration-color:rgba(120,210,235,.35);}
+  .gl-row.drop .nm{color:var(--dim);font-style:italic;}
+  .gl-st{flex:none;border:1px solid var(--aqualine);border-radius:999px;padding:3px 9px;font-size:10.5px;cursor:pointer;background:transparent;color:var(--muted);white-space:nowrap;}
+  .gl-st.s-done{background:rgba(110,220,160,.18);border-color:rgba(110,220,160,.5);color:#9ff0c4;}
+  .gl-st.s-prog{background:rgba(255,214,120,.14);border-color:rgba(255,214,120,.5);color:#ffe2a0;}
+  .gl-st.s-drop{opacity:.6;}
+  .gl-al{flex:none;font-size:10px;color:var(--dim);}
+  .gl-add{display:grid;grid-template-columns:minmax(0,1fr) 150px auto;gap:8px;margin-top:12px;}
+  @media(max-width:600px){.gl-add{grid-template-columns:1fr 1fr;}.gl-add .fld:first-child{grid-column:1/-1;}}
+  .gl-bar{height:6px;border-radius:999px;background:rgba(46,230,255,.1);overflow:hidden;margin-top:6px;}
+  .gl-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--aqua),#9ff0c4);}
+  .gl-years-sum{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:8px;}
+  .gl-ys{border:1px solid var(--aqualine);border-radius:12px;padding:8px 10px;cursor:pointer;background:rgba(46,230,255,.04);color:var(--ink);text-align:left;font-family:var(--sans);}
+  .gl-ys b{font-family:var(--serif);font-size:16px;color:var(--aqua);}
+  .gl-ys span{display:block;font-size:10.5px;color:var(--muted);}
   /* ---------- To-Do tab ---------- */
   .td-headrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .td-headrow h2{margin-right:6px;}
@@ -285,6 +314,13 @@
   .td-hist-day{margin-top:14px;}
   .td-hist-h{display:flex;align-items:baseline;gap:8px;font-family:var(--serif);font-size:14px;color:var(--aquasoft);font-weight:700;border-bottom:1px solid var(--line);padding-bottom:4px;}
   .td-hist-h .n{margin-left:auto;font-family:var(--sans);font-size:11px;color:var(--dim);font-weight:600;}
+  .td-note{margin:8px 0 0;padding:8px 10px 8px 12px;border-left:3px solid #8fb6cc55;background:rgba(143,182,204,.06);border-radius:0 10px 10px 0;}
+  .td-note-h{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);font-weight:700;margin-bottom:4px;}
+  .td-note ul{list-style:none;margin:0;padding:0;}
+  .td-note li{font-size:13px;line-height:1.45;color:var(--ink,#e8f1f6);padding:1px 0;word-break:break-word;}
+  .td-note li.hd{font-weight:700;color:var(--aquasoft);margin-top:4px;}
+  .td-note li a{color:var(--aqua);}
+  .td-cnt.note{background:#8fb6cc;margin-left:3px;}
   .td-modal{position:fixed;inset:0;z-index:200;background:rgba(2,8,14,.72);display:flex;align-items:flex-start;justify-content:center;padding:6vh 14px 20px;overflow:auto;}
   .td-sheet{width:100%;max-width:560px;animation:none;}
   .td-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
@@ -317,6 +353,9 @@
   </div>
   <div class="tabpane" id="tab-todo">
     <div id="todo-root"></div>
+  </div>
+  <div class="tabpane" id="tab-goals">
+    <div id="goals-root"></div>
   </div>
   <div class="tabpane" id="tab-health">
     <div class="section-label">Today</div>
@@ -503,10 +542,10 @@ const ROUTES={
 };
 
 /* ---------- tabs ---------- */
-function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
+function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
 function buildTabs(){
   const bar=document.getElementById('tabs');
-  [['tab-command','Home'],['tab-todo','To-Do'],['tab-health','Health'],['tab-areas','Relationship'],['tab-room','About Me'],['tab-finance','Finance'],['tab-social','Social'],['tab-agents','Agents']].forEach((t,i)=>{
+  [['tab-command','Home'],['tab-todo','To-Do'],['tab-goals','Goals'],['tab-health','Health'],['tab-areas','Relationship'],['tab-room','About Me'],['tab-finance','Finance'],['tab-social','Social'],['tab-agents','Agents']].forEach((t,i)=>{
     const b=document.createElement('button');b.className='tab'+(i===0?' active':'');b.textContent=t[1];b.setAttribute('data-pane',t[0]);
     b.onclick=()=>showTab(t[0]);
     bar.appendChild(b);
@@ -1155,7 +1194,7 @@ const TD_AREAS=[{key:'Personal',icon:'🏠',color:'#f59ac8'},{key:'DiveArts',ico
 const TD_TZ='Asia/Makassar';
 const TD_NOTION_URL='https://app.notion.com/p/3eceb411ed7a81ee967bd6d40f7c4ee4';
 const TD={tasks:[],byId:{},sections:[],today:null,loaded:false,loading:false,err:'',lastSync:null,
-  view:LS.get('td_view','list'),area:LS.get('td_area','All'),flag:'',q:'',month:null,sel:null,histLimit:21,
+  arch:null,archLoading:false,archErr:'',view:LS.get('td_view','list'),area:LS.get('td_area','All'),flag:'',q:'',month:null,sel:null,histLimit:21,
   closed:LS.get('td_closed',{}),newPri:false,newUrg:false};
 
 function tdWita(d){return new Intl.DateTimeFormat('en-CA',{timeZone:TD_TZ,year:'numeric',month:'2-digit',day:'2-digit'}).format(d||new Date());}
@@ -1167,8 +1206,9 @@ function tdPretty(day,o){return tdUTC(day).toLocaleDateString('en-GB',Object.ass
 function tdAdd(day,n){const d=tdUTC(day);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
 function tdDays(t){if(!t.date||!t.date.start)return [];const a=tdDayOf(t.date.start);const b=t.date.end?tdDayOf(t.date.end):a;const out=[];let d=a;for(let i=0;i<62&&d<=b;i++){out.push(d);d=tdAdd(d,1);}return out;}
 function tdLast(t){const ds=tdDays(t);return ds.length?ds[ds.length-1]:null;}
-function tdOnList(t){return !t.done||t.completedOn===TD.today;}
-function tdOverdue(t){if(t.done)return false;const l=tdLast(t);return !!l&&l<TD.today;}
+// Past events (classes, meetings) drop off the list but stay on the calendar.
+function tdOnList(t){if(t.type==='Event'&&!t.done){const l=tdLast(t);if(l&&l<TD.today)return false;}return !t.done||t.completedOn===TD.today;}
+function tdOverdue(t){if(t.done||t.type==='Event')return false;const l=tdLast(t);return !!l&&l<TD.today;}
 function tdDueToday(t){return !t.done&&tdDays(t).indexOf(TD.today)!==-1;}
 function tdColor(a){const x=TD_AREAS.find(z=>z.key===a);return x?x.color:'#8fb6cc';}
 function tdIcon(a){const x=TD_AREAS.find(z=>z.key===a);return x?x.icon:'•';}
@@ -1191,7 +1231,23 @@ async function tdLoad(silent){
   try{const j=await tdApi('list');TD.tasks=j.tasks||[];TD.today=j.today||tdWita();if(Array.isArray(j.sections)&&j.sections.length)TD.sections=j.sections;
     TD.loaded=true;TD.err=j.complete===false?'Only part of the list loaded. Tell Claude, the list has outgrown one load.':'';TD.lastSync=new Date();tdIndex();}
   catch(e){TD.err=String(e.message||e);}
-  finally{TD.loading=false;tdRenderAll();}
+  finally{TD.loading=false;tdRenderAll();if(TD.loaded&&!TD.arch&&!TD.archErr)tdLoadArchive();}
+}
+// The 2026 Apple Note history (1 Jan to 9 Oct) is a read-only archive served
+// by /api/tasks 'history'. Loaded once, in the background, after the list.
+async function tdLoadArchive(){
+  if(TD.arch||TD.archLoading)return;TD.archLoading=true;
+  try{const j=await tdApi('history');const by={};(j.days||[]).forEach(d=>{by[d.d]=d;});TD.arch=by;TD.archErr='';}
+  catch(e){TD.archErr=String(e.message||e);}
+  finally{TD.archLoading=false;tdRenderAll();}
+}
+function tdArchDay(d){return TD.arch&&TD.arch[d]&&TD.arch[d].items.length?TD.arch[d]:null;}
+function tdArchItems(d){const a=tdArchDay(d);if(!a)return [];if(!TD.q)return a.items;const q=TD.q.toLowerCase();return a.items.filter(i=>i.t.toLowerCase().indexOf(q)!==-1);}
+function tdLinkify(s){return escapeHtml(s).replace(/(https?:\/\/[^\s<]+)/g,function(u){return '<a href="'+u+'" target="_blank" rel="noopener">link</a>';});}
+function tdNoteHTML(d){
+  const items=tdArchItems(d);if(!items.length)return '';
+  return '<div class="td-note"><div class="td-note-h">From your Apple Note · '+items.length+' line'+(items.length>1?'s':'')+'</div><ul>'
+    +items.map(i=>'<li class="'+(i.h?'hd':'')+'" style="padding-left:'+(i.l*16)+'px">'+(i.h?'':(i.l?'◦ ':'• '))+tdLinkify(i.t)+'</li>').join('')+'</ul></div>';
 }
 function tdLocal(t,patch){
   Object.assign(t,patch);
@@ -1296,15 +1352,24 @@ function tdRenderHistory(){
   if(!TD.loaded){el.innerHTML='<div class="'+(TD.err?'err':'loading')+'">'+escapeHtml(TD.err||'Loading…')+'</div>';return;}
   const done=TD.tasks.filter(t=>t.done&&(TD.area==='All'||t.area===TD.area)&&(!TD.q||((t.name||'')+' '+(t.section||'')).toLowerCase().indexOf(TD.q.toLowerCase())!==-1));
   const by={};done.forEach(t=>{const d=t.completedOn||'unknown';(by[d]=by[d]||[]).push(t);});
-  let days=Object.keys(by).filter(d=>d!=='unknown').sort().reverse();if(by.unknown)days.push('unknown');if(TD.sel)days=days.filter(d=>d===TD.sel);
-  let html='<div class="td-filterbar">'+done.length+' done'+(TD.area!=='All'?' in '+escapeHtml(TD.area):'')+(TD.sel?' · showing '+tdPretty(TD.sel,{year:'numeric'})+' only · <button class="link-btn" data-act="clearsel">show all days</button>':'')+'</div>';
-  if(!days.length)html+='<div class="td-empty">'+(TD.sel?'Nothing was ticked on this day.':'Nothing ticked yet. Done tasks land here, by day.')+'</div>';
+  // The Apple Note archive has no areas, so it shows under "All" only.
+  const showArch=TD.area==='All'&&!!TD.arch;
+  const set={};Object.keys(by).forEach(d=>{if(d!=='unknown')set[d]=1;});
+  let archLines=0;if(showArch)Object.keys(TD.arch).forEach(d=>{const n=tdArchItems(d).length;if(n){set[d]=1;archLines+=n;}});
+  let days=Object.keys(set).sort().reverse();if(by.unknown)days.push('unknown');if(TD.sel)days=days.filter(d=>d===TD.sel);
+  let html='<div class="td-filterbar">'+done.length+' ticked here'+(TD.area!=='All'?' in '+escapeHtml(TD.area):'')+(showArch?' · '+archLines+' lines from the 2026 Apple Note (1 Jan to 9 Oct)':'')+(TD.sel?' · showing '+tdPretty(TD.sel,{year:'numeric'})+' only · <button class="link-btn" data-act="clearsel">show all days</button>':'')+'</div>';
+  if(TD.area==='All'&&!TD.arch)html+='<div class="td-filterbar">'+(TD.archErr?'Apple Note history did not load: '+escapeHtml(TD.archErr):'Loading your 2026 Apple Note history…')+'</div>';
+  if(TD.area!=='All'&&TD.arch)html+='<div class="td-filterbar">The Apple Note days have no area, so they show under All.</div>';
+  if(!days.length)html+='<div class="td-empty">'+(TD.sel?'Nothing recorded on this day.':'Nothing ticked yet. Done tasks land here, by day.')+'</div>';
   days.slice(0,TD.histLimit).forEach(d=>{
-    const list=by[d].sort((a,b)=>(a.area||'')<(b.area||'')?-1:1);
+    const list=(by[d]||[]).sort((a,b)=>(a.area||'')<(b.area||'')?-1:1);
     const per=TD_AREAS.map(a=>[a,list.filter(t=>t.area===a.key).length]).filter(x=>x[1]).map(x=>x[0].icon+' '+x[1]).join('  ');
-    html+='<div class="td-hist-day"><div class="td-hist-h">'+(d==='unknown'?'Date not recorded':(d===TD.today?'Today · ':'')+tdPretty(d,{year:'numeric',weekday:'long'}))+'<span class="n">'+list.length+' done · '+per+'</span></div><ul class="td-list">';
-    list.forEach(t=>{html+=tdRowHTML(t,{showArea:true,showParent:true,hideDate:true});});
-    html+='</ul></div>';
+    const nl=showArch?tdArchItems(d).length:0;
+    const cnt=[list.length?list.length+' done'+(per?' · '+per:''):'',nl?nl+' from note':''].filter(Boolean).join(' · ');
+    html+='<div class="td-hist-day"><div class="td-hist-h">'+(d==='unknown'?'Date not recorded':(d===TD.today?'Today · ':'')+tdPretty(d,{year:'numeric',weekday:'long'}))+'<span class="n">'+cnt+'</span></div>';
+    if(list.length){html+='<ul class="td-list">';list.forEach(t=>{html+=tdRowHTML(t,{showArea:true,showParent:true,hideDate:true});});html+='</ul>';}
+    if(nl)html+=tdNoteHTML(d);
+    html+='</div>';
   });
   if(days.length>TD.histLimit)html+='<div style="margin-top:12px"><button class="td-ghost" data-act="more">Show older days</button></div>';
   el.innerHTML=html;
@@ -1324,12 +1389,12 @@ function tdRenderCal(){
     if(i===35&&d.slice(0,7)!==ym)break;
     const items=(byDay[d]||[]).slice().sort((a,b)=>(tdTimeOf(a.date.start)||'99')<(tdTimeOf(b.date.start)||'99')?-1:1);
     let inner='<div class="dn">'+Number(d.slice(8))+'</div>';
-    if(TD.view==='history'){if(doneBy[d])inner+='<span class="td-cnt">✓ '+doneBy[d]+'</span>';}
+    if(TD.view==='history'){if(doneBy[d])inner+='<span class="td-cnt">✓ '+doneBy[d]+'</span>';const an=TD.area==='All'?tdArchItems(d).length:0;if(an)inner+='<span class="td-cnt note" title="Lines in your 2026 Apple Note">📝 '+an+'</span>';}
     else{items.slice(0,3).forEach(t=>{const tm=tdTimeOf(t.date.start);inner+='<div class="td-ev'+(t.done?' done':'')+'" style="--c:'+tdColor(t.area)+'" title="'+attr(t.name)+'">'+(tm?tm+' ':'')+escapeHtml(t.name)+'</div>';});if(items.length>3)inner+='<div class="td-more">+'+(items.length-3)+' more</div>';}
     html+='<div class="td-cell'+(d.slice(0,7)!==ym?' out':'')+(d===TD.today?' today':'')+(d===TD.sel?' sel':'')+'" data-day="'+d+'">'+inner+'</div>';
     d=tdAdd(d,1);
   }
-  html+='</div><div class="caption">'+(TD.view==='history'?'Numbers show how many tasks you ticked that day. Tap a day to see them.':'Dated tasks and blocked schedule. Tap a day to see it and add to it. Times are WITA.')+'</div>';
+  html+='</div><div class="caption">'+(TD.view==='history'?'✓ is tasks ticked here. 📝 is lines from your 2026 Apple Note. Tap a day to see them.':'Dated tasks and blocked schedule. Tap a day to see it and add to it. Times are WITA.')+'</div>';
   el.innerHTML=html;
 }
 function tdRenderDay(){
@@ -1343,6 +1408,7 @@ function tdRenderDay(){
   html+='<div class="td-sub">Scheduled</div>'+(sched.length?'<ul class="td-list">'+sched.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>':'<div class="td-empty">Nothing dated for this day.</div>');
   html+='<div class="todo-add" style="margin-top:10px"><input class="fld" id="td-day-in" placeholder="Add to '+tdPretty(day)+'… (add a time like 14:30 at the end)"><button class="gold-btn" data-act="dayadd">+</button></div>';
   html+='<div class="td-sub">Done this day · '+did.length+'</div>'+(did.length?'<ul class="td-list">'+did.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>':'<div class="td-empty">'+(day>(TD.today||'')?'Not yet.':'Nothing ticked on this day.')+'</div>');
+  if(TD.area==='All')html+=tdNoteHTML(day);
   el.innerHTML=html;
   const nin=document.getElementById('td-day-in');if(nin){nin.value=keep;if(hadFocus)nin.focus();}
 }
@@ -1489,6 +1555,78 @@ async function tdMigrate(){
   LS.set('plos_board',board);if(!fail)LS.set('plos_board_migrated',true);
   showToast(fail?('Moved '+ok+', '+fail+' failed. Try again.'):('Moved '+ok+' old tasks into To-Do ✓'),!fail);tdRenderAll();
 }
+
+/* ================= Goals tab: Yearly Goals Tracker in Notion ================= */
+const GL={goals:[],areas:[],loaded:false,loading:false,err:'',year:String(new Date().getFullYear()),url:'https://www.notion.so/3d9efb14a9e549d3ade5e70d6a8fb4fe'};
+const GL_ST=['Not started','In progress','Done','Dropped / changed'];
+const GL_ICON={'Travel':'✈️','Personal / Befa':'🌸','SDT':'🧜‍♀️','DAA':'🎓','DiveArts':'🌊','Career / Dentistry':'🦷','Skills & Hobbies':'🎨','Finance':'💰','Pageant':'👑'};
+async function glApi(action,payload){
+  const r=await fetch('/api/goals',{method:'POST',headers:osHeaders(),body:JSON.stringify(Object.assign({action:action},payload||{}))});
+  if(r.status===401){osUnauthorised();throw new Error('OS key refused');}
+  if(r.status===404)throw new Error('The Goals service is not on this deployment yet');
+  let j={};try{j=await r.json();}catch(e){j={};}
+  if(!r.ok||j.error)throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+async function glLoad(){
+  if(GL.loading)return;GL.loading=true;glRender();
+  try{const j=await glApi('list');GL.goals=j.goals||[];if(Array.isArray(j.areas)&&j.areas.length)GL.areas=j.areas;if(j.url)GL.url=j.url;GL.loaded=true;GL.err='';}
+  catch(e){GL.err=String(e.message||e);}
+  finally{GL.loading=false;glRender();}
+}
+function glYears(){const y={};GL.goals.forEach(g=>{if(g.year)y[g.year]=1;});y[GL.year]=1;return Object.keys(y).sort().reverse();}
+function glStClass(s){return s==='Done'?'s-done':s==='In progress'?'s-prog':s==='Dropped / changed'?'s-drop':'';}
+function glRender(){
+  const root=document.getElementById('goals-root');if(!root)return;
+  const keep={};['gl-hl-in','gl-g-in'].forEach(id=>{const el=document.getElementById(id);if(el)keep[id]=el.value;});
+  if(!GL.loaded){root.innerHTML='<div class="card gl-head" data-no-tools><div class="td-headrow"><h2><span class="ic">🎯</span>Goals</h2></div><div class="'+(GL.err?'err':'loading')+'" style="margin-top:10px">'+escapeHtml(GL.err||'Loading your goals from Notion…')+'</div>'+(GL.err?'<button class="ctool" data-gl="reload" style="margin-top:10px">Try again</button>':'')+'</div>';return;}
+  const yr=GL.year;const inYear=GL.goals.filter(g=>g.year===yr);
+  const hl=inYear.filter(g=>g.kind==='Highlight');const gs=inYear.filter(g=>g.kind!=='Highlight');
+  const live=gs.filter(g=>g.status!=='Dropped / changed');const done=live.filter(g=>g.status==='Done').length;const prog=live.filter(g=>g.status==='In progress').length;
+  const pct=live.length?Math.round(done*100/live.length):0;
+  const areaOpts=a=>(GL.areas.length?GL.areas:Object.keys(GL_ICON)).map(x=>'<option'+(x===a?' selected':'')+'>'+escapeHtml(x)+'</option>').join('');
+  let h='<div class="card gl-head" data-no-tools><div class="td-headrow"><h2><span class="ic">🎯</span>Goals &amp; Highlights</h2><span class="td-sync">'+(GL.loading?'Syncing…':'From Notion · Yearly Goals Tracker')+'</span><button class="ctool" data-gl="reload">↻ Refresh</button><a class="ctool" href="'+GL.url+'" target="_blank" rel="noopener">Notion ↗</a></div>';
+  h+='<div class="gl-years">'+glYears().map(y=>'<button class="td-chip'+(y===yr?' on':'')+'" data-gl="year" data-y="'+y+'">'+y+'</button>').join('')+'</div>';
+  h+='<div class="td-stats" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="td-stat"><b>'+live.length+'</b><span>Goals</span></div><div class="td-stat"><b>'+done+'</b><span>Done</span></div><div class="td-stat"><b>'+prog+'</b><span>In progress</span></div><div class="td-stat"><b>'+hl.length+'</b><span>Highlights</span></div></div>';
+  h+='<div class="gl-bar" title="'+pct+'% of '+yr+' goals done"><i style="width:'+pct+'%"></i></div></div>';
+  h+='<div class="gl-grid"><div><div class="card" data-no-tools><h2><span class="ic">✨</span>Highlights of '+yr+'</h2>';
+  h+=hl.length?'<ul class="gl-hl">'+hl.map(g=>'<li><span class="ic">'+(GL_ICON[g.area]||'⭐')+'</span><span>'+escapeHtml(g.name)+'</span><span class="ar">'+escapeHtml(g.area||'')+'</span></li>').join('')+'</ul>':'<div class="td-empty">No highlights for '+yr+' yet.</div>';
+  h+='<div class="gl-add"><input class="fld" id="gl-hl-in" placeholder="Add a highlight of '+yr+'…"><select class="fld" id="gl-hl-area">'+areaOpts('Travel')+'</select><button class="gold-btn" data-gl="addhl">Add</button></div></div>';
+  // all-years overview
+  const ys=glYears();h+='<div class="card" data-no-tools><h2><span class="ic">🗓</span>Every year</h2><div class="gl-years-sum">'+ys.map(y=>{const l=GL.goals.filter(g=>g.year===y&&g.kind!=='Highlight'&&g.status!=='Dropped / changed');const d=l.filter(g=>g.status==='Done').length;const hh=GL.goals.filter(g=>g.year===y&&g.kind==='Highlight').length;return '<button class="gl-ys" data-gl="year" data-y="'+y+'"><b>'+y+'</b><span>'+d+' of '+l.length+' goals done'+(hh?' · '+hh+' highlights':'')+'</span></button>';}).join('')+'</div></div></div>';
+  h+='<div><div class="card" data-no-tools><h2><span class="ic">🎯</span>Goals for '+yr+'</h2>';
+  if(!gs.length)h+='<div class="td-empty">No '+yr+' goals written yet. Add them below, one per line, and pick the area.</div>';
+  const byA={};gs.forEach(g=>{const a=g.area||'Other';(byA[a]=byA[a]||[]).push(g);});
+  Object.keys(byA).sort().forEach(a=>{const l=byA[a];const order={'In progress':0,'Not started':1,'Done':2,'Dropped / changed':3};l.sort((x,y)=>(order[x.status]??1)-(order[y.status]??1));
+    h+='<div class="gl-area-h">'+(GL_ICON[a]||'•')+' '+escapeHtml(a)+'<span class="n">'+l.filter(g=>g.status==='Done').length+' of '+l.filter(g=>g.status!=='Dropped / changed').length+' done</span></div>';
+    l.forEach(g=>{h+='<div class="gl-row'+(g.status==='Done'?' done':'')+(g.status==='Dropped / changed'?' drop':'')+(g._saving?' saving':'')+'"><button class="gl-st '+glStClass(g.status)+'" data-gl="cycle" data-id="'+g.id+'" title="Tap to change status">'+escapeHtml(g.status||'Not started')+'</button><span class="nm">'+escapeHtml(g.name)+'</span>'+(g.aligned&&g.aligned!=='Aligned'?'<span class="gl-al">'+escapeHtml(g.aligned)+'</span>':'')+'</div>';});
+  });
+  h+='<div class="gl-add"><input class="fld" id="gl-g-in" placeholder="Add a '+yr+' goal…"><select class="fld" id="gl-g-area">'+areaOpts('Personal / Befa')+'</select><button class="gold-btn" data-gl="addg">Add</button></div></div></div></div>';
+  root.innerHTML=h;
+  Object.keys(keep).forEach(id=>{const el=document.getElementById(id);if(el)el.value=keep[id];});
+}
+async function glCreate(kind){
+  const inp=document.getElementById(kind==='Highlight'?'gl-hl-in':'gl-g-in');const ar=document.getElementById(kind==='Highlight'?'gl-hl-area':'gl-g-area');
+  const name=(inp&&inp.value||'').trim();if(!name)return;
+  const goal={name:name,year:GL.year,kind:kind,area:ar?ar.value:null,status:kind==='Highlight'?'Done':'Not started'};
+  const tmp=Object.assign({id:'tmp'+Date.now(),_saving:true},goal);GL.goals.push(tmp);inp.value='';glRender();
+  try{const j=await glApi('create',{goal:goal});const i=GL.goals.indexOf(tmp);GL.goals[i]=j.goal;glRender();showToast((kind==='Highlight'?'Highlight':'Goal')+' saved to Notion',true);}
+  catch(e){GL.goals=GL.goals.filter(g=>g!==tmp);glRender();showToast('Not saved: '+(e.message||e),false);}
+}
+async function glCycle(id){
+  const g=GL.goals.find(x=>x.id===id);if(!g||String(id).indexOf('tmp')===0)return;
+  const before=g.status;const next=GL_ST[(GL_ST.indexOf(before)+1)%GL_ST.length];g.status=next;g._saving=true;glRender();
+  try{const j=await glApi('update',{id:id,patch:{status:next}});Object.assign(g,j.goal);delete g._saving;glRender();}
+  catch(e){g.status=before;delete g._saving;glRender();showToast('Not saved: '+(e.message||e),false);}
+}
+function buildGoals(){
+  const root=document.getElementById('goals-root');if(!root)return;
+  root.addEventListener('click',e=>{const b=e.target.closest('[data-gl]');if(!b)return;const a=b.getAttribute('data-gl');
+    if(a==='reload')glLoad();else if(a==='year'){GL.year=b.getAttribute('data-y');glRender();window.scrollTo({top:0,behavior:'smooth'});}
+    else if(a==='addhl')glCreate('Highlight');else if(a==='addg')glCreate('Goal');else if(a==='cycle')glCycle(b.getAttribute('data-id'));});
+  root.addEventListener('keydown',e=>{if(e.key!=='Enter')return;if(e.target.id==='gl-hl-in'){e.preventDefault();glCreate('Highlight');}else if(e.target.id==='gl-g-in'){e.preventDefault();glCreate('Goal');}});
+  glRender();
+}
 /* Called by the Journal box for any "Task:" line. */
 function tdCaptureFromJournal(text){return tdCreate({name:text,area:'Personal'});}
 
@@ -1531,6 +1669,7 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
   buildTabs();
   buildCommand();
   buildTodo();
+  buildGoals();
   buildSocial();
   buildAgents();
   renderAffirm();

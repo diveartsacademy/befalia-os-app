@@ -10,6 +10,7 @@
 // here on the server, so a tick at 00:30 in Bali never lands on yesterday
 // because a phone clock or a Vercel region said otherwise.
 import { requireKey } from './_auth.js';
+import { loadArchive } from './_archive.js';
 
 export const TASKS_DB = (process.env.TASKS_DB_ID || 'ac45a1773bfc4e3c96652745a1ea4c46').replace(/-/g, '');
 const NOTION = 'https://api.notion.com/v1';
@@ -196,7 +197,12 @@ export default async function handler(req, res) {
       const all = await listAll(HG);
       const t = all.pages.filter((p) => !p.archived && !p.in_trash).map(mapPage);
       const day = witaDate();
-      res.status(200).json({ ok: true, today: day, keyGate: !!process.env.OS_KEY, complete: all.complete, total: t.length, open: t.filter((x) => !x.done).length, doneToday: t.filter((x) => x.done && x.completedOn === day).length, untitled: t.filter((x) => !x.name).length });
+      const out = { ok: true, today: day, keyGate: !!process.env.OS_KEY, complete: all.complete, total: t.length, open: t.filter((x) => !x.done).length, doneToday: t.filter((x) => x.done && x.completedOn === day).length, untitled: t.filter((x) => !x.name).length };
+      // Counts only for the 2026 archive too: proves the key page and the
+      // decryption work without exposing a single line of it.
+      try { const a = await loadArchive(HG); out.archive = { ok: true, days: a.days.length, items: a.items, first: a.days.length ? a.days[0].d : null, last: a.days.length ? a.days[a.days.length - 1].d : null }; }
+      catch (e) { out.archive = { ok: false, error: String(e.message || e) }; }
+      res.status(200).json(out);
     } catch (e) {
       res.status(200).json({ ok: false, error: String(e.message || e) });
     }
@@ -217,6 +223,11 @@ export default async function handler(req, res) {
     if (body.action === 'list') {
       const [all, sections] = await Promise.all([listAll(H), sectionOptions(H)]);
       res.status(200).json({ today, tz: TZ, complete: all.complete, sections, areas: AREAS, tasks: all.pages.filter((p) => !p.archived && !p.in_trash).map(mapPage) });
+      return;
+    }
+    if (body.action === 'history') {
+      const a = await loadArchive(H);
+      res.status(200).json({ today, source: a.source, days: a.days, items: a.items });
       return;
     }
     if (body.action === 'create') {
