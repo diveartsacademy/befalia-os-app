@@ -19,8 +19,11 @@ export function requireKey(req, res) {
   }
   const raw = req.headers['x-os-key'];
   const got = Array.isArray(raw) ? raw[0] : (raw || '');
-  const a = Buffer.from(String(got));
-  const b = Buffer.from(expected);
+  // Forgive invisible copy-paste noise on both sides: spaces, line breaks and
+  // wrapping quotes, which are easy to paste into Vercel or a phone by accident.
+  const clean = (s) => String(s).trim().replace(/^["']+|["']+$/g, '').trim();
+  const a = Buffer.from(clean(got));
+  const b = Buffer.from(clean(expected));
   const ok = a.length === b.length && timingSafeEqual(a, b);
   if (!ok) {
     res.status(401).json({ error: 'unauthorised', needKey: true });

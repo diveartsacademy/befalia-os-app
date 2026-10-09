@@ -20,6 +20,8 @@ There is no platform-level login in front of it, so each route defends itself.
 
 ## The key
 
+The comparison ignores leading and trailing spaces, line breaks and wrapping quotes on both sides (added 10 Oct 2026 after a pasted key looped on the lock screen). The lock screen now checks a key with `POST /api/tasks {action:'ping'}` before saving it, and says plainly when the server refuses it.
+
 One shared key, set as `OS_KEY` in the Vercel project environment. The dashboard
 is a public static page, so the key cannot live in `index.html`. It is typed once
 per device, kept in that browser's `localStorage`, and sent as `x-os-key`.

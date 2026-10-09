@@ -213,6 +213,7 @@ export default async function handler(req, res) {
   const today = witaDate();
 
   try {
+    if (body.action === 'ping') { res.status(200).json({ ok: true }); return; }
     if (body.action === 'list') {
       const [all, sections] = await Promise.all([listAll(H), sectionOptions(H)]);
       res.status(200).json({ today, tz: TZ, complete: all.complete, sections, areas: AREAS, tasks: all.pages.filter((p) => !p.archived && !p.in_trash).map(mapPage) });
