@@ -68,3 +68,10 @@ new `OS_KEY` gate. That is the first thing to check after `OS_KEY` is set in Ver
 - If the archive ever needs rebuilding: encrypt the text with a fresh 32-byte key, write the module, and replace the archive-key line on the Notion key page. `parseArchive` documents the text format.
 - Classes where Befalia is the instructor (Google Calendar "DiveArts Bali" and "DiveArts Jakarta", description contains "Instructor: Befalia") are copied into the Tasks database as Events in Section Classes by a daily scheduled task at 05:54 WITA. Each row carries `gcal:<eventId>` markers in Notes; the task never deletes, it flags cancellations in Notes.
 - Past Events drop off the To-Do list (they stay on the calendar) and never count as overdue.
+
+## Drag, titles and sub-tasks (added 10 Oct 2026)
+
+- `/api/tasks` `update` now accepts `completedOn` (YYYY-MM-DD, today or earlier) so a done task can be moved to the day it was really done.
+- Drag a task by its ⠿ handle. On a calendar day or the day strip at the bottom: done task = change the done day; open task on a past day = mark done that day; open task on today or later = schedule it (times and ranges keep their length). On a title = move it there (sub-tasks follow). On another task = make it a sub-task. Every drop has Undo.
+- Titles are the Notion Section select. "+ Title" makes an empty title kept on this device until its first task is added. ✎ renames a title by updating every task in it.
+- Each title has an inline add line. Enter adds; Tab (or ↳) makes the next ones sub-tasks of the task above; Shift+Tab or Backspace on an empty line goes back.

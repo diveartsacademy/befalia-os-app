@@ -125,6 +125,17 @@ export function buildProps(patch, todayWita) {
     props[P.done] = { checkbox: true };
     props[P.completedOn] = { date: { start: todayWita } };
   }
+  // Moving a done task to the day it was really done (drag onto the calendar,
+  // or the "Done on" field). Day only, never in the future.
+  if ('completedOn' in patch) {
+    const c = patch.completedOn;
+    if (!c) props[P.completedOn] = { date: null };
+    else {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(c))) bad('Done date must be YYYY-MM-DD');
+      if (String(c) > todayWita) bad('A task cannot be done on a day that has not happened yet');
+      props[P.completedOn] = { date: { start: String(c) } };
+    }
+  }
   return props;
 }
 
