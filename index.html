@@ -1347,15 +1347,20 @@ function tdRenderChips(){
   el.innerHTML=['All'].concat(TD_AREAS.map(a=>a.key)).map(a=>'<button class="td-chip'+(TD.area===a?' on':'')+'" data-area="'+attr(a)+'" style="--chip:'+(a==='All'?'var(--aqua)':tdColor(a))+'">'+(a==='All'?'All':tdIcon(a)+' '+escapeHtml(a))+' <i>'+cnt(a)+'</i></button>').join('');
 }
 function tdSectionOrder(name){if(!name)return 9999;const i=TD.sections.indexOf(name);return i===-1?5000:i;}
+// Grok, Claude and Codex lists span every business, so under "All" they sit
+// together in one block at the top. Inside one business they show as titles.
+const TD_AI=['Grok','Claude','Codex'];
+const TD_AI_ICON={Grok:'🤖',Claude:'✳️',Codex:'⌨️'};
+function tdIsAI(sec){return TD_AI.indexOf(sec||'')!==-1;}
 function tdSecKey(a,s){return (a||'')+'|'+(s||'');}
 function tdTitlesFor(a){return (TD.titles[a]||[]).slice();}
 function tdSaveTitles(){LS.set('td_titles',TD.titles);}
 function tdDropTitle(a,s){if(!TD.titles[a])return;TD.titles[a]=TD.titles[a].filter(x=>x!==s);if(!TD.titles[a].length)delete TD.titles[a];tdSaveTitles();}
 // The task a new sub-task would go under: the last open top-level task in that title.
-function tdIndentParent(a,s){const top=TD.tasks.filter(t=>(t.area||null)===(a||null)&&(t.section||'')===(s||'')&&!t.parent&&tdOnList(t)&&String(t.id).indexOf('tmp')!==0).sort(tdSort);const open=top.filter(t=>!t.done);return (open.length?open:top).slice(-1)[0]||null;}
+function tdIndentParent(a,s){const top=TD.tasks.filter(t=>(a==='*'||(t.area||null)===(a||null))&&(t.section||'')===(s||'')&&!t.parent&&tdOnList(t)&&String(t.id).indexOf('tmp')!==0).sort(tdSort);const open=top.filter(t=>!t.done);return (open.length?open:top).slice(-1)[0]||null;}
 function tdInlineHTML(a,s){
   const key=tdSecKey(a,s);const ind=!!TD.indent[key];const par=ind?tdIndentParent(a,s):null;
-  const ph=ind&&par?'↳ Sub-task of "'+(par.name.length>34?par.name.slice(0,34)+'…':par.name)+'"':'+ Add to '+(s||(a||'No area'));
+  const ph=ind&&par?'↳ Sub-task of "'+(par.name.length>34?par.name.slice(0,34)+'…':par.name)+'"':'+ Add to '+(s||(a||'No area'))+(a==='*'?' ('+(LS.get('td_lastArea','')||'Personal')+')':'');
   return '<div class="td-inline'+(ind?' ind':'')+'"><button class="td-indent'+(ind?' on':'')+'" data-act="indent" data-key="'+attr(key)+'" title="Make it a sub-task of the task above (Tab)">↳</button><input class="td-inl-in" data-kind="add" data-key="'+attr(key)+'" placeholder="'+attr(ph)+'" enterkeyhint="done"></div>';
 }
 function tdRenderList(){
@@ -1369,9 +1374,27 @@ function tdRenderList(){
   const visIds={};vis.forEach(t=>{visIds[t.id]=1;});
   let html='';
   if(flat){html+='<div class="td-filterbar">Showing '+vis.length+' '+(TD.q?'matching "'+escapeHtml(TD.q)+'"':'')+(TD.flag?' · '+({urgent:'🚨 urgent',priority:'⏰ priority',doing:'▶ in progress',late:'⚠ overdue',donetoday:'✓ done today'}[TD.flag]):'')+' · <button class="link-btn" data-act="clearfilter">clear</button></div>';}
+  const aiBlock=TD.area==='All'&&!flat;
+  const emitSec=(list,key,label,canRename,addArea,addSec)=>{
+    const closed=!flat&&!!TD.closed[key];const hot=list.filter(t=>!t.done&&(t.urgent||t.priority)).length;
+    if(TD.renaming===key)html+='<div class="td-sec-h" data-drop-sec="'+attr(key)+'"><input class="td-inl-in" data-kind="rename" data-key="'+attr(key)+'" value="'+attr(addSec)+'" enterkeyhint="done"><button class="td-mini" data-act="rencancel">Cancel</button></div>';
+    else html+='<div class="td-sec-h'+(closed?' closed':'')+'" data-sec="'+attr(key)+'" data-drop-sec="'+attr(key)+'"><span class="car">▼</span>'+label+' <span class="n">'+list.filter(t=>!t.done).length+'</span>'+(hot?'<span class="hot">· '+hot+' flagged</span>':'')+(canRename?'<button class="td-mini" data-act="rentitle" data-key="'+attr(key)+'" title="Rename this title">✎</button>':'')+'</div>';
+    if(closed)return;
+    html+='<ul class="td-list">';
+    const emit=(t,depth)=>{html+=tdRowHTML(t,{showParent:flat,kid:depth>0,nested:depth>0,showArea:addArea==='*'&&depth===0});if(!flat&&depth<4)tdKids(t.id).filter(k=>visIds[k.id]).sort(tdSort).forEach(k=>emit(k,depth+1));};
+    list.sort(tdSort).forEach(t=>emit(t,0));
+    html+='</ul>';
+    if(!flat&&addArea)html+=tdInlineHTML(addArea,addSec);
+  };
+  if(aiBlock){
+    const aiTop=vis.filter(t=>tdIsAI(t.section)&&!(t.parent&&visIds[t.parent]));
+    html+='<div class="td-area"><div class="td-area-h" style="color:#b9a6ff">🤖 AI to-do<span class="n">'+vis.filter(t=>tdIsAI(t.section)&&!t.done).length+' open</span></div>';
+    TD_AI.forEach(s=>{emitSec(aiTop.filter(t=>t.section===s),'*|'+s,TD_AI_ICON[s]+' '+escapeHtml(s),false,'*',s);});
+    html+='</div>';
+  }
   const areas=(TD.area==='All'?TD_AREAS.map(a=>a.key):[TD.area]).concat([null]);
   areas.forEach(a=>{
-    const inA=vis.filter(t=>(t.area||null)===a);
+    const inA=vis.filter(t=>(t.area||null)===a&&!(aiBlock&&tdIsAI(t.section)));
     const pend=(!flat&&a)?tdTitlesFor(a):[];
     if(!inA.length&&!pend.length&&TD.newTitleFor!==a)return;
     const top=flat?inA:inA.filter(t=>!(t.parent&&visIds[t.parent]));
@@ -1587,7 +1610,7 @@ async function tdInlineEnter(inp){
   if(kind==='add'){
     if(!v)return;
     const i=key.indexOf('|');const ar=key.slice(0,i),sec=key.slice(i+1);
-    const task={name:v,area:ar||null,section:sec||null};
+    const task={name:v,area:ar==='*'?(LS.get('td_lastArea','')||'Personal'):(ar||null),section:sec||null};
     if(TD.indent[key]){const p=tdIndentParent(ar,sec);if(p)task.parent=p.id;}
     inp.value='';
     const r=await tdCreate(task);
@@ -1622,7 +1645,7 @@ function tdDropTarget(x,y){
 function tdDropLabel(tg){
   const t=TD.byId[TD_DRAG.id];if(!tg||!t)return 'Drop on a day, a title, or a task';
   if(tg.day){if(t.done)return 'Done on '+tdPretty(tg.day);if(tg.day<TD.today)return 'Mark done on '+tdPretty(tg.day);return 'Move to '+(tg.day===TD.today?'today':tdPretty(tg.day));}
-  if(tg.sec){const i=tg.sec.indexOf('|');return 'Move to '+(tg.sec.slice(i+1)||'No title')+' · '+tg.sec.slice(0,i);}
+  if(tg.sec){const i=tg.sec.indexOf('|');const ar=tg.sec.slice(0,i);return 'Move to '+(tg.sec.slice(i+1)||'No title')+(ar==='*'?'':' · '+ar);}
   if(tg.area)return 'Move to '+tg.area;
   if(tg.task){const p=TD.byId[tg.task];return 'Make it a sub-task of "'+(p.name.length>30?p.name.slice(0,30)+'…':p.name)+'"';}
   return '';
@@ -1674,6 +1697,7 @@ async function tdDrop(id,tg){
     else{const nd=tdShift(t.date,d);ops.push({id:id,patch:{date:nd},undo:{date:t.date?{start:t.date.start,end:t.date.end||null}:null}});msg='Moved to '+(d===TD.today?'today':tdPretty(d));}
   }else if(tg.sec||tg.area){
     let ar,sec;if(tg.sec){const i=tg.sec.indexOf('|');ar=tg.sec.slice(0,i)||null;sec=tg.sec.slice(i+1)||null;}else{ar=tg.area;sec=null;}
+    if(ar==='*')ar=t.area||(LS.get('td_lastArea','')||'Personal');
     if((t.area||null)===ar&&(t.section||null)===sec&&!t.parent)return;
     ops.push({id:id,patch:{area:ar,section:sec,parent:null},undo:{area:t.area,section:t.section,parent:t.parent}});
     tdDescendants(id).forEach(k=>{if((k.area||null)!==ar||(k.section||null)!==sec)ops.push({id:k.id,patch:{area:ar,section:sec},undo:{area:k.area,section:k.section}});});
