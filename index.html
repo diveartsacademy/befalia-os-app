@@ -197,6 +197,106 @@
   body.private .sensitive{position:relative;cursor:pointer;}
   body.private .sensitive:not(.revealed)::after{content:"🔒 tap to reveal";position:absolute;top:50%;left:0;right:0;text-align:center;transform:translateY(-50%);color:var(--aqua2);font-size:12px;letter-spacing:1px;font-weight:700;z-index:5;}
   .fl-tag{flex:none;font-size:10px;font-weight:800;letter-spacing:.4px;padding:3px 8px;border-radius:999px;margin-left:auto;text-transform:uppercase;}
+  /* ---------- To-Do tab ---------- */
+  .td-headrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .td-headrow h2{margin-right:6px;}
+  .td-seg{display:inline-flex;border:1px solid var(--aqualine);border-radius:999px;padding:3px;background:rgba(46,230,255,.04);}
+  .td-seg button{border:0;background:transparent;color:var(--muted);font-family:var(--serif);font-size:12px;letter-spacing:1px;text-transform:uppercase;padding:6px 14px;border-radius:999px;cursor:pointer;}
+  .td-seg button.on{background:linear-gradient(180deg,var(--aqua),var(--aqua2));color:#04121f;font-weight:700;}
+  .td-sync{margin-left:auto;font-size:11px;color:var(--dim);}
+  .td-sync.bad{color:#e58aa0;}
+  .td-add{display:grid;grid-template-columns:minmax(180px,2.4fr) minmax(110px,1fr) minmax(130px,1.3fr) 140px 104px auto auto auto;gap:8px;margin-top:14px;align-items:center;}
+  .td-add .fld{padding:9px 11px;}
+  @media(max-width:900px){.td-add{grid-template-columns:1fr 1fr;}.td-add #td-new-name{grid-column:1/-1;}.td-add .td-addbtns{grid-column:1/-1;display:flex;gap:8px;}.td-add .td-addbtns .gold-btn{flex:1;}}
+  .td-addbtns{display:contents;}
+  .td-tog{border:1px solid var(--aqualine);background:rgba(46,230,255,.04);border-radius:11px;padding:8px 11px;font-size:15px;cursor:pointer;opacity:.45;filter:grayscale(1);transition:.15s;color:var(--ink);}
+  .td-tog.on{opacity:1;filter:none;border-color:var(--aqua);box-shadow:var(--glowsoft);}
+  .td-add .gold-btn{height:40px;padding:0 18px;}
+  .td-stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:14px;}
+  @media(max-width:700px){.td-stats{grid-template-columns:repeat(3,minmax(0,1fr));}}
+  .td-stat{background:rgba(46,230,255,.05);border:1px solid var(--aqualine);border-radius:12px;padding:9px 6px;text-align:center;cursor:pointer;color:var(--ink);font-family:var(--sans);transition:.15s;}
+  .td-stat b{display:block;font-family:var(--serif);font-size:21px;color:var(--aqua);line-height:1.1;}
+  .td-stat span{font-size:10.5px;color:var(--muted);}
+  .td-stat.on{border-color:var(--aqua);box-shadow:var(--glow);background:rgba(46,230,255,.13);}
+  .td-stat.warn b{color:#ff9db0;}
+  .td-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,1fr);gap:16px;margin-top:16px;align-items:start;}
+  .td-side{position:sticky;top:64px;}
+  @media(max-width:980px){.td-layout{grid-template-columns:1fr;}.td-side{position:static;}}
+  .td-layout .card,.td-side .card{margin:0 0 16px;}
+  .td-layout .card:hover,.td-head.card:hover,.td-modal .card:hover{transform:none;}
+  .td-chips{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 8px;}
+  .td-chip{border:1px solid var(--aqualine);background:rgba(46,230,255,.04);color:var(--muted);border-radius:999px;padding:6px 12px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
+  .td-chip i{font-style:normal;font-size:10.5px;color:var(--dim);}
+  .td-chip.on{color:#04121f;background:var(--chip,var(--aqua));border-color:var(--chip,var(--aqua));font-weight:700;}
+  .td-chip.on i{color:#04121f;}
+  .td-filterbar{font-size:12px;color:var(--aquasoft);margin:4px 0 8px;}
+  .td-area{margin-top:14px;}
+  .td-area-h{display:flex;align-items:center;gap:8px;font-family:var(--serif);font-size:15px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:6px 0 4px;border-bottom:1px solid var(--line);}
+  .td-area-h .n{margin-left:auto;font-family:var(--sans);font-size:11px;color:var(--dim);font-weight:600;letter-spacing:0;text-transform:none;}
+  .td-sec-h{display:flex;align-items:center;gap:8px;margin:12px 0 2px;font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--aqua2);cursor:pointer;user-select:none;}
+  .td-sec-h .car{display:inline-block;transition:.15s;font-size:9px;}
+  .td-sec-h.closed .car{transform:rotate(-90deg);}
+  .td-sec-h .n{color:var(--dim);font-weight:600;}
+  .td-sec-h .hot{color:#ff9db0;letter-spacing:0;}
+  .td-list{list-style:none;margin:0;padding:0;}
+  .td-row{display:flex;align-items:flex-start;gap:10px;padding:8px 2px;border-top:1px solid var(--line);font-size:13.5px;}
+  .td-list>.td-row:first-child{border-top:none;}
+  .td-row.kid{padding-left:26px;border-top:1px dashed rgba(46,230,255,.08);}
+  .td-row .check{margin-top:1px;}
+  .td-row.done .check{background:var(--aqua);border-color:var(--aqua);}
+  .td-row.done .td-name{text-decoration:line-through;color:var(--dim);}
+  .td-row.saving{opacity:.55;pointer-events:none;}
+  .td-row.err .td-name:after{content:" · not saved";color:#ff9db0;font-size:11px;}
+  .td-row.urgent{background:linear-gradient(90deg,rgba(255,100,130,.10),transparent 60%);}
+  .td-body{flex:1;min-width:0;}
+  .td-name{color:var(--ink);cursor:pointer;line-height:1.35;word-break:break-word;}
+  .td-name:hover{color:var(--aquasoft);}
+  .td-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;align-items:center;font-size:11px;color:var(--dim);}
+  .td-meta:empty{display:none;}
+  .td-pill{border:1px solid var(--aqualine);border-radius:999px;padding:1px 8px;font-size:10.5px;color:var(--muted);background:transparent;cursor:pointer;}
+  .td-pill.doing{background:rgba(80,150,255,.22);border-color:#6aa8ff;color:#cfe2ff;font-weight:700;}
+  .td-pill.date{cursor:default;}
+  .td-pill.late{border-color:#ff8fa6;color:#ffb3c2;}
+  .td-pill.ev{border-color:#ff8fa6;color:#ffc6d2;cursor:default;}
+  .td-pill.area{cursor:default;color:#04121f;font-weight:700;border:0;}
+  .td-flag{flex:none;border:0;background:transparent;font-size:14px;cursor:pointer;opacity:.18;filter:grayscale(1);padding:2px;line-height:1;}
+  .td-flag.on{opacity:1;filter:none;}
+  .td-flag:hover{opacity:.8;filter:none;}
+  .td-empty{color:var(--dim);font-size:12.5px;font-style:italic;padding:10px 0;}
+  .td-cal-h{display:flex;align-items:center;gap:8px;}
+  .td-cal-h .m{font-family:var(--serif);font-size:16px;font-weight:700;color:var(--aquasoft);flex:1;}
+  .td-nav{border:1px solid var(--aqualine);background:rgba(46,230,255,.04);color:var(--aqua);border-radius:9px;width:32px;height:30px;cursor:pointer;font-size:14px;}
+  .td-cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin-top:10px;}
+  .td-dow{font-size:9.5px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);text-align:center;padding:2px 0;}
+  .td-cell{min-height:78px;border:1px solid rgba(46,230,255,.08);border-radius:8px;padding:3px 4px;cursor:pointer;background:rgba(46,230,255,.02);overflow:hidden;transition:.12s;}
+  .td-cell:hover{border-color:var(--aqua2);}
+  .td-cell.out{opacity:.35;}
+  .td-cell.today{border-color:var(--aqua);box-shadow:inset 0 0 0 1px var(--aqua);}
+  .td-cell.sel{background:rgba(46,230,255,.13);border-color:var(--aqua);}
+  .td-cell .dn{font-size:11px;color:var(--muted);font-weight:700;}
+  .td-cell.today .dn{color:var(--aqua);}
+  .td-ev{font-size:10px;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;padding-left:5px;border-left:2px solid var(--c,#8fb6cc);color:var(--ink);}
+  .td-ev.done{text-decoration:line-through;color:var(--dim);}
+  .td-more{font-size:9.5px;color:var(--dim);margin-top:2px;}
+  .td-cnt{display:inline-block;margin-top:4px;font-size:10.5px;font-weight:700;color:#04121f;background:var(--aqua);border-radius:999px;padding:1px 7px;}
+  @media(max-width:560px){.td-cell{min-height:46px;}.td-ev{font-size:0;height:4px;border-left:0;border-radius:2px;background:var(--c,#8fb6cc);padding:0;margin-top:3px;}.td-ev.done{opacity:.4;}.td-more{font-size:8.5px;}}
+  .td-day-h{font-family:var(--serif);font-size:16px;font-weight:700;color:var(--aquasoft);}
+  .td-sub{font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);font-weight:700;margin:12px 0 2px;}
+  .td-hist-day{margin-top:14px;}
+  .td-hist-h{display:flex;align-items:baseline;gap:8px;font-family:var(--serif);font-size:14px;color:var(--aquasoft);font-weight:700;border-bottom:1px solid var(--line);padding-bottom:4px;}
+  .td-hist-h .n{margin-left:auto;font-family:var(--sans);font-size:11px;color:var(--dim);font-weight:600;}
+  .td-modal{position:fixed;inset:0;z-index:200;background:rgba(2,8,14,.72);display:flex;align-items:flex-start;justify-content:center;padding:6vh 14px 20px;overflow:auto;}
+  .td-sheet{width:100%;max-width:560px;animation:none;}
+  .td-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+  .td-form label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);font-weight:700;display:flex;flex-direction:column;gap:5px;}
+  .td-form .full{grid-column:1/-1;}
+  .td-actions{display:flex;gap:10px;align-items:center;margin-top:16px;flex-wrap:wrap;}
+  .td-actions .gold-btn{height:40px;font-size:14px;padding:0 20px;}
+  .td-ghost{border:1px solid var(--aqualine);background:transparent;color:var(--aqua);border-radius:11px;height:40px;padding:0 16px;cursor:pointer;font-weight:700;}
+  .td-danger{border:1px solid rgba(255,140,160,.45);background:transparent;color:#ffb3c2;border-radius:11px;height:40px;padding:0 14px;cursor:pointer;margin-left:auto;}
+  .td-danger.arm{background:rgba(255,100,130,.25);color:#fff;}
+  .td-banner{margin-top:12px;font-size:12.5px;color:var(--aquasoft);background:rgba(46,230,255,.07);border:1px solid var(--aqualine);border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .td-banner.bad{color:#ffc6d2;border-color:rgba(255,140,160,.45);background:rgba(255,100,130,.08);}
 </style>
 </head>
 <body>
@@ -214,6 +314,9 @@
   <div class="tabpane active" id="tab-command">
     <div id="affirm-bubble"></div>
     <div class="grid" id="command"></div>
+  </div>
+  <div class="tabpane" id="tab-todo">
+    <div id="todo-root"></div>
   </div>
   <div class="tabpane" id="tab-health">
     <div class="section-label">Today</div>
@@ -393,11 +496,12 @@ const ROUTES={
 };
 
 /* ---------- tabs ---------- */
+function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
 function buildTabs(){
   const bar=document.getElementById('tabs');
-  [['tab-command','Home'],['tab-health','Health'],['tab-areas','Relationship'],['tab-room','About Me'],['tab-finance','Finance'],['tab-social','Social'],['tab-agents','Agents']].forEach((t,i)=>{
-    const b=document.createElement('button');b.className='tab'+(i===0?' active':'');b.textContent=t[1];
-    b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.getElementById(t[0]).classList.add('active');window.scrollTo({top:0,behavior:'smooth'});};
+  [['tab-command','Home'],['tab-todo','To-Do'],['tab-health','Health'],['tab-areas','Relationship'],['tab-room','About Me'],['tab-finance','Finance'],['tab-social','Social'],['tab-agents','Agents']].forEach((t,i)=>{
+    const b=document.createElement('button');b.className='tab'+(i===0?' active':'');b.textContent=t[1];b.setAttribute('data-pane',t[0]);
+    b.onclick=()=>showTab(t[0]);
     bar.appendChild(b);
   });
   const pv=document.createElement('button');pv.className='priv-toggle'+(privateMode?' on':'');pv.id='priv-toggle';pv.textContent=privateMode?'🔒 Private':'🔓 Private';pv.title='Blurs sensitive cards on screen only — not encryption';
@@ -419,7 +523,7 @@ async function syncNow(){const t=today();try{const id=await ensureDayPage(t);if(
 function setSync(s){const el=document.getElementById('sync-ind');if(el)el.textContent=s==='saving'?'saving…':(s==='saved'?'synced ✓':'on device');}
 async function loadDay(){const t=today();try{const id=await findDayPage(t);if(!id)return;const d=await fetchNotion(id);const m=(d.text||'').match(/```(?:json)?\s*([\s\S]*?)```/);if(!m)return;const o=JSON.parse(m[1]);
   if(o.moodInferred)mental[t]=Object.assign({},mental[t],{score:o.moodInferred});if(o.sleep)sleepLog[t]=o.sleep;if(o.weight)weightLog[t]=o.weight;if(Array.isArray(o.workout))workoutLog[t]=o.workout;if(o.supplements)suppLog[t]=o.supplements;if(o.gratitude)gratitude[t]=o.gratitude;
-  const boardEmpty=!BOARD.some(s=>(board[s.key]||[]).length);
+  const boardEmpty=!LS.get('plos_board_migrated',false)&&!BOARD.some(s=>(board[s.key]||[]).length);
   if(boardEmpty&&o.openBoard&&BOARD.some(s=>(o.openBoard[s.key]||[]).length)){board=o.openBoard;LS.set('plos_board',board);renderBoard();showToast('Restored your open tasks from Notion',true);}
   if(!podcasts.length&&Array.isArray(o.watchlist)&&o.watchlist.length){podcasts=o.watchlist;LS.set('plos_podcasts',podcasts);renderPodcasts();}
   if(!periods.length&&Array.isArray(o.cycleStarts)&&o.cycleStarts.length){periods=o.cycleStarts;LS.set('plos_periods',periods);renderCycle();}
@@ -459,9 +563,9 @@ function buildCommand(){
   const theo=document.createElement('div');theo.className='card sensitive';
   theo.innerHTML='<h2><span class="ic">🤍</span>Theo<a class="link-btn" href="https://app.notion.com/p/'+THEO_CHAT_ID+'" target="_blank" rel="noopener" style="margin-left:auto">Full thread →</a></h2><div class="blurb">Your private partner — warm, honest, entirely yours. He replies live.</div><div class="ag-thread" id="theo-thread" style="display:block;border:0;padding:0"></div>';
   wrap.appendChild(theo);openChiefChat('Theo',THEO_CHAT_ID,document.getElementById('theo-thread'));
-  const bd=document.createElement('div');bd.className='card';
-  bd.innerHTML='<h2><span class="ic">✅</span>To-Do Board<span class="badge" id="board-count">0</span></h2><div class="blurb">Your open tasks by area. Check one off and it moves to your Notion Daily Tasks Done with today\'s date.</div><div id="board-root"></div>';
-  wrap.appendChild(bd);buildBoard();
+  const bd=document.createElement('div');bd.className='card';bd.id='td-home';bd.setAttribute('data-no-tools','');
+  bd.innerHTML='<h2><span class="ic">✅</span>To-Do today<span class="badge" id="td-home-count">…</span></h2><div class="blurb">Urgent, priority, in progress, and anything due today or overdue. Tick it here or open the full list and calendar.</div><ul class="td-list" id="td-home-list"></ul><div class="foot"><a href="#" id="td-home-open">Open To-Do →</a></div>';
+  wrap.appendChild(bd);bd.addEventListener('click',e=>{if(e.target.closest('#td-home-open')){e.preventDefault();showTab('tab-todo');return;}tdHandleClick(e);});
   const pc=document.createElement('div');pc.className='card';
   pc.innerHTML='<h2><span class="ic">🎧</span>Podcasts to watch<button class="link-btn" id="pod-suggest" style="margin-left:auto">Refresh picks →</button></h2><div class="blurb">Tell me what you want to learn today and I bias your picks toward it. Or paste a link to save it.</div><div class="todo-add"><input class="fld" id="learn-focus" placeholder="What do you want to learn today?"><button class="gold-btn" id="learn-go">Find</button></div><div class="todo-add" style="margin-top:6px"><input class="fld" id="pod-in" placeholder="…or paste a podcast/video link"><button class="gold-btn" id="pod-add">+</button></div><ul class="todo-list" id="pod-list"></ul><div class="dots" style="display:block;margin-top:12px"><span class="lbl">Recommended for you</span></div><div class="caption" id="pod-hint" style="margin-top:0"></div><div data-body id="pod-picks" class="loading">Loading picks…</div>';
   wrap.appendChild(pc);wirePodcasts();renderPodcasts();
@@ -639,7 +743,7 @@ function buildToday(){
   const cmd=document.getElementById('command');
   const jnl=document.createElement('div'); jnl.className='card feature';
   jnl.innerHTML='<h2><span class="ic">🖊️</span>Capture<span class="badge">auto-routes</span></h2>'+
-    '<div class="blurb">Dump any thought. Tap a tag to structure it. It routes to the right Notion place, logs your mood, and any "Task:" line goes to your Personal to-do board.</div>'+
+    '<div class="blurb">Dump any thought. Tap a tag to structure it. It routes to the right Notion place, logs your mood, and any "Task:" line goes to your To-Do under Personal.</div>'+
     '<div class="habits" id="jnl-chips" style="margin-bottom:8px"></div>'+
     '<textarea class="fld" id="jnl-box" rows="5" placeholder="Decide: [thing you need to decide]&#10;Problem: [thing blocking you]&#10;Idea: [creative spark]&#10;Worry: [emotional thing taking headspace]&#10;Task: [concrete action]" style="resize:vertical;"></textarea>'+
     '<div class="todo-foot" style="margin-top:12px"><span class="caption" id="jnl-status" style="margin:0"></span><span style="display:flex;gap:14px;align-items:center"><button class="link-btn" id="jnl-export">Export CSV</button><button class="gold-btn" id="jnl-save" style="padding:9px 16px;font-size:13px">Save entry</button></span></div>'+
@@ -694,7 +798,7 @@ async function saveJournal(){const box=document.getElementById('jnl-box');const 
   try{const r=await window.cowork.callMcpTool(CREATE_TOOL,{parent:{type:'page_id',page_id:route.id},pages:[{icon:route.icon,properties:{title:title},content:content}]});let data=r&&r.structuredContent?r.structuredContent:(r&&r.content&&r.content[0]?JSON.parse(r.content[0].text):null);url=data&&data.pages&&data.pages[0]?data.pages[0].url:'';jnlStatus('Saved to '+route.icon+' '+route.label+' · mood '+c.mood+'/5');}catch(e){jnlStatus('Saved locally (Notion save failed — retry later).');}
   journalLog.push({date:today(),ts:Date.now(),category:c.category,mood:c.mood,title:c.title,text:text,url:url});LS.set('plos_journal',journalLog);
   mental[today()]=Object.assign({},mental[today()],{score:c.mood});LS.set('plos_mental',mental);
-  text.split(/\n/).forEach(line=>{const m=line.match(/^\s*task\s*:\s*(.+)/i);if(m&&m[1].trim()){board.personal.push({id:Date.now()+''+Math.random().toString(36).slice(2,6),text:m[1].trim()});LS.set('plos_board',board);if(typeof renderBoard==='function')renderBoard();}});
+  text.split(/\n/).forEach(line=>{const m=line.match(/^\s*task\s*:\s*(.+)/i);if(m&&m[1].trim()){tdCaptureFromJournal(m[1].trim());}});
   box.value='';btn.disabled=false;renderJournalRecent();scheduleSync();}
 function renderJournalRecent(){const box=document.getElementById('jnl-recent');if(!box)return;const recent=journalLog.slice(-4).reverse();if(!recent.length){box.innerHTML='';return;}
   let html='<div class="dots" style="display:block;margin-top:10px"><span class="lbl">Recent captures</span></div>';
@@ -1018,7 +1122,7 @@ function buildAgents(){const wrap=document.getElementById('agents');if(!wrap)ret
 const ROOT_NOTION='https://app.notion.com/p/39deb411ed7a8190bc40d4d89998ad58';
 function addCardTools(){
   document.querySelectorAll('.card').forEach(function(card){
-    if(card.querySelector(':scope > .card-tools'))return;
+    if(card.hasAttribute('data-no-tools')||card.querySelector(':scope > .card-tools'))return;
     var a=card.querySelector('a[href*="notion.so"],a[href*="notion.com"],a[href*="app.notion"]');
     var href=a?a.getAttribute('href'):ROOT_NOTION;
     var tools=document.createElement('div');tools.className='card-tools';
@@ -1028,12 +1132,398 @@ function addCardTools(){
     tools.appendChild(u);tools.appendChild(n);card.appendChild(tools);
   });
 }
+/* =====================================================================
+   To-Do. Storage is the Notion "Tasks" database under Befa's To-Do, read and
+   written through /api/tasks. This tab is the place to use it; Notion is only
+   where it is kept.
+   Rules, matching the Apple Note habit:
+   - Ticked tasks stay on the list, crossed out, until the WITA day changes.
+     After that they live only in History, grouped by the day they were done.
+   - The server stamps "Completed on" in WITA, so the day is never off by one.
+   - Every change shows on screen at once, then is replaced by what Notion
+     actually stored. If Notion refuses, the change is rolled back and you see
+     "not saved". The screen never claims a save that did not happen.
+   ===================================================================== */
+const TD_AREAS=[{key:'Personal',icon:'🏠',color:'#f59ac8'},{key:'DiveArts',icon:'🌊',color:'#2ee6ff'},{key:'Sea Diva',icon:'🧜‍♀️',color:'#b79cff'},{key:'TailCraft',icon:'🧵',color:'#ffb46b'}];
+const TD_TZ='Asia/Makassar';
+const TD_NOTION_URL='https://app.notion.com/p/3eceb411ed7a81ee967bd6d40f7c4ee4';
+const TD={tasks:[],byId:{},sections:[],today:null,loaded:false,loading:false,err:'',lastSync:null,
+  view:LS.get('td_view','list'),area:LS.get('td_area','All'),flag:'',q:'',month:null,sel:null,histLimit:21,
+  closed:LS.get('td_closed',{}),newPri:false,newUrg:false};
+
+function tdWita(d){return new Intl.DateTimeFormat('en-CA',{timeZone:TD_TZ,year:'numeric',month:'2-digit',day:'2-digit'}).format(d||new Date());}
+function tdIsDT(s){return !!s&&String(s).length>10;}
+function tdDayOf(s){if(!s)return null;return tdIsDT(s)?tdWita(new Date(s)):String(s).slice(0,10);}
+function tdTimeOf(s){if(!tdIsDT(s))return '';return new Date(s).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:TD_TZ});}
+function tdUTC(day){const p=day.split('-').map(Number);return new Date(Date.UTC(p[0],p[1]-1,p[2],12));}
+function tdPretty(day,o){return tdUTC(day).toLocaleDateString('en-GB',Object.assign({weekday:'short',day:'numeric',month:'short',timeZone:'UTC'},o||{}));}
+function tdAdd(day,n){const d=tdUTC(day);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+function tdDays(t){if(!t.date||!t.date.start)return [];const a=tdDayOf(t.date.start);const b=t.date.end?tdDayOf(t.date.end):a;const out=[];let d=a;for(let i=0;i<62&&d<=b;i++){out.push(d);d=tdAdd(d,1);}return out;}
+function tdLast(t){const ds=tdDays(t);return ds.length?ds[ds.length-1]:null;}
+function tdOnList(t){return !t.done||t.completedOn===TD.today;}
+function tdOverdue(t){if(t.done)return false;const l=tdLast(t);return !!l&&l<TD.today;}
+function tdDueToday(t){return !t.done&&tdDays(t).indexOf(TD.today)!==-1;}
+function tdColor(a){const x=TD_AREAS.find(z=>z.key===a);return x?x.color:'#8fb6cc';}
+function tdIcon(a){const x=TD_AREAS.find(z=>z.key===a);return x?x.icon:'•';}
+function tdRank(t){return (t.urgent?0:4)+(t.priority?0:2)+(t.status==='Doing'?0:1);}
+function tdSort(a,b){if(a.done!==b.done)return a.done?1:-1;const r=tdRank(a)-tdRank(b);if(r)return r;const da=a.date&&a.date.start?tdDayOf(a.date.start):'9999',db=b.date&&b.date.start?tdDayOf(b.date.start):'9999';if(da!==db)return da<db?-1:1;const ta=a.date?tdTimeOf(a.date.start):'',tb=b.date?tdTimeOf(b.date.start):'';if(ta!==tb)return ta<tb?-1:1;return (a.created||'')<(b.created||'')?-1:1;}
+function tdIndex(){TD.byId={};TD.tasks.forEach(t=>{TD.byId[t.id]=t;});}
+function tdKids(id){return TD.tasks.filter(t=>t.parent===id);}
+function tdHot(t){return !t.done&&(t.urgent||t.priority||t.status==='Doing'||tdDueToday(t)||tdOverdue(t));}
+
+async function tdApi(action,payload){
+  const r=await fetch('/api/tasks',{method:'POST',headers:osHeaders(),body:JSON.stringify(Object.assign({action:action},payload||{}))});
+  if(r.status===401){osUnauthorised();throw new Error('OS key refused');}
+  if(r.status===404)throw new Error('The To-Do service is not on this deployment yet');
+  let j={};try{j=await r.json();}catch(e){j={};}
+  if(!r.ok||j.error)throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+async function tdLoad(silent){
+  if(TD.loading)return;TD.loading=true;if(!silent)tdSync('Loading from Notion…');
+  try{const j=await tdApi('list');TD.tasks=j.tasks||[];TD.today=j.today||tdWita();if(Array.isArray(j.sections)&&j.sections.length)TD.sections=j.sections;
+    TD.loaded=true;TD.err=j.complete===false?'Only part of the list loaded. Tell Claude, the list has outgrown one load.':'';TD.lastSync=new Date();tdIndex();}
+  catch(e){TD.err=String(e.message||e);}
+  finally{TD.loading=false;tdRenderAll();}
+}
+function tdLocal(t,patch){
+  Object.assign(t,patch);
+  if('done' in patch){t.status=patch.done?'Done':(patch.status||'To do');t.completedOn=patch.done?TD.today:null;}
+  else if(patch.status==='Done'){t.done=true;t.completedOn=TD.today;}
+}
+async function tdPatch(id,patch,okMsg){
+  const t=TD.byId[id];if(!t||String(id).indexOf('tmp')===0)return;
+  const before=JSON.parse(JSON.stringify(t));tdLocal(t,patch);t._saving=true;delete t._err;tdRenderAll();
+  try{const j=await tdApi('update',{id:id,patch:patch});Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,j.task);if(j.today)TD.today=j.today;TD.lastSync=new Date();tdRenderAll();if(okMsg)showToast(okMsg,true);return true;}
+  catch(e){Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,before);t._err=true;tdRenderAll();showToast('Not saved: '+(e.message||e),false);return false;}
+}
+async function tdCreate(task){
+  const tmp='tmp'+Date.now()+Math.random().toString(36).slice(2,6);
+  const t=Object.assign({id:tmp,name:'',area:null,section:null,status:'To do',done:false,priority:false,urgent:false,type:'Task',notes:'',date:null,completedOn:null,parent:null,created:new Date().toISOString(),_saving:true},task);
+  TD.tasks.push(t);TD.byId[tmp]=t;tdRenderAll();
+  try{const j=await tdApi('create',{task:task});const real=j.task;const i=TD.tasks.indexOf(t);if(i>=0)TD.tasks[i]=real;else TD.tasks.push(real);delete TD.byId[tmp];TD.byId[real.id]=real;TD.lastSync=new Date();tdRenderAll();return real;}
+  catch(e){TD.tasks=TD.tasks.filter(x=>x!==t);delete TD.byId[tmp];tdRenderAll();showToast('Not saved: '+(e.message||e),false);return null;}
+}
+async function tdArchive(id){
+  const t=TD.byId[id];if(!t)return false;const i=TD.tasks.indexOf(t);TD.tasks.splice(i,1);delete TD.byId[id];tdRenderAll();
+  try{await tdApi('archive',{id:id});showToast('Deleted. It is in Notion trash if you need it back.',true);return true;}
+  catch(e){TD.tasks.splice(i,0,t);TD.byId[id]=t;tdRenderAll();showToast('Not deleted: '+(e.message||e),false);return false;}
+}
+function tdToggleDone(id){const t=TD.byId[id];if(!t)return;tdPatch(id,{done:!t.done},!t.done?'Done ✓ logged for '+tdPretty(TD.today):'Back on the list');}
+
+/* ---------- rendering ---------- */
+function tdSync(msg,bad){const el=document.getElementById('td-sync');if(!el)return;el.textContent=msg;el.classList.toggle('bad',!!bad);}
+function tdRowHTML(t,opt){
+  opt=opt||{};const kids=tdKids(t.id);const openKids=kids.filter(k=>!k.done).length;
+  const late=tdOverdue(t);const days=tdDays(t);let meta='';
+  if(opt.showArea&&t.area)meta+='<span class="td-pill area" style="background:'+tdColor(t.area)+'">'+escapeHtml(t.area)+(t.section?' · '+escapeHtml(t.section):'')+'</span>';
+  if(!t.done&&t.status==='Doing')meta+='<button class="td-pill doing" data-act="doing" title="In progress. Tap to set back to To do">▶ Doing</button>';
+  if(t.type==='Event')meta+='<span class="td-pill ev">Event</span>';
+  if(days.length&&!opt.hideDate){const tm=tdTimeOf(t.date.start);let lbl=days[0]===TD.today?'Today':tdPretty(days[0]);if(days.length>1)lbl+=' → '+tdPretty(days[days.length-1]);meta+='<span class="td-pill date'+(late?' late':'')+'">'+(late?'⚠ ':'📅 ')+escapeHtml(lbl)+(tm?' '+tm:'')+'</span>';}
+  if(opt.hideDate&&t.date&&tdTimeOf(t.date.start))meta+='<span class="td-pill date">🕐 '+tdTimeOf(t.date.start)+'</span>';
+  if(opt.showParent&&t.parent&&TD.byId[t.parent])meta+='<span>↳ '+escapeHtml(TD.byId[t.parent].name)+'</span>';
+  if(kids.length&&!opt.nested)meta+='<span>'+openKids+' of '+kids.length+' sub-tasks open</span>';
+  if(t.notes)meta+='<span title="'+attr(t.notes)+'">📝 '+escapeHtml(t.notes.length>48?t.notes.slice(0,48)+'…':t.notes)+'</span>';
+  const cls='td-row'+(t.done?' done':'')+(t._saving?' saving':'')+(t._err?' err':'')+(t.urgent&&!t.done?' urgent':'')+(opt.kid?' kid':'');
+  return '<li class="'+cls+'" data-id="'+t.id+'"><button class="check" data-act="done" title="'+(t.done?'Untick':'Tick done')+'">'+(t.done?'✓':'')+'</button>'
+    +'<div class="td-body"><div class="td-name" data-act="edit">'+escapeHtml(t.name||'(no name)')+'</div><div class="td-meta">'+meta+'</div></div>'
+    +(t.done?'':'<button class="td-flag'+(t.status==='Doing'?' on':'')+'" data-act="doing" title="In progress ▶">▶️</button>')
+    +'<button class="td-flag'+(t.priority?' on':'')+'" data-act="pri" title="Priority ⏰">⏰</button>'
+    +'<button class="td-flag'+(t.urgent?' on':'')+'" data-act="urg" title="Urgent 🚨">🚨</button></li>';
+}
+function tdMatches(t){
+  if(TD.area!=='All'&&t.area!==TD.area)return false;
+  if(TD.q){const q=TD.q.toLowerCase();if(((t.name||'')+' '+(t.notes||'')+' '+(t.section||'')).toLowerCase().indexOf(q)===-1)return false;}
+  if(TD.flag==='urgent'&&!(t.urgent&&!t.done))return false;
+  if(TD.flag==='priority'&&!(t.priority&&!t.done))return false;
+  if(TD.flag==='doing'&&!(t.status==='Doing'&&!t.done))return false;
+  if(TD.flag==='late'&&!tdOverdue(t))return false;
+  if(TD.flag==='donetoday'&&!(t.done&&t.completedOn===TD.today))return false;
+  return true;
+}
+function tdRenderStats(){
+  const el=document.getElementById('td-stats');if(!el)return;
+  const inArea=t=>TD.area==='All'||t.area===TD.area;
+  const open=TD.tasks.filter(t=>!t.done&&inArea(t));
+  const n={open:open.length,urgent:open.filter(t=>t.urgent).length,priority:open.filter(t=>t.priority).length,doing:open.filter(t=>t.status==='Doing').length,late:open.filter(tdOverdue).length,donetoday:TD.tasks.filter(t=>t.done&&t.completedOn===TD.today&&inArea(t)).length};
+  const tiles=[['','Open',n.open],['urgent','🚨 Urgent',n.urgent],['priority','⏰ Priority',n.priority],['doing','▶ Doing',n.doing],['late','⚠ Overdue',n.late],['donetoday','✓ Done today',n.donetoday]];
+  el.innerHTML=tiles.map(x=>'<button class="td-stat'+(TD.flag===x[0]&&x[0]?' on':'')+(x[0]==='late'&&x[2]?' warn':'')+'" data-flag="'+x[0]+'"><b>'+x[2]+'</b><span>'+x[1]+'</span></button>').join('');
+}
+function tdRenderChips(){
+  const el=document.getElementById('td-chips');if(!el)return;
+  const cnt=a=>TD.tasks.filter(t=>!t.done&&(a==='All'||t.area===a)).length;
+  el.innerHTML=['All'].concat(TD_AREAS.map(a=>a.key)).map(a=>'<button class="td-chip'+(TD.area===a?' on':'')+'" data-area="'+attr(a)+'" style="--chip:'+(a==='All'?'var(--aqua)':tdColor(a))+'">'+(a==='All'?'All':tdIcon(a)+' '+escapeHtml(a))+' <i>'+cnt(a)+'</i></button>').join('');
+}
+function tdSectionOrder(name){if(!name)return 9999;const i=TD.sections.indexOf(name);return i===-1?5000:i;}
+function tdRenderList(){
+  const el=document.getElementById('td-list');if(!el)return;
+  if(!TD.loaded){el.innerHTML='<div class="'+(TD.err?'err':'loading')+'">'+escapeHtml(TD.err||'Loading your to-do from Notion…')+'</div>';return;}
+  const vis=TD.tasks.filter(t=>tdOnList(t)&&tdMatches(t));
+  const flat=!!(TD.flag||TD.q);
+  const visIds={};vis.forEach(t=>{visIds[t.id]=1;});
+  let html='';
+  if(flat){html+='<div class="td-filterbar">Showing '+vis.length+' '+(TD.q?'matching "'+escapeHtml(TD.q)+'"':'')+(TD.flag?' · '+({urgent:'🚨 urgent',priority:'⏰ priority',doing:'▶ in progress',late:'⚠ overdue',donetoday:'✓ done today'}[TD.flag]):'')+' · <button class="link-btn" data-act="clearfilter">clear</button></div>';}
+  const areas=(TD.area==='All'?TD_AREAS.map(a=>a.key):[TD.area]).concat([null]);
+  areas.forEach(a=>{
+    const inA=vis.filter(t=>(t.area||null)===a);if(!inA.length)return;
+    const top=flat?inA:inA.filter(t=>!(t.parent&&visIds[t.parent]));
+    html+='<div class="td-area"><div class="td-area-h" style="color:'+tdColor(a)+'">'+(a?tdIcon(a)+' '+escapeHtml(a):'• No area')+'<span class="n">'+inA.filter(t=>!t.done).length+' open</span></div>';
+    const secs={};top.forEach(t=>{const s=t.section||'';(secs[s]=secs[s]||[]).push(t);});
+    Object.keys(secs).sort((x,y)=>tdSectionOrder(x)-tdSectionOrder(y)||(x<y?-1:1)).forEach(s=>{
+      const list=secs[s].sort(tdSort);const key=(a||'')+'|'+s;const closed=!flat&&!!TD.closed[key];
+      const hot=list.filter(t=>!t.done&&(t.urgent||t.priority)).length;
+      html+='<div class="td-sec-h'+(closed?' closed':'')+'" data-sec="'+attr(key)+'"><span class="car">▼</span>'+escapeHtml(s||'No section')+' <span class="n">'+list.filter(t=>!t.done).length+'</span>'+(hot?'<span class="hot">· '+hot+' flagged</span>':'')+'</div>';
+      if(closed)return;
+      html+='<ul class="td-list">';
+      const emit=(t,depth)=>{html+=tdRowHTML(t,{showParent:flat,kid:depth>0,nested:depth>0});if(!flat&&depth<4)tdKids(t.id).filter(k=>visIds[k.id]).sort(tdSort).forEach(k=>emit(k,depth+1));};
+      list.forEach(t=>emit(t,0));
+      html+='</ul>';
+    });
+    html+='</div>';
+  });
+  if(!vis.length)html+='<div class="td-empty">'+(flat?'Nothing matches.':'Nothing open here. Add one above.')+'</div>';
+  el.innerHTML=html;
+}
+function tdRenderHistory(){
+  const el=document.getElementById('td-list');if(!el)return;
+  if(!TD.loaded){el.innerHTML='<div class="'+(TD.err?'err':'loading')+'">'+escapeHtml(TD.err||'Loading…')+'</div>';return;}
+  const done=TD.tasks.filter(t=>t.done&&(TD.area==='All'||t.area===TD.area)&&(!TD.q||((t.name||'')+' '+(t.section||'')).toLowerCase().indexOf(TD.q.toLowerCase())!==-1));
+  const by={};done.forEach(t=>{const d=t.completedOn||'unknown';(by[d]=by[d]||[]).push(t);});
+  let days=Object.keys(by).filter(d=>d!=='unknown').sort().reverse();if(by.unknown)days.push('unknown');if(TD.sel)days=days.filter(d=>d===TD.sel);
+  let html='<div class="td-filterbar">'+done.length+' done'+(TD.area!=='All'?' in '+escapeHtml(TD.area):'')+(TD.sel?' · showing '+tdPretty(TD.sel,{year:'numeric'})+' only · <button class="link-btn" data-act="clearsel">show all days</button>':'')+'</div>';
+  if(!days.length)html+='<div class="td-empty">'+(TD.sel?'Nothing was ticked on this day.':'Nothing ticked yet. Done tasks land here, by day.')+'</div>';
+  days.slice(0,TD.histLimit).forEach(d=>{
+    const list=by[d].sort((a,b)=>(a.area||'')<(b.area||'')?-1:1);
+    const per=TD_AREAS.map(a=>[a,list.filter(t=>t.area===a.key).length]).filter(x=>x[1]).map(x=>x[0].icon+' '+x[1]).join('  ');
+    html+='<div class="td-hist-day"><div class="td-hist-h">'+(d==='unknown'?'Date not recorded':(d===TD.today?'Today · ':'')+tdPretty(d,{year:'numeric',weekday:'long'}))+'<span class="n">'+list.length+' done · '+per+'</span></div><ul class="td-list">';
+    list.forEach(t=>{html+=tdRowHTML(t,{showArea:true,showParent:true,hideDate:true});});
+    html+='</ul></div>';
+  });
+  if(days.length>TD.histLimit)html+='<div style="margin-top:12px"><button class="td-ghost" data-act="more">Show older days</button></div>';
+  el.innerHTML=html;
+}
+function tdMonth(){if(!TD.month){const t=TD.today||tdWita();TD.month=t.slice(0,7);}return TD.month;}
+function tdRenderCal(){
+  const el=document.getElementById('td-cal');if(!el)return;
+  const ym=tdMonth();const first=ym+'-01';const fd=tdUTC(first);const dow=(fd.getUTCDay()+6)%7;let start=tdAdd(first,-dow);
+  const label=fd.toLocaleDateString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'});
+  const inArea=t=>TD.area==='All'||t.area===TD.area;
+  const byDay={};TD.tasks.filter(inArea).forEach(t=>{tdDays(t).forEach(d=>{(byDay[d]=byDay[d]||[]).push(t);});});
+  const doneBy={};TD.tasks.filter(t=>t.done&&t.completedOn&&inArea(t)).forEach(t=>{doneBy[t.completedOn]=(doneBy[t.completedOn]||0)+1;});
+  let html='<div class="td-cal-h"><button class="td-nav" data-act="prev">‹</button><span class="m">'+label+'</span><button class="ctool" data-act="thismonth">Today</button><button class="td-nav" data-act="next">›</button></div>';
+  html+='<div class="td-cal">'+['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(x=>'<div class="td-dow">'+x+'</div>').join('');
+  let d=start;
+  for(let i=0;i<42;i++){
+    if(i===35&&d.slice(0,7)!==ym)break;
+    const items=(byDay[d]||[]).slice().sort((a,b)=>(tdTimeOf(a.date.start)||'99')<(tdTimeOf(b.date.start)||'99')?-1:1);
+    let inner='<div class="dn">'+Number(d.slice(8))+'</div>';
+    if(TD.view==='history'){if(doneBy[d])inner+='<span class="td-cnt">✓ '+doneBy[d]+'</span>';}
+    else{items.slice(0,3).forEach(t=>{const tm=tdTimeOf(t.date.start);inner+='<div class="td-ev'+(t.done?' done':'')+'" style="--c:'+tdColor(t.area)+'" title="'+attr(t.name)+'">'+(tm?tm+' ':'')+escapeHtml(t.name)+'</div>';});if(items.length>3)inner+='<div class="td-more">+'+(items.length-3)+' more</div>';}
+    html+='<div class="td-cell'+(d.slice(0,7)!==ym?' out':'')+(d===TD.today?' today':'')+(d===TD.sel?' sel':'')+'" data-day="'+d+'">'+inner+'</div>';
+    d=tdAdd(d,1);
+  }
+  html+='</div><div class="caption">'+(TD.view==='history'?'Numbers show how many tasks you ticked that day. Tap a day to see them.':'Dated tasks and blocked schedule. Tap a day to see it and add to it. Times are WITA.')+'</div>';
+  el.innerHTML=html;
+}
+function tdRenderDay(){
+  const el=document.getElementById('td-day');if(!el)return;
+  const day=TD.sel||TD.today||tdWita();
+  const old=document.getElementById('td-day-in');const keep=old?old.value:'';const hadFocus=old&&document.activeElement===old;
+  const inArea=t=>TD.area==='All'||t.area===TD.area;
+  const sched=TD.tasks.filter(t=>inArea(t)&&tdDays(t).indexOf(day)!==-1).sort(tdSort);
+  const did=TD.tasks.filter(t=>inArea(t)&&t.done&&t.completedOn===day);
+  let html='<div class="td-day-h">'+(day===TD.today?'Today · ':'')+tdPretty(day,{weekday:'long',year:'numeric'})+'</div>';
+  html+='<div class="td-sub">Scheduled</div>'+(sched.length?'<ul class="td-list">'+sched.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>':'<div class="td-empty">Nothing dated for this day.</div>');
+  html+='<div class="todo-add" style="margin-top:10px"><input class="fld" id="td-day-in" placeholder="Add to '+tdPretty(day)+'… (add a time like 14:30 at the end)"><button class="gold-btn" data-act="dayadd">+</button></div>';
+  html+='<div class="td-sub">Done this day · '+did.length+'</div>'+(did.length?'<ul class="td-list">'+did.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>':'<div class="td-empty">'+(day>(TD.today||'')?'Not yet.':'Nothing ticked on this day.')+'</div>');
+  el.innerHTML=html;
+  const nin=document.getElementById('td-day-in');if(nin){nin.value=keep;if(hadFocus)nin.focus();}
+}
+function tdRenderHome(){
+  const ul=document.getElementById('td-home-list');if(!ul)return;const badge=document.getElementById('td-home-count');
+  if(!TD.loaded){ul.innerHTML='<li class="'+(TD.err?'err':'loading')+'">'+escapeHtml(TD.err||'Loading…')+'</li>';if(badge)badge.textContent='…';return;}
+  const hot=TD.tasks.filter(tdHot).sort((a,b)=>{const la=tdOverdue(a)||tdDueToday(a)?0:1,lb=tdOverdue(b)||tdDueToday(b)?0:1;return la-lb||tdSort(a,b);});
+  const doneToday=TD.tasks.filter(t=>t.done&&t.completedOn===TD.today);
+  if(badge)badge.textContent=hot.length+' hot · '+doneToday.length+' done';
+  let html=hot.slice(0,8).map(t=>tdRowHTML(t,{showArea:true})).join('');
+  if(hot.length>8)html+='<li class="td-empty">+'+(hot.length-8)+' more in the To-Do tab</li>';
+  if(!hot.length)html='<li class="td-empty">Nothing urgent, flagged or due today.</li>';
+  html+=doneToday.map(t=>tdRowHTML(t,{showArea:true})).join('');
+  ul.innerHTML=html;
+}
+function tdRenderMigrate(){
+  const el=document.getElementById('td-migrate');if(!el)return;
+  if(TD.err&&!TD.loaded){el.innerHTML='<div class="td-banner bad">'+escapeHtml(TD.err)+'</div>';return;}
+  if(TD.err){el.innerHTML='<div class="td-banner bad">'+escapeHtml(TD.err)+'</div>';return;}
+  let n=0;try{if(!LS.get('plos_board_migrated',false))BOARD.forEach(s=>{n+=(board[s.key]||[]).length;});}catch(e){}
+  el.innerHTML=n&&TD.loaded?'<div class="td-banner">The old To-Do Board on this device still has '+n+' task'+(n>1?'s':'')+'. <button class="gold-btn" style="height:32px;font-size:12.5px" data-act="migrate">Move them into To-Do</button></div>':'';
+}
+function tdRenderAll(){
+  tdRenderStats();tdRenderChips();
+  if(TD.view==='history')tdRenderHistory();else tdRenderList();
+  tdRenderCal();tdRenderDay();tdRenderHome();tdRenderMigrate();tdRenderModalSubs();
+  const seg=document.querySelectorAll('#td-seg button');seg.forEach(b=>b.classList.toggle('on',b.getAttribute('data-view')===TD.view));
+  const dl=document.getElementById('td-sec-list');if(dl)dl.innerHTML=TD.sections.map(s=>'<option value="'+attr(s)+'">').join('');
+  if(TD.loading)tdSync('Syncing…');else if(TD.err&&!TD.loaded)tdSync('Not loaded',true);
+  else if(TD.lastSync)tdSync('Synced with Notion '+TD.lastSync.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:TD_TZ})+' WITA');
+}
+
+/* ---------- input parsing ---------- */
+function tdTimeFrom(txt){const m=String(txt).match(/\s(\d{1,2})[:.](\d{2})\s*$/);if(!m)return {text:txt,time:''};const h=+m[1],mi=+m[2];if(h>23||mi>59)return {text:txt,time:''};return {text:txt.slice(0,m.index).trim(),time:String(h).padStart(2,'0')+':'+String(mi).padStart(2,'0')};}
+function tdDateVal(day,time){return time?day+'T'+time+':00+08:00':day;}
+
+/* ---------- editor ---------- */
+let TD_EDIT=null;
+function tdOpenEditor(id){
+  const t=TD.byId[id];if(!t||String(id).indexOf('tmp')===0)return;tdCloseEditor();TD_EDIT=id;
+  const sd=t.date&&t.date.start?tdDayOf(t.date.start):'';const st=t.date&&t.date.start?tdTimeOf(t.date.start):'';const ed=t.date&&t.date.end?tdDayOf(t.date.end):'';
+  const w=document.createElement('div');w.className='td-modal';w.id='td-modal';
+  w.innerHTML='<div class="card td-sheet" data-no-tools><h2><span class="ic">✏️</span>Edit task<button class="link-btn" data-act="close" style="margin-left:auto;font-size:20px">×</button></h2>'
+   +'<div class="td-form">'
+   +'<label class="full">Task<input class="fld" id="tde-name" value="'+attr(t.name)+'"></label>'
+   +'<label>Business<select class="fld" id="tde-area"><option value="">None</option>'+TD_AREAS.map(a=>'<option'+(t.area===a.key?' selected':'')+'>'+a.key+'</option>').join('')+'</select></label>'
+   +'<label>Section<input class="fld" id="tde-sec" list="td-sec-list" value="'+attr(t.section||'')+'" placeholder="e.g. Payments (Bayar)"></label>'
+   +'<label>Status<select class="fld" id="tde-status">'+['To do','Doing','Done'].map(s=>'<option'+(t.status===s?' selected':'')+'>'+s+'</option>').join('')+'</select></label>'
+   +'<label>Kind<select class="fld" id="tde-type">'+['Task','Event'].map(s=>'<option'+(t.type===s?' selected':'')+'>'+s+'</option>').join('')+'</select></label>'
+   +'<label>Date<input class="fld" type="date" id="tde-date" value="'+sd+'"></label>'
+   +'<label>Time (WITA, optional)<input class="fld" type="time" id="tde-time" value="'+st+'"></label>'
+   +'<label>Until (optional)<input class="fld" type="date" id="tde-end" value="'+ed+'"></label>'
+   +'<label>Flags<span style="display:flex;gap:8px"><button class="td-tog'+(t.priority?' on':'')+'" id="tde-pri" type="button">⏰ Priority</button><button class="td-tog'+(t.urgent?' on':'')+'" id="tde-urg" type="button">🚨 Urgent</button></span></label>'
+   +'<label class="full">Notes<textarea class="fld" id="tde-notes" rows="3">'+escapeHtml(t.notes||'')+'</textarea></label>'
+   +'</div><div class="td-sub">Sub-tasks</div><ul class="td-list" id="tde-subs"></ul>'
+   +'<div class="todo-add" style="margin-top:8px"><input class="fld" id="tde-subin" placeholder="Add a sub-task…"><button class="gold-btn" data-act="subadd">+</button></div>'
+   +'<div class="td-actions"><button class="gold-btn" data-act="save">Save</button><button class="td-ghost" data-act="close">Cancel</button>'+(t.url?'<a class="ctool" href="'+safeHref(t.url)+'" target="_blank" rel="noopener">Notion ↗</a>':'')+'<button class="td-danger" data-act="del">Delete</button></div></div>';
+  document.body.appendChild(w);tdRenderModalSubs();
+  ['tde-pri','tde-urg'].forEach(x=>{const b=document.getElementById(x);b.onclick=()=>b.classList.toggle('on');});
+  w.addEventListener('click',async e=>{
+    if(e.target===w){tdCloseEditor();return;}
+    const act=e.target.closest('[data-act]');if(!act)return;const a=act.getAttribute('data-act');
+    const row=e.target.closest('.td-row');
+    if(row&&row.closest('#tde-subs')){if(a!=='edit')tdRowAction(a,row.getAttribute('data-id'));return;}
+    if(a==='close')tdCloseEditor();
+    if(a==='save')tdSaveEditor();
+    if(a==='subadd'){const inp=document.getElementById('tde-subin');const v=(inp.value||'').trim();if(!v)return;inp.value='';const p=TD.byId[TD_EDIT];await tdCreate({name:v,parent:TD_EDIT,area:p.area,section:p.section});}
+    if(a==='del'){if(!act.classList.contains('arm')){act.classList.add('arm');act.textContent='Tap again to delete';setTimeout(()=>{if(act.isConnected){act.classList.remove('arm');act.textContent='Delete';}},4000);return;}const id=TD_EDIT;tdCloseEditor();tdArchive(id);}
+  });
+  document.getElementById('tde-subin').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();w.querySelector('[data-act="subadd"]').click();}});
+  setTimeout(()=>{try{document.getElementById('tde-name').focus();}catch(e){}},30);
+}
+function tdRenderModalSubs(){const ul=document.getElementById('tde-subs');if(!ul||!TD_EDIT)return;const k=tdKids(TD_EDIT).sort(tdSort);ul.innerHTML=k.length?k.map(t=>tdRowHTML(t,{nested:true})).join(''):'<li class="td-empty">No sub-tasks.</li>';}
+function tdCloseEditor(){const m=document.getElementById('td-modal');if(m)m.remove();TD_EDIT=null;}
+function tdSaveEditor(){
+  const t=TD.byId[TD_EDIT];if(!t){tdCloseEditor();return;}
+  const v=id=>document.getElementById(id).value;
+  const name=v('tde-name').trim();if(!name){showToast('A task needs a name',false);return;}
+  const day=v('tde-date'),time=v('tde-time'),end=v('tde-end');
+  if(!day&&(time||end)){showToast('Pick a date first, then a time or end date',false);return;}
+  if(day&&end&&end<day){showToast('The end date is before the start date',false);return;}
+  const date=day?{start:tdDateVal(day,time),end:end&&end!==day?end:null}:null;
+  const next={name:name,area:v('tde-area')||null,section:v('tde-sec').trim()||null,status:v('tde-status'),type:v('tde-type'),notes:v('tde-notes'),priority:document.getElementById('tde-pri').classList.contains('on'),urgent:document.getElementById('tde-urg').classList.contains('on')};
+  const patch={};Object.keys(next).forEach(k=>{if((t[k]==null?'':t[k])!==(next[k]==null?'':next[k]))patch[k]=next[k];});
+  const curDate=t.date?JSON.stringify({s:tdDayOf(t.date.start)+'|'+tdTimeOf(t.date.start),e:t.date.end?tdDayOf(t.date.end):null}):'null';
+  const newDate=date?JSON.stringify({s:day+'|'+time,e:date.end}):'null';
+  if(curDate!==newDate)patch.date=date;
+  if('status' in patch){if(patch.status==='Done'&&!t.done){patch.done=true;delete patch.status;}else if(patch.status!=='Done'&&t.done){patch.done=false;}}
+  tdCloseEditor();
+  if(Object.keys(patch).length)tdPatch(t.id,patch,'Saved to Notion ✓');
+}
+
+/* ---------- actions ---------- */
+function tdRowAction(a,id){
+  const t=TD.byId[id];if(!t)return;
+  if(a==='done')tdToggleDone(id);
+  else if(a==='pri')tdPatch(id,{priority:!t.priority});
+  else if(a==='urg')tdPatch(id,{urgent:!t.urgent});
+  else if(a==='doing')tdPatch(id,{status:t.status==='Doing'?'To do':'Doing'});
+  else if(a==='edit')tdOpenEditor(id);
+}
+function tdHandleClick(e){
+  const act=e.target.closest('[data-act]');
+  const row=e.target.closest('.td-row');
+  if(act&&row){tdRowAction(act.getAttribute('data-act'),row.getAttribute('data-id'));return;}
+  const flag=e.target.closest('[data-flag]');if(flag){const f=flag.getAttribute('data-flag');TD.flag=(TD.flag===f||!f)?'':f;if(TD.view==='history'&&TD.flag){TD.view='list';LS.set('td_view','list');}tdRenderAll();return;}
+  const ar=e.target.closest('[data-area]');if(ar){TD.area=ar.getAttribute('data-area');LS.set('td_area',TD.area);tdRenderAll();return;}
+  const sec=e.target.closest('[data-sec]');if(sec){const k=sec.getAttribute('data-sec');if(TD.closed[k])delete TD.closed[k];else TD.closed[k]=1;LS.set('td_closed',TD.closed);tdRenderAll();return;}
+  const cell=e.target.closest('[data-day]');if(cell){const d=cell.getAttribute('data-day');TD.sel=(TD.sel===d&&TD.view==='history')?null:d;tdRenderAll();if(window.innerWidth<980){const dp=document.getElementById(TD.view==='history'?'td-main':'td-day');if(dp)dp.scrollIntoView({behavior:'smooth',block:'start'});}return;}
+  if(!act)return;const a=act.getAttribute('data-act');
+  if(a==='prev'||a==='next'){const p=tdMonth().split('-').map(Number);const d=new Date(Date.UTC(p[0],p[1]-1+(a==='next'?1:-1),1));TD.month=d.toISOString().slice(0,7);tdRenderCal();}
+  else if(a==='thismonth'){TD.month=(TD.today||tdWita()).slice(0,7);TD.sel=null;tdRenderAll();}
+  else if(a==='clearfilter'){TD.flag='';TD.q='';const s=document.getElementById('td-q');if(s)s.value='';tdRenderAll();}
+  else if(a==='clearsel'){TD.sel=null;tdRenderAll();}
+  else if(a==='more'){TD.histLimit+=30;tdRenderHistory();}
+  else if(a==='dayadd')tdDayAdd();
+  else if(a==='migrate')tdMigrate();
+}
+async function tdQuickAdd(){
+  const nameEl=document.getElementById('td-new-name');const raw=(nameEl.value||'').trim();if(!raw){nameEl.focus();return;}
+  const area=document.getElementById('td-new-area').value||null;const sec=document.getElementById('td-new-sec').value.trim()||null;
+  const day=document.getElementById('td-new-date').value;let time=document.getElementById('td-new-time').value;
+  let name=raw;if(day&&!time){const p=tdTimeFrom(raw);name=p.text;time=p.time;}
+  if(!day&&time){showToast('Pick a date for that time',false);return;}
+  const task={name:name,area:area,section:sec,priority:TD.newPri,urgent:TD.newUrg,type:(day&&time)?'Event':'Task'};
+  if(day)task.date={start:tdDateVal(day,time)};
+  nameEl.value='';document.getElementById('td-new-time').value='';document.getElementById('td-new-date').value='';
+  TD.newPri=false;TD.newUrg=false;document.getElementById('td-new-pri').classList.remove('on');document.getElementById('td-new-urg').classList.remove('on');
+  LS.set('td_lastArea',area||'');
+  const r=await tdCreate(task);if(r)showToast('Added to '+(area||'To-Do')+(sec?' · '+sec:''),true);else nameEl.value=raw;
+  nameEl.focus();
+}
+async function tdDayAdd(){
+  const inp=document.getElementById('td-day-in');if(!inp)return;const raw=(inp.value||'').trim();if(!raw)return;
+  const day=TD.sel||TD.today;const p=tdTimeFrom(raw);
+  const area=TD.area!=='All'?TD.area:(LS.get('td_lastArea','')||'Personal');
+  inp.value='';
+  const r=await tdCreate({name:p.text,area:area,section:p.time?'Schedule':null,type:p.time?'Event':'Task',date:{start:tdDateVal(day,p.time)}});
+  if(r)showToast('Added to '+tdPretty(day),true);else{const n=document.getElementById('td-day-in');if(n)n.value=raw;}
+}
+async function tdMigrate(){
+  const map={personal:'Personal',divearts:'DiveArts',seadiva:'Sea Diva'};let ok=0,fail=0;
+  for(const s of BOARD){const items=(board[s.key]||[]).slice();for(const it of items){const r=await tdCreate({name:it.text,area:map[s.key]||'Personal'});if(r){ok++;board[s.key]=board[s.key].filter(x=>x.id!==it.id);}else fail++;}}
+  LS.set('plos_board',board);if(!fail)LS.set('plos_board_migrated',true);
+  showToast(fail?('Moved '+ok+', '+fail+' failed. Try again.'):('Moved '+ok+' old tasks into To-Do ✓'),!fail);tdRenderAll();
+}
+/* Called by the Journal box for any "Task:" line. */
+function tdCaptureFromJournal(text){return tdCreate({name:text,area:'Personal'});}
+
+function buildTodo(){
+  const root=document.getElementById('todo-root');if(!root)return;
+  const lastArea=LS.get('td_lastArea','Personal');
+  root.innerHTML='<div class="card td-head" data-no-tools>'
+   +'<div class="td-headrow"><h2><span class="ic">✅</span>To-Do</h2><div class="td-seg" id="td-seg"><button data-view="list">List</button><button data-view="history">History</button></div>'
+   +'<span class="td-sync" id="td-sync"></span><button class="ctool" id="td-refresh" title="Reload from Notion">↻ Refresh</button><a class="ctool" href="'+TD_NOTION_URL+'" target="_blank" rel="noopener">Notion ↗</a></div>'
+   +'<div class="td-add"><input class="fld" id="td-new-name" placeholder="New task… then Enter">'
+   +'<select class="fld" id="td-new-area" title="Business"><option value="">No area</option>'+TD_AREAS.map(a=>'<option'+(lastArea===a.key?' selected':'')+'>'+a.key+'</option>').join('')+'</select>'
+   +'<input class="fld" id="td-new-sec" list="td-sec-list" placeholder="Section">'
+   +'<input class="fld" type="date" id="td-new-date" title="Date, only if it is tied to a day">'
+   +'<input class="fld" type="time" id="td-new-time" title="Time WITA, optional">'
+   +'<span class="td-addbtns"><button class="td-tog" id="td-new-pri" type="button" title="Priority">⏰</button><button class="td-tog" id="td-new-urg" type="button" title="Urgent">🚨</button><button class="gold-btn" id="td-new-go">Add</button></span></div>'
+   +'<datalist id="td-sec-list"></datalist><div class="td-stats" id="td-stats"></div><div id="td-migrate"></div></div>'
+   +'<div class="td-layout"><div class="card" id="td-main" data-no-tools><div class="todo-add" style="margin:0"><input class="fld" id="td-q" placeholder="Search tasks…"></div><div class="td-chips" id="td-chips"></div><div id="td-list"></div></div>'
+   +'<div class="td-side"><div class="card" id="td-cal" data-no-tools></div><div class="card" id="td-day" data-no-tools></div></div></div>';
+  root.addEventListener('click',tdHandleClick);
+  document.getElementById('td-seg').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;TD.view=b.getAttribute('data-view');LS.set('td_view',TD.view);TD.sel=null;tdRenderAll();});
+  document.getElementById('td-refresh').onclick=()=>tdLoad(false);
+  document.getElementById('td-new-go').onclick=tdQuickAdd;
+  document.getElementById('td-new-name').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();tdQuickAdd();}});
+  document.getElementById('td-new-pri').onclick=e=>{TD.newPri=!TD.newPri;e.currentTarget.classList.toggle('on',TD.newPri);};
+  document.getElementById('td-new-urg').onclick=e=>{TD.newUrg=!TD.newUrg;e.currentTarget.classList.toggle('on',TD.newUrg);};
+  let qT;document.getElementById('td-q').addEventListener('input',e=>{clearTimeout(qT);qT=setTimeout(()=>{TD.q=e.target.value.trim();tdRenderAll();},150);});
+  root.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target&&e.target.id==='td-day-in'){e.preventDefault();tdDayAdd();}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')tdCloseEditor();});
+  tdRenderAll();
+  // Day rollover in WITA: yesterday's ticks leave the list at midnight without a reload.
+  setInterval(()=>{const d=tdWita();if(TD.today&&d!==TD.today){TD.today=d;tdRenderAll();tdLoad(true);}},60000);
+  // Quiet refresh when you come back to the app, so the phone and laptop agree.
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);});
+  if(osKeyGet())tdLoad(false);
+}
 var __ctTimer;function scheduleCardTools(){clearTimeout(__ctTimer);__ctTimer=setTimeout(addCardTools,180);}
 function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools).observe(document.body,{childList:true,subtree:true});}catch(e){}}
 (async function init(){
   window.__day=today();setInterval(()=>{if(window.__day!==today()){window.__day=today();try{location.reload();}catch(e){}}},60000);
   buildTabs();
   buildCommand();
+  buildTodo();
   buildSocial();
   buildAgents();
   renderAffirm();
