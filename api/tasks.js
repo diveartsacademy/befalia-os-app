@@ -184,6 +184,24 @@ async function assertTask(id, H) {
 }
 
 export default async function handler(req, res) {
+  // GET is a free health check, like GET /api/vision. It proves the token can
+  // read the Tasks database and returns counts only: no task names, notes or
+  // dates. It exists so the To-Do can be verified on a deployment without
+  // anyone typing the OS key into it.
+  if (req.method === 'GET') {
+    const tok = process.env.NOTION_TOKEN;
+    if (!tok) { res.status(500).json({ ok: false, error: 'NOTION_TOKEN env var is not set in Vercel' }); return; }
+    const HG = { 'Authorization': 'Bearer ' + tok, 'Notion-Version': VERSION, 'Content-Type': 'application/json' };
+    try {
+      const all = await listAll(HG);
+      const t = all.pages.filter((p) => !p.archived && !p.in_trash).map(mapPage);
+      const day = witaDate();
+      res.status(200).json({ ok: true, today: day, keyGate: !!process.env.OS_KEY, complete: all.complete, total: t.length, open: t.filter((x) => !x.done).length, doneToday: t.filter((x) => x.done && x.completedOn === day).length, untitled: t.filter((x) => !x.name).length });
+    } catch (e) {
+      res.status(200).json({ ok: false, error: String(e.message || e) });
+    }
+    return;
+  }
   if (req.method !== 'POST') { res.status(405).json({ error: 'POST only' }); return; }
   if (!requireKey(req, res)) return;
   const token = process.env.NOTION_TOKEN;
