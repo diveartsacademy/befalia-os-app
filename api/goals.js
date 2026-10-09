@@ -70,6 +70,20 @@ async function assertGoal(id, H) {
 }
 
 export default async function handler(req, res) {
+  // GET: counts-only health check, no goal names, so the tab can be verified
+  // on a deployment without anyone typing the OS key.
+  if (req.method === 'GET') {
+    const tok = process.env.NOTION_TOKEN;
+    if (!tok) { res.status(500).json({ ok: false, error: 'NOTION_TOKEN env var is not set in Vercel' }); return; }
+    try {
+      const d = await notion('/databases/' + GOALS_DB + '/query', { 'Authorization': 'Bearer ' + tok, 'Notion-Version': VERSION, 'Content-Type': 'application/json' }, { method: 'POST', body: { page_size: 100 } });
+      const g = (d.results || []).map(mapGoal);
+      const years = {};
+      g.forEach((x) => { years[x.year || 'none'] = (years[x.year || 'none'] || 0) + 1; });
+      res.status(200).json({ ok: true, firstPage: g.length, more: !!d.has_more, highlights: g.filter((x) => x.kind === 'Highlight').length, years });
+    } catch (e) { res.status(200).json({ ok: false, error: String(e.message || e) }); }
+    return;
+  }
   if (req.method !== 'POST') { res.status(405).json({ error: 'POST only' }); return; }
   if (!requireKey(req, res)) return;
   const token = process.env.NOTION_TOKEN;
