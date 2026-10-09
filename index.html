@@ -1218,7 +1218,8 @@ function addCardTools(){
      actually stored. If Notion refuses, the change is rolled back and you see
      "not saved". The screen never claims a save that did not happen.
    ===================================================================== */
-const TD_AREAS=[{key:'Personal',icon:'🏠',color:'#f59ac8'},{key:'DiveArts',icon:'🌊',color:'#2ee6ff'},{key:'Sea Diva',icon:'🧜‍♀️',color:'#b79cff'},{key:'TailCraft',icon:'🧵',color:'#ffb46b'}];
+// Same order as the headings in her TO DO LIST 2026 note.
+const TD_AREAS=[{key:'Main',icon:'📌',color:'#ffd36b'},{key:'DiveArts',icon:'🌊',color:'#2ee6ff'},{key:'Sea Diva',icon:'🧜‍♀️',color:'#b79cff'},{key:'TailCraft',icon:'🧵',color:'#ffb46b'},{key:'Personal',icon:'🏠',color:'#f59ac8'},{key:'Schedule',icon:'🗓',color:'#ff8a8a'}];
 const TD_TZ='Asia/Makassar';
 const TD_NOTION_URL='https://app.notion.com/p/3eceb411ed7a81ee967bd6d40f7c4ee4';
 const TD={tasks:[],byId:{},sections:[],today:null,loaded:false,loading:false,err:'',lastSync:null,
@@ -1242,6 +1243,18 @@ function tdColor(a){const x=TD_AREAS.find(z=>z.key===a);return x?x.color:'#8fb6c
 function tdIcon(a){const x=TD_AREAS.find(z=>z.key===a);return x?x.icon:'•';}
 function tdRank(t){return (t.urgent?0:4)+(t.priority?0:2)+(t.status==='Doing'?0:1);}
 function tdSort(a,b){if(a.done!==b.done)return a.done?1:-1;const r=tdRank(a)-tdRank(b);if(r)return r;const da=a.date&&a.date.start?tdDayOf(a.date.start):'9999',db=b.date&&b.date.start?tdDayOf(b.date.start):'9999';if(da!==db)return da<db?-1:1;const ta=a.date?tdTimeOf(a.date.start):'',tb=b.date?tdTimeOf(b.date.start):'';if(ta!==tb)return ta<tb?-1:1;return (a.created||'')<(b.created||'')?-1:1;}
+// Note order: the Order number mirrors the line order in her Apple Note.
+function tdOrd(a,b){const oa=typeof a.order==='number'?a.order:Infinity,ob=typeof b.order==='number'?b.order:Infinity;if(oa!==ob)return oa<ob?-1:1;return (a.created||'')<(b.created||'')?-1:1;}
+function tdMinOrd(list){let m=Infinity;list.forEach(t=>{if(typeof t.order==='number'&&t.order<m)m=t.order;});return m;}
+// Where a new or moved task goes: the end of its title (or of its parent's sub-tasks).
+function tdNextOrder(area,sec,parentId){
+  const real=TD.tasks.filter(t=>typeof t.order==='number');
+  let pool=parentId?real.filter(t=>t.parent===parentId):real.filter(t=>(t.area||null)===(area||null)&&(t.section||null)===(sec||null));
+  if(parentId&&!pool.length){const p=TD.byId[parentId];return p&&typeof p.order==='number'?p.order+1:null;}
+  if(!pool.length)pool=real.filter(t=>(t.area||null)===(area||null));
+  if(!pool.length)pool=real;
+  return pool.length?Math.max.apply(null,pool.map(t=>t.order))+10:10;
+}
 function tdIndex(){TD.byId={};TD.tasks.forEach(t=>{TD.byId[t.id]=t;});}
 function tdKids(id){return TD.tasks.filter(t=>t.parent===id);}
 function tdHot(t){return !t.done&&(t.urgent||t.priority||t.status==='Doing'||tdDueToday(t)||tdOverdue(t));}
@@ -1256,7 +1269,9 @@ async function tdApi(action,payload){
 }
 async function tdLoad(silent){
   if(TD.loading)return;TD.loading=true;if(!silent)tdSync('Loading from Notion…');
-  try{const j=await tdApi('list');TD.tasks=j.tasks||[];TD.today=j.today||tdWita();if(Array.isArray(j.sections)&&j.sections.length)TD.sections=j.sections;
+  try{const j=await tdApi('list');const all=j.tasks||[];
+    // Parked = open tasks that are no longer in her note. Kept in Notion, never shown.
+    TD.parked=all.filter(t=>t.status==='Parked');TD.tasks=all.filter(t=>t.status!=='Parked');TD.today=j.today||tdWita();if(Array.isArray(j.sections)&&j.sections.length)TD.sections=j.sections;
     TD.loaded=true;TD.err=j.complete===false?'Only part of the list loaded. Tell Claude, the list has outgrown one load.':'';TD.lastSync=new Date();tdIndex();}
   catch(e){TD.err=String(e.message||e);}
   finally{TD.loading=false;tdRenderAll();if(TD.loaded&&!TD.arch&&!TD.archErr)tdLoadArchive();}
@@ -1290,8 +1305,10 @@ async function tdPatch(id,patch,okMsg){
   catch(e){Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,before);t._err=true;tdRenderAll();showToast('Not saved: '+(e.message||e),false);return false;}
 }
 async function tdCreate(task){
+  // Every new task lands at the end of its title, like a new line in the note.
+  if(task.order==null){const no=tdNextOrder(task.area||null,task.section||null,task.parent||null);if(no!=null)task.order=no;}
   const tmp='tmp'+Date.now()+Math.random().toString(36).slice(2,6);
-  const t=Object.assign({id:tmp,name:'',area:null,section:null,status:'To do',done:false,priority:false,urgent:false,type:'Task',notes:'',date:null,completedOn:null,parent:null,created:new Date().toISOString(),_saving:true},task);
+  const t=Object.assign({id:tmp,name:'',area:null,section:null,status:'To do',done:false,priority:false,urgent:false,type:'Task',notes:'',date:null,completedOn:null,parent:null,order:null,created:new Date().toISOString(),_saving:true},task);
   TD.tasks.push(t);TD.byId[tmp]=t;tdRenderAll();
   try{const j=await tdApi('create',{task:task});const real=j.task;const i=TD.tasks.indexOf(t);if(i>=0)TD.tasks[i]=real;else TD.tasks.push(real);delete TD.byId[tmp];TD.byId[real.id]=real;TD.lastSync=new Date();tdRenderAll();return real;}
   catch(e){TD.tasks=TD.tasks.filter(x=>x!==t);delete TD.byId[tmp];tdRenderAll();showToast('Not saved: '+(e.message||e),false);return null;}
@@ -1344,20 +1361,15 @@ function tdRenderStats(){
 function tdRenderChips(){
   const el=document.getElementById('td-chips');if(!el)return;
   const cnt=a=>TD.tasks.filter(t=>!t.done&&(a==='All'||t.area===a)).length;
-  el.innerHTML=['All'].concat(TD_AREAS.map(a=>a.key)).map(a=>'<button class="td-chip'+(TD.area===a?' on':'')+'" data-area="'+attr(a)+'" style="--chip:'+(a==='All'?'var(--aqua)':tdColor(a))+'">'+(a==='All'?'All':tdIcon(a)+' '+escapeHtml(a))+' <i>'+cnt(a)+'</i></button>').join('');
+  el.innerHTML=['All'].concat(TD_AREAS.map(a=>a.key).filter(a=>cnt(a)||TD.area===a)).map(a=>'<button class="td-chip'+(TD.area===a?' on':'')+'" data-area="'+attr(a)+'" style="--chip:'+(a==='All'?'var(--aqua)':tdColor(a))+'">'+(a==='All'?'All':tdIcon(a)+' '+escapeHtml(a))+' <i>'+cnt(a)+'</i></button>').join('');
 }
 function tdSectionOrder(name){if(!name)return 9999;const i=TD.sections.indexOf(name);return i===-1?5000:i;}
-// Grok, Claude and Codex lists span every business, so under "All" they sit
-// together in one block at the top. Inside one business they show as titles.
-const TD_AI=['Grok','Claude','Codex'];
-const TD_AI_ICON={Grok:'🤖',Claude:'✳️',Codex:'⌨️'};
-function tdIsAI(sec){return TD_AI.indexOf(sec||'')!==-1;}
 function tdSecKey(a,s){return (a||'')+'|'+(s||'');}
 function tdTitlesFor(a){return (TD.titles[a]||[]).slice();}
 function tdSaveTitles(){LS.set('td_titles',TD.titles);}
 function tdDropTitle(a,s){if(!TD.titles[a])return;TD.titles[a]=TD.titles[a].filter(x=>x!==s);if(!TD.titles[a].length)delete TD.titles[a];tdSaveTitles();}
 // The task a new sub-task would go under: the last open top-level task in that title.
-function tdIndentParent(a,s){const top=TD.tasks.filter(t=>(a==='*'||(t.area||null)===(a||null))&&(t.section||'')===(s||'')&&!t.parent&&tdOnList(t)&&String(t.id).indexOf('tmp')!==0).sort(tdSort);const open=top.filter(t=>!t.done);return (open.length?open:top).slice(-1)[0]||null;}
+function tdIndentParent(a,s){const top=TD.tasks.filter(t=>(a==='*'||(t.area||null)===(a||null))&&(t.section||'')===(s||'')&&!t.parent&&tdOnList(t)&&String(t.id).indexOf('tmp')!==0).sort(tdOrd);const open=top.filter(t=>!t.done);return (open.length?open:top).slice(-1)[0]||null;}
 function tdInlineHTML(a,s){
   const key=tdSecKey(a,s);const ind=!!TD.indent[key];const par=ind?tdIndentParent(a,s):null;
   const ph=ind&&par?'↳ Sub-task of "'+(par.name.length>34?par.name.slice(0,34)+'…':par.name)+'"':'+ Add to '+(s||(a||'No area'))+(a==='*'?' ('+(LS.get('td_lastArea','')||'Personal')+')':'');
@@ -1374,42 +1386,26 @@ function tdRenderList(){
   const visIds={};vis.forEach(t=>{visIds[t.id]=1;});
   let html='';
   if(flat){html+='<div class="td-filterbar">Showing '+vis.length+' '+(TD.q?'matching "'+escapeHtml(TD.q)+'"':'')+(TD.flag?' · '+({urgent:'🚨 urgent',priority:'⏰ priority',doing:'▶ in progress',late:'⚠ overdue',donetoday:'✓ done today'}[TD.flag]):'')+' · <button class="link-btn" data-act="clearfilter">clear</button></div>';}
-  const aiBlock=TD.area==='All'&&!flat;
-  const emitSec=(list,key,label,canRename,addArea,addSec)=>{
-    const closed=!flat&&!!TD.closed[key];const hot=list.filter(t=>!t.done&&(t.urgent||t.priority)).length;
-    if(TD.renaming===key)html+='<div class="td-sec-h" data-drop-sec="'+attr(key)+'"><input class="td-inl-in" data-kind="rename" data-key="'+attr(key)+'" value="'+attr(addSec)+'" enterkeyhint="done"><button class="td-mini" data-act="rencancel">Cancel</button></div>';
-    else html+='<div class="td-sec-h'+(closed?' closed':'')+'" data-sec="'+attr(key)+'" data-drop-sec="'+attr(key)+'"><span class="car">▼</span>'+label+' <span class="n">'+list.filter(t=>!t.done).length+'</span>'+(hot?'<span class="hot">· '+hot+' flagged</span>':'')+(canRename?'<button class="td-mini" data-act="rentitle" data-key="'+attr(key)+'" title="Rename this title">✎</button>':'')+'</div>';
-    if(closed)return;
-    html+='<ul class="td-list">';
-    const emit=(t,depth)=>{html+=tdRowHTML(t,{showParent:flat,kid:depth>0,nested:depth>0,showArea:addArea==='*'&&depth===0});if(!flat&&depth<4)tdKids(t.id).filter(k=>visIds[k.id]).sort(tdSort).forEach(k=>emit(k,depth+1));};
-    list.sort(tdSort).forEach(t=>emit(t,0));
-    html+='</ul>';
-    if(!flat&&addArea)html+=tdInlineHTML(addArea,addSec);
-  };
-  if(aiBlock){
-    const aiTop=vis.filter(t=>tdIsAI(t.section)&&!(t.parent&&visIds[t.parent]));
-    html+='<div class="td-area"><div class="td-area-h" style="color:#b9a6ff">🤖 AI to-do<span class="n">'+vis.filter(t=>tdIsAI(t.section)&&!t.done).length+' open</span></div>';
-    TD_AI.forEach(s=>{emitSec(aiTop.filter(t=>t.section===s),'*|'+s,TD_AI_ICON[s]+' '+escapeHtml(s),false,'*',s);});
-    html+='</div>';
-  }
   const areas=(TD.area==='All'?TD_AREAS.map(a=>a.key):[TD.area]).concat([null]);
   areas.forEach(a=>{
-    const inA=vis.filter(t=>(t.area||null)===a&&!(aiBlock&&tdIsAI(t.section)));
+    const inA=vis.filter(t=>(t.area||null)===a);
     const pend=(!flat&&a)?tdTitlesFor(a):[];
-    if(!inA.length&&!pend.length&&TD.newTitleFor!==a)return;
+    if(!inA.length&&!pend.length&&!(a&&TD.newTitleFor===a))return;
     const top=flat?inA:inA.filter(t=>!(t.parent&&visIds[t.parent]));
     html+='<div class="td-area"><div class="td-area-h" data-drop-area="'+attr(a||'')+'" style="color:'+tdColor(a)+'">'+(a?tdIcon(a)+' '+escapeHtml(a):'• No area')+'<span class="n">'+inA.filter(t=>!t.done).length+' open</span>'+(a&&!flat?'<button class="td-mini" data-act="newtitle" data-for-area="'+attr(a)+'" title="Add a title (a new group) in '+attr(a)+'">+ Title</button>':'')+'</div>';
     if(TD.newTitleFor===a)html+='<div class="td-inline td-newtitle"><input class="td-inl-in" data-kind="title" data-key="'+attr(a)+'" placeholder="New title, e.g. TRIPS, then Enter" enterkeyhint="done"></div>';
     const secs={};top.forEach(t=>{const s=t.section||'';(secs[s]=secs[s]||[]).push(t);});
     pend.forEach(p=>{if(!secs[p])secs[p]=[];});
-    Object.keys(secs).sort((x,y)=>{const px=pend.indexOf(x)!==-1&&!secs[x].length,py=pend.indexOf(y)!==-1&&!secs[y].length;if(px!==py)return px?1:-1;return tdSectionOrder(x)-tdSectionOrder(y)||(x<y?-1:1);}).forEach(s=>{
-      const list=secs[s].sort(tdSort);const key=tdSecKey(a,s);const closed=!flat&&!!TD.closed[key];
+    Object.keys(secs).sort((x,y)=>{const px=pend.indexOf(x)!==-1&&!secs[x].length,py=pend.indexOf(y)!==-1&&!secs[y].length;if(px!==py)return px?1:-1;const mx=tdMinOrd(secs[x]),my=tdMinOrd(secs[y]);if(mx!==my)return mx<my?-1:1;return tdSectionOrder(x)-tdSectionOrder(y)||(x<y?-1:1);}).forEach(s=>{
+      const list=secs[s].sort(flat?tdSort:tdOrd);const key=tdSecKey(a,s);const closed=!flat&&!!s&&!!TD.closed[key];
       const hot=list.filter(t=>!t.done&&(t.urgent||t.priority)).length;
       if(TD.renaming===key)html+='<div class="td-sec-h" data-drop-sec="'+attr(key)+'"><input class="td-inl-in" data-kind="rename" data-key="'+attr(key)+'" value="'+attr(s)+'" enterkeyhint="done"><button class="td-mini" data-act="rencancel">Cancel</button></div>';
+      // Lines with no heading sit straight under the business, as in the note.
+      else if(!s&&!flat){}
       else html+='<div class="td-sec-h'+(closed?' closed':'')+'" data-sec="'+attr(key)+'" data-drop-sec="'+attr(key)+'"><span class="car">▼</span>'+escapeHtml(s||'No title')+' <span class="n">'+list.filter(t=>!t.done).length+'</span>'+(hot?'<span class="hot">· '+hot+' flagged</span>':'')+(!flat&&s&&list.length?'<button class="td-mini" data-act="rentitle" data-key="'+attr(key)+'" title="Rename this title">✎</button>':'')+'</div>';
       if(closed)return;
       html+='<ul class="td-list">';
-      const emit=(t,depth)=>{html+=tdRowHTML(t,{showParent:flat,kid:depth>0,nested:depth>0});if(!flat&&depth<4)tdKids(t.id).filter(k=>visIds[k.id]).sort(tdSort).forEach(k=>emit(k,depth+1));};
+      const emit=(t,depth)=>{html+=tdRowHTML(t,{showParent:flat,kid:depth>0,nested:depth>0});if(!flat&&depth<4)tdKids(t.id).filter(k=>visIds[k.id]).sort(tdOrd).forEach(k=>emit(k,depth+1));};
       list.forEach(t=>emit(t,0));
       html+='</ul>';
       if(!flat&&a)html+=tdInlineHTML(a,s);
@@ -1699,13 +1695,13 @@ async function tdDrop(id,tg){
     let ar,sec;if(tg.sec){const i=tg.sec.indexOf('|');ar=tg.sec.slice(0,i)||null;sec=tg.sec.slice(i+1)||null;}else{ar=tg.area;sec=null;}
     if(ar==='*')ar=t.area||(LS.get('td_lastArea','')||'Personal');
     if((t.area||null)===ar&&(t.section||null)===sec&&!t.parent)return;
-    ops.push({id:id,patch:{area:ar,section:sec,parent:null},undo:{area:t.area,section:t.section,parent:t.parent}});
+    ops.push({id:id,patch:{area:ar,section:sec,parent:null,order:tdNextOrder(ar,sec,null)},undo:{area:t.area,section:t.section,parent:t.parent,order:t.order==null?null:t.order}});
     tdDescendants(id).forEach(k=>{if((k.area||null)!==ar||(k.section||null)!==sec)ops.push({id:k.id,patch:{area:ar,section:sec},undo:{area:k.area,section:k.section}});});
     if(sec)tdDropTitle(ar,sec);
     msg='Moved to '+(sec||ar||'No area');
   }else if(tg.task){
     const p=TD.byId[tg.task];if(!p)return;if(t.parent===p.id)return;
-    ops.push({id:id,patch:{parent:p.id,area:p.area,section:p.section},undo:{parent:t.parent,area:t.area,section:t.section}});
+    ops.push({id:id,patch:{parent:p.id,area:p.area,section:p.section,order:tdNextOrder(p.area,p.section,p.id)},undo:{parent:t.parent,area:t.area,section:t.section,order:t.order==null?null:t.order}});
     tdDescendants(id).forEach(k=>{if(k.area!==p.area||k.section!==p.section)ops.push({id:k.id,patch:{area:p.area,section:p.section},undo:{area:k.area,section:k.section}});});
     msg='Now a sub-task of "'+(p.name.length>30?p.name.slice(0,30)+'…':p.name)+'"';
   }

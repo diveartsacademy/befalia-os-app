@@ -16,15 +16,19 @@ export const TASKS_DB = (process.env.TASKS_DB_ID || 'ac45a1773bfc4e3c96652745a1e
 const NOTION = 'https://api.notion.com/v1';
 const VERSION = '2022-06-28';
 const TZ = 'Asia/Makassar';
-export const AREAS = ['Personal', 'DiveArts', 'Sea Diva', 'TailCraft'];
-const STATUSES = ['To do', 'Doing', 'Done'];
+// Same order as the headings in her TO DO LIST 2026 note: the untitled top
+// block (Main), then each business, Personal, and the Schedule list last.
+export const AREAS = ['Main', 'DiveArts', 'Sea Diva', 'TailCraft', 'Personal', 'Schedule'];
+// Parked = an open task that is no longer in her note. Hidden from the lists,
+// kept in Notion so nothing is lost.
+const STATUSES = ['To do', 'Doing', 'Done', 'Parked'];
 const TYPES = ['Task', 'Event'];
 
 // Property names exactly as they exist in Notion.
 const P = {
   name: 'Name', area: 'Area', section: 'Section', status: 'Status', done: 'Done',
   priority: '⏰ Priority', urgent: '🚨 Urgent', type: 'Type', notes: 'Notes',
-  date: 'Date', completedOn: 'Completed on', parent: 'Parent task',
+  date: 'Date', completedOn: 'Completed on', parent: 'Parent task', order: 'Order',
 };
 
 export function witaDate(d = new Date()) {
@@ -56,6 +60,7 @@ export function mapPage(pg) {
     date: d ? { start: d.start, end: d.end || null } : null,
     completedOn: c ? String(c.start).slice(0, 10) : null,
     parent: par.length ? nid(par[0].id) : null,
+    order: pr[P.order] && typeof pr[P.order].number === 'number' ? pr[P.order].number : null,
     created: pg.created_time,
     edited: pg.last_edited_time,
     url: pg.url,
@@ -103,6 +108,12 @@ export function buildProps(patch, todayWita) {
       if (!DATE_RE.test(d.start) || (d.end && !DATE_RE.test(d.end))) bad('Dates must be YYYY-MM-DD or a full ISO time');
       props[P.date] = { date: { start: d.start, end: d.end || null } };
     }
+  }
+  // Position inside its title, so the app keeps the note's order.
+  if ('order' in patch) {
+    const o = patch.order;
+    if (o !== null && (typeof o !== 'number' || !isFinite(o))) bad('Order must be a number');
+    props[P.order] = { number: o };
   }
   if ('parent' in patch) props[P.parent] = { relation: patch.parent ? [{ id: nid(patch.parent) }] : [] };
   if ('status' in patch) {
@@ -208,7 +219,7 @@ export default async function handler(req, res) {
       const all = await listAll(HG);
       const t = all.pages.filter((p) => !p.archived && !p.in_trash).map(mapPage);
       const day = witaDate();
-      const out = { ok: true, today: day, keyGate: !!process.env.OS_KEY, complete: all.complete, total: t.length, open: t.filter((x) => !x.done).length, doneToday: t.filter((x) => x.done && x.completedOn === day).length, untitled: t.filter((x) => !x.name).length };
+      const out = { ok: true, today: day, keyGate: !!process.env.OS_KEY, complete: all.complete, total: t.length, open: t.filter((x) => !x.done && x.status !== 'Parked').length, parked: t.filter((x) => !x.done && x.status === 'Parked').length, areas: t.filter((x) => !x.done && x.status !== 'Parked').reduce((m, x) => { m[x.area || 'none'] = (m[x.area || 'none'] || 0) + 1; return m; }, {}), doneToday: t.filter((x) => x.done && x.completedOn === day).length, untitled: t.filter((x) => !x.name).length };
       // Counts only for the 2026 archive too: proves the key page and the
       // decryption work without exposing a single line of it.
       try { const a = await loadArchive(HG); out.archive = { ok: true, days: a.days.length, items: a.items, first: a.days.length ? a.days[0].d : null, last: a.days.length ? a.days[a.days.length - 1].d : null }; }
