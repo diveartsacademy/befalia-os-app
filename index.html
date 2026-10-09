@@ -1381,8 +1381,10 @@ function tdRenderList(){
   // Keep whatever is being typed in an inline box across re-renders.
   const ae=document.activeElement;let keep=null;
   if(ae&&ae.classList&&ae.classList.contains('td-inl-in')&&el.contains(ae))keep={k:ae.getAttribute('data-kind')+'#'+ae.getAttribute('data-key'),v:ae.value,c:ae.selectionStart};
-  const vis=TD.tasks.filter(t=>tdOnList(t)&&tdMatches(t));
   const flat=!!(TD.flag||TD.q);
+  // Classes synced from Google Calendar are not lines in her note: they live on
+  // the calendar and Home, and only join the list in a filter or search.
+  const vis=TD.tasks.filter(t=>tdOnList(t)&&tdMatches(t)&&(flat||!(t.type==='Event'&&t.section==='Classes')));
   const visIds={};vis.forEach(t=>{visIds[t.id]=1;});
   let html='';
   if(flat){html+='<div class="td-filterbar">Showing '+vis.length+' '+(TD.q?'matching "'+escapeHtml(TD.q)+'"':'')+(TD.flag?' · '+({urgent:'🚨 urgent',priority:'⏰ priority',doing:'▶ in progress',late:'⚠ overdue',donetoday:'✓ done today'}[TD.flag]):'')+' · <button class="link-btn" data-act="clearfilter">clear</button></div>';}

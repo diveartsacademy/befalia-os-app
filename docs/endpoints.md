@@ -77,6 +77,7 @@ new `OS_KEY` gate. That is the first thing to check after `OS_KEY` is set in Ver
 - Each title has an inline add line. Enter adds; Tab (or ↳) makes the next ones sub-tasks of the task above; Shift+Tab or Backspace on an empty line goes back.
 - The list mirrors her "TO DO LIST 2026" Apple Note exactly (10 Oct 2026 re-sync). Areas follow the note's headings in order: Main (the untitled top block), DiveArts, Sea Diva, TailCraft, Personal, Schedule. Each note heading is a Section (title); indented note lines are sub-tasks (Parent task).
 - `Order` (Notion number) holds the note's line order, in steps of 10. Titles sort by the smallest Order inside them; tasks and sub-tasks sort by Order, then created time. New tasks (any create path) and drag moves get the end of their title (max Order + 10). Filter and search views still sort by urgency.
+- Class events synced from Google Calendar (Type Event, Section `Classes`) are not note lines, so the list hides them outside filter/search; they stay on the calendar and Home.
 - Lines with no heading in the note have no Section and render straight under the area header, with no title row.
 - Status `Parked` = an open task that is no longer in the note. The client drops Parked rows on load, so they never show on the list, calendar, Home or counts. They stay in Notion. GET health reports `parked` and open counts per area.
 - The earlier "AI to-do" block (Grok / Claude / Codex grouping) was removed at her request: never regroup her tasks into titles she did not write.
