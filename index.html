@@ -1591,7 +1591,7 @@ function tdClDigits(v){return Number(String(v==null?'':v).replace(/[^0-9]/g,''))
 // First guess from what the calendar sync wrote, so most classes need only the costs typed.
 function tdClGuess(t){
   const notes=String(t.notes||'').replace(/^Cancelled in Google Calendar on [^.]*\.\s*/,'');
-  const venue=(notes.split('. ')[0]||'').trim();
+  let venue=(notes.split('. ')[0]||'').trim();if(/^All day\b/i.test(venue))venue='';
   const nm=String(t.name||'').replace(/^Teach:\s*/,'');
   const type=/theory/i.test(nm)?'theory':/open water|ocean/i.test(nm)?'ocean':/studio/i.test(nm)?'studio':'pool';
   let students=[];
