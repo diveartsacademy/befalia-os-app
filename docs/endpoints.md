@@ -103,4 +103,4 @@ new `OS_KEY` gate. That is the first thing to check after `OS_KEY` is set in Ver
 - Focus rows are filtered out of the To-Do list, calendar, Home and counts on load, and ticked rows stay visible (struck through) all year.
 - Editing in place: tick; tap an item to rename it, add or change its note, add a sub-item or delete it (two taps, removes its sub-items too, recoverable from Notion trash); "+ Add to <heading>" at the end of each heading; ＋ on any row for a sub-item; ✎ to rename a heading (rewrites Section on every row under it); "+ Heading" for a new one.
 - Progress counts items with no sub-items (the ticked boxes in her note); groups show done/total of their sub-items.
-- 11 of the rows were un-parked on 11 Oct (their history kept); 31 were created. Outreach and its four sub-items stay parked.
+- 10 of the rows were un-parked on 11 Oct (their history kept); 31 were created (41 in all). Outreach and its four sub-items stay parked.
