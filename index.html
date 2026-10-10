@@ -200,6 +200,29 @@
   /* ---------- Goals tab ---------- */
   .gl-years{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;}
   .gl-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:16px;margin-top:16px;align-items:start;}
+  /* Focus checklist on the Goals tab */
+  .fc-card{margin-top:16px;}
+  .fc-sec{display:flex;align-items:center;gap:8px;margin:16px 0 4px;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;font-weight:800;color:var(--aqua);}
+  .fc-sec .fld{height:36px;font-size:13px;text-transform:none;letter-spacing:0;flex:1;}
+  .fc-row{display:flex;align-items:flex-start;gap:9px;padding:5px 0 5px calc(var(--d,0) * 26px);border-bottom:1px solid rgba(46,230,255,.06);}
+  .fc-row.saving{opacity:.55;}
+  .fc-ck{flex:0 0 auto;width:24px;height:24px;margin-top:1px;border-radius:7px;border:1.5px solid var(--aqualine);background:transparent;color:#06202e;font-weight:900;cursor:pointer;line-height:1;}
+  .fc-row.done .fc-ck{background:var(--aqua);border-color:var(--aqua);}
+  .fc-body{flex:1;min-width:0;cursor:pointer;padding-top:2px;}
+  .fc-nm{font-size:14px;color:var(--ink);word-break:break-word;}
+  .fc-nm.grp{font-weight:700;}
+  .fc-row.done .fc-nm{text-decoration:line-through;color:var(--dim);}
+  .fc-n{margin-left:8px;font-size:11px;color:var(--dim);font-variant-numeric:tabular-nums;}
+  .fc-note{font-size:12px;color:var(--dim);margin-top:2px;}
+  .fc-mini{flex:0 0 auto;border:none;background:transparent;color:var(--dim);cursor:pointer;font-size:14px;padding:2px 6px;opacity:.55;}
+  .fc-mini:hover{opacity:1;color:var(--aqua);}
+  .fc-row .fc-in{flex:1;height:36px;font-size:13px;}
+  .fc-add{opacity:.8;}
+  .fc-edit{flex:1;display:flex;flex-direction:column;gap:6px;}
+  .fc-btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  .fc-btns .gold-btn,.fc-btns .td-ghost,.fc-btns .td-danger{height:34px;font-size:12.5px;}
+  .fc-btns .td-danger{margin-left:auto;}
+  .fc-hint{font-size:11.5px;color:var(--dim);margin-top:10px;}
   @media(max-width:980px){.gl-grid{grid-template-columns:1fr;}}
   .gl-grid .card{margin:0 0 16px;}
   .gl-grid .card:hover,.gl-head.card:hover{transform:none;}
@@ -1289,10 +1312,12 @@ async function tdLoad(silent){
   if(TD.loading)return;TD.loading=true;if(!silent)tdSync('Loading from Notion…');
   try{const j=await tdApi('list');const all=j.tasks||[];
     // Parked = open tasks that are no longer in her note. Kept in Notion, never shown.
-    TD.parked=all.filter(t=>t.status==='Parked');TD.tasks=all.filter(t=>t.status!=='Parked');TD.today=j.today||tdWita();if(Array.isArray(j.sections)&&j.sections.length)TD.sections=j.sections;
+    TD.parked=all.filter(t=>t.status==='Parked');
+    // Focus rows belong to the Goals tab checklist, never to the To-Do list or calendar.
+    TD.focus=all.filter(t=>t.area==='Focus'&&t.status!=='Parked');TD.tasks=all.filter(t=>t.status!=='Parked'&&t.area!=='Focus');TD.today=j.today||tdWita();if(Array.isArray(j.sections)&&j.sections.length)TD.sections=j.sections;
     TD.loaded=true;TD.err=j.complete===false?'Only part of the list loaded. Tell Claude, the list has outgrown one load.':'';TD.lastSync=new Date();tdIndex();}
   catch(e){TD.err=String(e.message||e);}
-  finally{TD.loading=false;tdRenderAll();if(TD.loaded&&!TD.arch&&!TD.archErr)tdLoadArchive();}
+  finally{TD.loading=false;tdRenderAll();if(typeof fcRender==='function')fcRender();if(TD.loaded&&!TD.arch&&!TD.archErr)tdLoadArchive();}
 }
 // The 2026 Apple Note history (1 Jan to 9 Oct) is a read-only archive served
 // by /api/tasks 'history'. Loaded once, in the background, after the list.
@@ -1963,6 +1988,7 @@ function glRender(){
   h+='<div class="gl-years">'+glYears().map(y=>'<button class="td-chip'+(y===yr?' on':'')+'" data-gl="year" data-y="'+y+'">'+y+'</button>').join('')+'</div>';
   h+='<div class="td-stats" style="grid-template-columns:repeat(4,minmax(0,1fr))"><div class="td-stat"><b>'+live.length+'</b><span>Goals</span></div><div class="td-stat"><b>'+done+'</b><span>Done</span></div><div class="td-stat"><b>'+prog+'</b><span>In progress</span></div><div class="td-stat"><b>'+hl.length+'</b><span>Highlights</span></div></div>';
   h+='<div class="gl-bar" title="'+pct+'% of '+yr+' goals done"><i style="width:'+pct+'%"></i></div></div>';
+  if(yr===FC_YEAR)h+='<div id="fc-root"></div>';
   h+='<div class="gl-grid"><div><div class="card" data-no-tools><h2><span class="ic">✨</span>Highlights of '+yr+'</h2>';
   h+=hl.length?'<ul class="gl-hl">'+hl.map(g=>'<li><span class="ic">'+(GL_ICON[g.area]||'⭐')+'</span><span>'+escapeHtml(g.name)+'</span><span class="ar">'+escapeHtml(g.area||'')+'</span></li>').join('')+'</ul>':'<div class="td-empty">No highlights for '+yr+' yet.</div>';
   h+='<div class="gl-add"><input class="fld" id="gl-hl-in" placeholder="Add a highlight of '+yr+'…"><select class="fld" id="gl-hl-area">'+areaOpts('Travel')+'</select><button class="gold-btn" data-gl="addhl">Add</button></div></div>';
@@ -1978,6 +2004,7 @@ function glRender(){
   h+='<div class="gl-add"><input class="fld" id="gl-g-in" placeholder="Add a '+yr+' goal…"><select class="fld" id="gl-g-area">'+areaOpts('Personal / Befa')+'</select><button class="gold-btn" data-gl="addg">Add</button></div></div></div></div>';
   root.innerHTML=h;
   Object.keys(keep).forEach(id=>{const el=document.getElementById(id);if(el)el.value=keep[id];});
+  fcRender();
 }
 async function glCreate(kind){
   const inp=document.getElementById(kind==='Highlight'?'gl-hl-in':'gl-g-in');const ar=document.getElementById(kind==='Highlight'?'gl-hl-area':'gl-g-area');
@@ -1992,6 +2019,131 @@ async function glCycle(id){
   const before=g.status;const next=GL_ST[(GL_ST.indexOf(before)+1)%GL_ST.length];g.status=next;g._saving=true;glRender();
   try{const j=await glApi('update',{id:id,patch:{status:next}});Object.assign(g,j.goal);delete g._saving;glRender();}
   catch(e){g.status=before;delete g._saving;glRender();showToast('Not saved: '+(e.message||e),false);}
+}
+/* ================= Focus checklist (top of Goals, 2026) =================
+   Rows live in the Notion Tasks database with Area "Focus", Section = the
+   heading (FOCUS, PASSIVE INCOME...), Parent task = nesting, Order = position.
+   They never show in the To-Do list or calendar; ticked rows stay here, ticked,
+   all year. Everything is editable in place: tick, rename, note, add item,
+   add sub-item, add heading, rename heading, delete. */
+const FC_YEAR='2026';
+const FC={pend:[],edit:null,subFor:null,newSec:false,renSec:null,arm:null,draft:{},focusKey:null,busy:{}};
+function fcRows(){return TD.focus||[];}
+function fcById(id){return fcRows().find(t=>t.id===id);}
+function fcKids(id){return fcRows().filter(t=>t.parent===id).sort(tdOrd);}
+function fcSections(){const m={};fcRows().forEach(t=>{const s=t.section||'Focus';(m[s]=m[s]||[]).push(t);});FC.pend=FC.pend.filter(n=>!m[n]);const out=Object.keys(m).sort((a,b)=>tdMinOrd(m[a])-tdMinOrd(m[b])).map(s=>({name:s,rows:m[s]}));FC.pend.forEach(n=>out.push({name:n,rows:[]}));return out;}
+function fcNextOrder(sec,parent){
+  const rows=fcRows();
+  if(parent){const k=rows.filter(t=>t.parent===parent&&typeof t.order==='number');if(k.length)return Math.max.apply(null,k.map(t=>t.order))+1;const p=fcById(parent);return p&&typeof p.order==='number'?p.order+0.5:null;}
+  const pool=rows.filter(t=>typeof t.order==='number'&&(sec?(t.section||'')===sec:true));const all=rows.filter(t=>typeof t.order==='number');
+  const src=pool.length?pool:all;return src.length?Math.max.apply(null,src.map(t=>t.order))+10:10;
+}
+function fcLeafStats(){const rows=fcRows();const leaves=rows.filter(t=>!rows.some(k=>k.parent===t.id));return {done:leaves.filter(t=>t.done).length,all:leaves.length};}
+function fcRowHTML(t,depth){
+  const kids=fcKids(t.id);const kd=kids.filter(k=>k.done).length;let h='';
+  if(FC.edit===t.id){
+    h+='<div class="fc-row fc-editing" style="--d:'+depth+'"><div class="fc-edit">'
+      +'<input class="fld fc-in" data-fck="name#'+t.id+'" value="'+attr(FC.draft['name#'+t.id]!=null?FC.draft['name#'+t.id]:t.name)+'" placeholder="Item">'
+      +'<input class="fld fc-in" data-fck="note#'+t.id+'" value="'+attr(FC.draft['note#'+t.id]!=null?FC.draft['note#'+t.id]:(t.notes||''))+'" placeholder="Note (optional), e.g. Customer: parents">'
+      +'<div class="fc-btns"><button class="gold-btn" data-fc="save" data-id="'+t.id+'">Save</button><button class="td-ghost" data-fc="sub" data-id="'+t.id+'">+ Sub-item</button><button class="td-ghost" data-fc="cancel">Cancel</button><button class="td-danger'+(FC.arm===t.id?' arm':'')+'" data-fc="del" data-id="'+t.id+'">'+(FC.arm===t.id?'Tap again to delete'+(kids.length?' (and its '+kids.length+')':''):'Delete')+'</button></div></div></div>';
+  }else{
+    h+='<div class="fc-row'+(t.done?' done':'')+(FC.busy[t.id]?' saving':'')+'" style="--d:'+depth+'"><button class="fc-ck" data-fc="tick" data-id="'+t.id+'" title="'+(t.done?'Untick':'Tick done')+'">'+(t.done?'✓':'')+'</button>'
+      +'<div class="fc-body" data-fc="edit" data-id="'+t.id+'"><span class="fc-nm'+(kids.length?' grp':'')+'">'+escapeHtml(t.name||'(no name)')+'</span>'+(kids.length?'<span class="fc-n">'+kd+'/'+kids.length+'</span>':'')
+      +(t.notes?'<div class="fc-note">'+escapeHtml(t.notes)+'</div>':'')+'</div>'
+      +'<button class="fc-mini" data-fc="sub" data-id="'+t.id+'" title="Add a sub-item">＋</button></div>';
+  }
+  kids.forEach(k=>{h+=fcRowHTML(k,depth+1);});
+  if(FC.subFor===t.id)h+='<div class="fc-row" style="--d:'+(depth+1)+'"><input class="fld fc-in" data-fck="sub#'+t.id+'" value="'+attr(FC.draft['sub#'+t.id]||'')+'" placeholder="Sub-item under '+attr(t.name)+', then Enter"></div>';
+  return h;
+}
+function fcRender(){
+  const root=document.getElementById('fc-root');if(!root)return;
+  const ae=document.activeElement;let keep=null;if(ae&&ae.getAttribute&&root.contains(ae)&&ae.getAttribute('data-fck'))keep={k:ae.getAttribute('data-fck'),c:ae.selectionStart};
+  if(!TD.loaded){root.innerHTML='<div class="card fc-card" data-no-tools><h2><span class="ic">⭐</span>Focus '+FC_YEAR+'</h2><div class="'+(TD.err?'err':'loading')+'">'+escapeHtml(TD.err||'Loading your focus list…')+'</div></div>';if(!TD.loading&&!TD.err)tdLoad(true);return;}
+  const st=fcLeafStats();const pct=st.all?Math.round(st.done*100/st.all):0;
+  let h='<div class="card fc-card" data-no-tools><div class="td-headrow"><h2><span class="ic">⭐</span>Focus '+FC_YEAR+'</h2><span class="td-sync">'+st.done+' of '+st.all+' done</span></div>'
+    +'<div class="gl-bar" title="'+pct+'% done"><i style="width:'+pct+'%"></i></div>';
+  const secs=fcSections();
+  if(!secs.length)h+='<div class="td-empty">Nothing here yet. Add a heading below.</div>';
+  secs.forEach(s=>{
+    const top=s.rows.filter(t=>!t.parent||!fcById(t.parent)).sort(tdOrd);
+    if(FC.renSec===s.name)h+='<div class="fc-sec"><input class="fld fc-in" data-fck="ren#'+attr(s.name)+'" value="'+attr(FC.draft['ren#'+s.name]!=null?FC.draft['ren#'+s.name]:s.name)+'"><button class="td-ghost" data-fc="rencancel">Cancel</button></div>';
+    else h+='<div class="fc-sec"><span>'+escapeHtml(s.name)+'</span><button class="fc-mini" data-fc="ren" data-sec="'+attr(s.name)+'" title="Rename heading">✎</button></div>';
+    top.forEach(t=>{h+=fcRowHTML(t,0);});
+    h+='<div class="fc-row" style="--d:0"><input class="fld fc-in fc-add" data-fck="add#'+attr(s.name)+'" value="'+attr(FC.draft['add#'+s.name]||'')+'" placeholder="+ Add to '+attr(s.name)+'"></div>';
+  });
+  h+=FC.newSec?'<div class="fc-sec"><input class="fld fc-in" data-fck="newsec#" value="'+attr(FC.draft['newsec#']||'')+'" placeholder="New heading, e.g. HEALTH, then Enter"><button class="td-ghost" data-fc="newseccancel">Cancel</button></div>':'<button class="cl-add" data-fc="newsec" type="button">+ Heading</button>';
+  h+='<div class="fc-hint">Tap an item to rename it, add a note or a sub-item, or delete it. Saved to Notion.</div></div>';
+  root.innerHTML=h;fcBind(root);
+  const want=FC.focusKey||(keep&&keep.k);FC.focusKey=null;
+  if(want){const inp=[...root.querySelectorAll('[data-fck]')].find(x=>x.getAttribute('data-fck')===want);if(inp){inp.focus({preventScroll:true});try{const c=keep&&keep.k===want&&keep.c!=null?keep.c:inp.value.length;inp.setSelectionRange(c,c);}catch(e){}}}
+}
+function fcBind(root){
+  root.oninput=e=>{const k=e.target.getAttribute&&e.target.getAttribute('data-fck');if(k)FC.draft[k]=e.target.value;};
+  root.onkeydown=e=>{const el=e.target;const k=el.getAttribute&&el.getAttribute('data-fck');if(!k)return;
+    if(e.key==='Escape'){FC.edit=null;FC.subFor=null;FC.newSec=false;FC.renSec=null;delete FC.draft[k];fcRender();return;}
+    if(e.key!=='Enter'||e.isComposing)return;e.preventDefault();fcEnter(k,el.value);};
+  root.onclick=e=>{const b=e.target.closest('[data-fc]');if(!b)return;const a=b.getAttribute('data-fc');const id=b.getAttribute('data-id');
+    if(a==='tick')return fcTick(id);
+    if(a==='edit'){FC.edit=id;FC.arm=null;FC.focusKey='name#'+id;fcRender();return;}
+    if(a==='cancel'){FC.edit=null;FC.arm=null;fcRender();return;}
+    if(a==='save'){const t=fcById(id);fcEnter('name#'+id,FC.draft['name#'+id]!=null?FC.draft['name#'+id]:t.name);return;}
+    if(a==='sub'){FC.subFor=id;FC.edit=null;FC.focusKey='sub#'+id;fcRender();return;}
+    if(a==='del'){if(FC.arm!==id){FC.arm=id;fcRender();setTimeout(()=>{if(FC.arm===id){FC.arm=null;fcRender();}},5000);return;}return fcDelete(id);}
+    if(a==='ren'){FC.renSec=b.getAttribute('data-sec');FC.focusKey='ren#'+FC.renSec;fcRender();return;}
+    if(a==='rencancel'){FC.renSec=null;fcRender();return;}
+    if(a==='newsec'){FC.newSec=true;FC.focusKey='newsec#';fcRender();return;}
+    if(a==='newseccancel'){FC.newSec=false;fcRender();return;}
+  };
+}
+function fcApply(task){const i=(TD.focus||[]).findIndex(t=>t.id===task.id);if(i>=0)TD.focus[i]=task;else (TD.focus=TD.focus||[]).push(task);}
+async function fcEnter(k,v){
+  const i=k.indexOf('#');const kind=k.slice(0,i),ref=k.slice(i+1);v=String(v||'').trim();
+  if(kind==='name'){
+    const t=fcById(ref);if(!t)return;const note=String(FC.draft['note#'+ref]!=null?FC.draft['note#'+ref]:(t.notes||'')).trim();
+    if(!v){showToast('An item needs a name. Use Delete to remove it.',false);return;}
+    const patch={};if(v!==t.name)patch.name=v;if(note!==(t.notes||''))patch.notes=note;
+    FC.edit=null;delete FC.draft['name#'+ref];delete FC.draft['note#'+ref];
+    if(!Object.keys(patch).length){fcRender();return;}
+    return fcPatch(ref,patch,'Saved');
+  }
+  if(kind==='add'||kind==='sub'){
+    if(!v)return;const parent=kind==='sub'?ref:null;const p=parent?fcById(parent):null;const sec=parent?(p&&p.section)||'FOCUS':ref;
+    delete FC.draft[k];FC.focusKey=k;
+    const tmp={id:'tmp'+Date.now(),name:v,area:'Focus',section:sec,parent:parent,order:fcNextOrder(sec,parent),done:false,status:'To do',notes:'',type:'Task'};
+    TD.focus.push(tmp);FC.busy[tmp.id]=1;fcRender();
+    try{const j=await tdApi('create',{task:{name:v,area:'Focus',section:sec,parent:parent,order:tmp.order}});TD.focus=TD.focus.filter(t=>t!==tmp);fcApply(j.task);}
+    catch(e){TD.focus=TD.focus.filter(t=>t!==tmp);FC.draft[k]=v;showToast('Not saved: '+(e.message||e),false);}
+    finally{delete FC.busy[tmp.id];fcRender();}
+    return;
+  }
+  if(kind==='newsec'){
+    if(!v)return;const name=v.replace(/,/g,' ').slice(0,100);FC.newSec=false;delete FC.draft[k];
+    // A heading is stored on its items, so it exists in Notion once its first item is added.
+    if(!fcRows().some(t=>(t.section||'')===name)&&FC.pend.indexOf(name)===-1)FC.pend.push(name);
+    FC.focusKey='add#'+name;fcRender();return;
+  }
+  if(kind==='ren'){
+    const old=ref;FC.renSec=null;delete FC.draft[k];const name=v.replace(/,/g,' ').slice(0,100);
+    if(!name||name===old){fcRender();return;}
+    const list=fcRows().filter(t=>(t.section||'')===old);let ok=0;
+    for(const t of list){if(await fcPatch(t.id,{section:name},null,true))ok++;}
+    fcRender();showToast(ok===list.length?'Heading renamed':'Renamed '+ok+' of '+list.length+'. Try again.',ok===list.length);
+  }
+}
+async function fcPatch(id,patch,msg,quiet){
+  const t=fcById(id);if(!t||String(id).indexOf('tmp')===0)return false;const before=Object.assign({},t);
+  Object.assign(t,patch);if('done' in patch){t.status=patch.done?'Done':'To do';}FC.busy[id]=1;if(!quiet)fcRender();
+  try{const j=await tdApi('update',{id:id,patch:patch});fcApply(j.task);if(msg)showToast(msg,true);return true;}
+  catch(e){Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,before);showToast('Not saved: '+(e.message||e),false);return false;}
+  finally{delete FC.busy[id];if(!quiet)fcRender();}
+}
+function fcTick(id){const t=fcById(id);if(!t)return;fcPatch(id,{done:!t.done},!t.done?'Done ✓':'Back to open');}
+async function fcDelete(id){
+  const t=fcById(id);if(!t)return;const kids=[];const walk=p=>{fcKids(p).forEach(k=>{kids.push(k);walk(k.id);});};walk(id);
+  FC.arm=null;FC.edit=null;const all=[t].concat(kids);const keep=TD.focus.slice();TD.focus=TD.focus.filter(x=>all.indexOf(x)===-1);fcRender();
+  let fail=0;for(const x of all.reverse()){try{await tdApi('archive',{id:x.id});}catch(e){fail++;}}
+  if(fail){TD.focus=keep;fcRender();showToast(fail+' could not be deleted. Tap ↻ Refresh.',false);}else showToast('Deleted. It is in Notion trash if you need it back.',true);
 }
 function buildGoals(){
   const root=document.getElementById('goals-root');if(!root)return;

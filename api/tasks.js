@@ -18,7 +18,8 @@ const VERSION = '2022-06-28';
 const TZ = 'Asia/Makassar';
 // Same order as the headings in her TO DO LIST 2026 note: the untitled top
 // block (Main), then each business, Personal, and the Schedule list last.
-export const AREAS = ['Main', 'DiveArts', 'Sea Diva', 'TailCraft', 'Personal', 'Schedule'];
+// Focus = the checklist at the top of the Goals tab (not shown in the To-Do).
+export const AREAS = ['Main', 'DiveArts', 'Sea Diva', 'TailCraft', 'Personal', 'Schedule', 'Focus'];
 // Parked = an open task that is no longer in her note. Hidden from the lists,
 // kept in Notion so nothing is lost.
 const STATUSES = ['To do', 'Doing', 'Done', 'Parked'];

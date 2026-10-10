@@ -95,3 +95,12 @@ new `OS_KEY` gate. That is the first thing to check after `OS_KEY` is set in Ver
 - If `saveSession` works and `saveSessionDetail` fails, the session id is kept as `pendingSessionId` in the draft, and the next Send fills that same session instead of creating a second one.
 - To switch sending on, add `DAA_API_URL` and `DAA_API_KEY` in Vercel (Production), the same values the divearts-os Cloudflare Pages project uses. Until then drafts work and Send explains what is missing.
 - Tested on the local mock with a fake sheet service (draft, two-tap send, payload shape, read-only after send, 409 on resend, future-day refusal, mid-way failure and retry, gates). Not yet tested against the real Apps Script.
+
+## Focus checklist on the Goals tab (added 11 Oct 2026)
+
+- Befa's FOCUS and PASSIVE INCOME lists sit at the top of Goals, above Highlights, when 2026 is selected (`FC_YEAR` in index.html).
+- Stored in the Tasks database, not the Goals database, because it needs nesting, order and ticking: Area `Focus`, Section = the heading (`FOCUS`, `PASSIVE INCOME: All digital products`, or any heading she adds), Parent task = nesting, Order = position, Notes = the grey line under an item (e.g. "Customer: children + parents.").
+- Focus rows are filtered out of the To-Do list, calendar, Home and counts on load, and ticked rows stay visible (struck through) all year.
+- Editing in place: tick; tap an item to rename it, add or change its note, add a sub-item or delete it (two taps, removes its sub-items too, recoverable from Notion trash); "+ Add to <heading>" at the end of each heading; ＋ on any row for a sub-item; ✎ to rename a heading (rewrites Section on every row under it); "+ Heading" for a new one.
+- Progress counts items with no sub-items (the ticked boxes in her note); groups show done/total of their sub-items.
+- 11 of the rows were un-parked on 11 Oct (their history kept); 31 were created. Outreach and its four sub-items stay parked.
