@@ -619,6 +619,8 @@ function buildTabs(){
     b.onclick=()=>showTab(t[0]);
     bar.appendChild(b);
   });
+  /* Wardrobe lives on its own page (wardrobe.html) with the same OS key. */
+  const wd=document.createElement('button');wd.className='tab';wd.textContent='Wardrobe';wd.onclick=()=>{location.href='wardrobe.html';};bar.appendChild(wd);
   const pv=document.createElement('button');pv.className='priv-toggle'+(privateMode?' on':'');pv.id='priv-toggle';pv.textContent=privateMode?'🔒 Private':'🔓 Private';pv.title='Blurs sensitive cards on screen only — not encryption';
   pv.onclick=()=>{privateMode=!privateMode;LS.set('plos_private',privateMode);document.body.classList.toggle('private',privateMode);pv.classList.toggle('on',privateMode);pv.textContent=privateMode?'🔒 Private':'🔓 Private';if(!privateMode)document.querySelectorAll('.sensitive.revealed').forEach(c=>c.classList.remove('revealed'));};
   bar.appendChild(pv);
@@ -1584,7 +1586,7 @@ function tdOpenEditor(id){
    +'<label class="full">Notes<textarea class="fld" id="tde-notes" rows="3">'+escapeHtml(t.notes||'')+'</textarea></label>'
    +'</div>'+(tdIsClass(t)?'<div class="cl-box" id="tde-cl"></div>':'')+'<div class="td-sub">Sub-tasks</div><ul class="td-list" id="tde-subs"></ul>'
    +'<div class="todo-add" style="margin-top:8px"><input class="fld" id="tde-subin" placeholder="Add a sub-task…"><button class="gold-btn" data-act="subadd">+</button></div>'
-   +'<div class="td-actions"><button class="gold-btn" data-act="save">Save</button><button class="td-ghost" data-act="close">Cancel</button>'+(t.url?'<a class="ctool" href="'+safeHref(t.url)+'" target="_blank" rel="noopener">Notion ↗</a>':'')+'<button class="td-danger" data-act="del">Delete</button></div></div>';
+   +'<div class="td-actions"><button class="gold-btn" data-act="save">Save</button><button class="td-ghost" data-act="close">Cancel</button>'+(t.url?'<a class="ctool" href="'+safeHref(t.url)+'" target="_blank" rel="noopener">Notion ↗</a>':'')+(t.type==='Event'&&sd?'<a class="ctool" href="wardrobe.html#planner/day/'+sd+'/'+encodeURIComponent(t.id)+'">👗 Outfit</a>':'')+'<button class="td-danger" data-act="del">Delete</button></div></div>';
   document.body.appendChild(w);tdRenderModalSubs();
   if(tdIsClass(t))tdClOpen(t);
   ['tde-pri','tde-urg'].forEach(x=>{const b=document.getElementById(x);b.onclick=()=>b.classList.toggle('on');});
