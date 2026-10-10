@@ -297,8 +297,8 @@
   @media(hover:none){.td-grip{opacity:.8;padding:2px 6px;}}
   body.td-dragging,body.td-dragging *{cursor:grabbing!important;user-select:none!important;-webkit-user-select:none!important;}
   .td-row.dragsrc{opacity:.35;}
-  .td-ghost{position:fixed;z-index:300;pointer-events:none;max-width:260px;padding:8px 12px;border-radius:11px;background:rgba(6,30,48,.96);border:1px solid var(--aqua);color:#eaf6fc;font-size:13px;box-shadow:0 12px 30px rgba(0,0,0,.5);transform:translate(-50%,-130%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .td-ghost small{display:block;font-size:10.5px;color:var(--aqua);margin-top:2px;white-space:normal;}
+  .td-dragghost{position:fixed;z-index:300;pointer-events:none;max-width:260px;padding:8px 12px;border-radius:11px;background:rgba(6,30,48,.96);border:1px solid var(--aqua);color:#eaf6fc;font-size:13px;box-shadow:0 12px 30px rgba(0,0,0,.5);transform:translate(-50%,-130%);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .td-dragghost small{display:block;font-size:10.5px;color:var(--aqua);margin-top:2px;white-space:normal;}
   .td-drop-ok{outline:2px solid var(--aqua)!important;outline-offset:-2px;background:rgba(46,230,255,.14)!important;}
   .td-dock{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:250;display:flex;gap:5px;padding:7px;border-radius:14px;background:rgba(4,18,30,.96);border:1px solid var(--aqualine);box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:calc(100vw - 16px);}
   .td-dock .lbl{align-self:center;font-size:10px;color:var(--dim);padding:0 4px;max-width:58px;line-height:1.2;}
@@ -359,6 +359,24 @@
   .td-ghost{border:1px solid var(--aqualine);background:transparent;color:var(--aqua);border-radius:11px;height:40px;padding:0 16px;cursor:pointer;font-weight:700;}
   .td-danger{border:1px solid rgba(255,140,160,.45);background:transparent;color:#ffb3c2;border-radius:11px;height:40px;padding:0 14px;cursor:pointer;margin-left:auto;}
   .td-danger.arm{background:rgba(255,100,130,.25);color:#fff;}
+  /* class expenses panel */
+  .cl-box{margin-top:14px;border:1px solid var(--aqualine);border-radius:14px;padding:12px;background:rgba(46,230,255,.03);}
+  .cl-h{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;}
+  .cl-h .tot{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--aqua);}
+  .cl-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;}
+  .cl-grid label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);font-weight:700;display:flex;flex-direction:column;gap:5px;}
+  .cl-line{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1.4fr) minmax(0,1fr) 30px;gap:6px;margin-top:6px;align-items:center;}
+  .cl-stu{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 30px;gap:6px;margin-top:6px;align-items:center;}
+  .cl-line .fld,.cl-stu .fld{min-width:0;height:38px;padding:0 9px;font-size:13px;}
+  .cl-x{border:none;background:transparent;color:var(--dim);font-size:18px;cursor:pointer;height:38px;}
+  .cl-add{border:1px dashed var(--aqualine);background:transparent;color:var(--aqua);border-radius:10px;height:34px;padding:0 12px;cursor:pointer;margin-top:8px;font-size:12.5px;}
+  .cl-box button:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;}
+  .cl-note{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.45;}
+  .cl-note.warn{color:#ffd28a;}
+  .cl-note.ok{color:#9be8b4;}
+  .cl-sent li{display:flex;gap:8px;font-size:13px;padding:3px 0;}
+  .cl-sent li b{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600;}
+  @media (max-width:520px){.cl-line{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 30px;}.cl-line .cl-desc{grid-column:1/3;grid-row:2;}}
   .td-banner{margin-top:12px;font-size:12.5px;color:var(--aquasoft);background:rgba(46,230,255,.07);border:1px solid var(--aqualine);border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
   .td-banner.bad{color:#ffc6d2;border-color:rgba(255,140,160,.45);background:rgba(255,100,130,.08);}
 </style>
@@ -1332,6 +1350,8 @@ function tdRowHTML(t,opt){
   if(opt.hideDate&&t.date&&tdTimeOf(t.date.start))meta+='<span class="td-pill date">🕐 '+tdTimeOf(t.date.start)+'</span>';
   if(opt.showParent&&t.parent&&TD.byId[t.parent])meta+='<span>↳ '+escapeHtml(TD.byId[t.parent].name)+'</span>';
   if(kids.length&&!opt.nested)meta+='<span>'+openKids+' of '+kids.length+' sub-tasks open</span>';
+  if(t.sessionId)meta+='<span class="td-pill" title="In the DiveArts books as '+attr(t.sessionId)+'">💸 '+tdRp(t.expenses&&t.expenses.total)+' ✓ in books</span>';
+  else if(t.expenses&&t.expenses.costs&&t.expenses.costs.length)meta+='<span class="td-pill" title="Expense draft, not sent yet">💸 '+tdRp(t.expenses.total)+' draft</span>';
   if(t.notes)meta+='<span title="'+attr(t.notes)+'">📝 '+escapeHtml(t.notes.length>48?t.notes.slice(0,48)+'…':t.notes)+'</span>';
   const cls='td-row'+(t.done?' done':'')+(t._saving?' saving':'')+(t._err?' err':'')+(t.urgent&&!t.done?' urgent':'')+(opt.kid?' kid':'');
   return '<li class="'+cls+'" data-id="'+t.id+'">'+(opt.noGrip?'':'<span class="td-grip" title="Drag onto a day, a title, or another task">⠿</span>')+'<button class="check" data-act="done" title="'+(t.done?'Untick':'Tick done')+'">'+(t.done?'✓':'')+'</button>'
@@ -1537,10 +1557,11 @@ function tdOpenEditor(id){
    +(t.done?'<label>Done on<input class="fld" type="date" id="tde-doneon" max="'+(TD.today||tdWita())+'" value="'+(t.completedOn||'')+'"></label>':'')
    +'<label>Flags<span style="display:flex;gap:8px"><button class="td-tog'+(t.priority?' on':'')+'" id="tde-pri" type="button">⏰ Priority</button><button class="td-tog'+(t.urgent?' on':'')+'" id="tde-urg" type="button">🚨 Urgent</button></span></label>'
    +'<label class="full">Notes<textarea class="fld" id="tde-notes" rows="3">'+escapeHtml(t.notes||'')+'</textarea></label>'
-   +'</div><div class="td-sub">Sub-tasks</div><ul class="td-list" id="tde-subs"></ul>'
+   +'</div>'+(tdIsClass(t)?'<div class="cl-box" id="tde-cl"></div>':'')+'<div class="td-sub">Sub-tasks</div><ul class="td-list" id="tde-subs"></ul>'
    +'<div class="todo-add" style="margin-top:8px"><input class="fld" id="tde-subin" placeholder="Add a sub-task…"><button class="gold-btn" data-act="subadd">+</button></div>'
    +'<div class="td-actions"><button class="gold-btn" data-act="save">Save</button><button class="td-ghost" data-act="close">Cancel</button>'+(t.url?'<a class="ctool" href="'+safeHref(t.url)+'" target="_blank" rel="noopener">Notion ↗</a>':'')+'<button class="td-danger" data-act="del">Delete</button></div></div>';
   document.body.appendChild(w);tdRenderModalSubs();
+  if(tdIsClass(t))tdClOpen(t);
   ['tde-pri','tde-urg'].forEach(x=>{const b=document.getElementById(x);b.onclick=()=>b.classList.toggle('on');});
   w.addEventListener('click',async e=>{
     if(e.target===w){tdCloseEditor();return;}
@@ -1553,10 +1574,125 @@ function tdOpenEditor(id){
     if(a==='del'){if(!act.classList.contains('arm')){act.classList.add('arm');act.textContent='Tap again to delete';setTimeout(()=>{if(act.isConnected){act.classList.remove('arm');act.textContent='Delete';}},4000);return;}const id=TD_EDIT;tdCloseEditor();tdArchive(id);}
   });
   document.getElementById('tde-subin').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();w.querySelector('[data-act="subadd"]').click();}});
-  setTimeout(()=>{try{document.getElementById('tde-name').focus();}catch(e){}},30);
+  if(!tdIsClass(t))setTimeout(()=>{try{document.getElementById('tde-name').focus();}catch(e){}},30);
+}
+function tdCloseEditor(){const m=document.getElementById('td-modal');if(m)m.remove();TD_EDIT=null;CL=null;}
+
+/* ---------- class expenses (tap a class you teach) ----------
+   Draft = saved on the Notion row only. Send = written once into the DiveArts
+   books through the same DAA sheet service the instructor page uses
+   (OS_SESSIONS, OS_SESSION_COSTS, 1. SESSION EXPENSES). See api/classlog.js. */
+const CL_COMPONENTS=[['pool_ticket','Pool ticket'],['transport_grab','Grab / transport'],['fuel','Fuel'],['toll','Toll'],['parking','Parking'],['accommodation','Accommodation'],['consumables','Consumables'],['videographer_fee','Videographer'],['equipment','Equipment'],['other','Other']];
+const CL_TYPES=['pool','theory','ocean','aquarium','studio','event'];
+let CL=null,CL_READY=null;
+function tdIsClass(t){return !!t&&t.section==='Classes'&&t.type==='Event';}
+function tdRp(n){return 'Rp'+(Math.round(Number(n)||0)).toLocaleString('id-ID');}
+function tdClDigits(v){return Number(String(v==null?'':v).replace(/[^0-9]/g,''))||0;}
+// First guess from what the calendar sync wrote, so most classes need only the costs typed.
+function tdClGuess(t){
+  const notes=String(t.notes||'').replace(/^Cancelled in Google Calendar on [^.]*\.\s*/,'');
+  const venue=(notes.split('. ')[0]||'').trim();
+  const nm=String(t.name||'').replace(/^Teach:\s*/,'');
+  const type=/theory/i.test(nm)?'theory':/open water|ocean/i.test(nm)?'ocean':/studio/i.test(nm)?'studio':'pool';
+  let students=[];
+  const m=notes.match(/Students:\s*([^]*?)\.\s*(gcal:|$)/);
+  if(m)students=m[1].split(';').map(x=>{const p=x.split('|').map(y=>y.trim());return {name:p[0]||'',invoice:p[1]||'',course:p[2]||''};}).filter(x=>x.name);
+  else if(!/Regular class/i.test(nm)){
+    const names=(nm.split(' · ')[0]||'').split(' + ').map(x=>x.trim()).filter(Boolean);
+    const inv=((notes.match(/Invoices?\s+([^.]*)\./)||[])[1]||'').split(',').map(x=>x.trim()).filter(Boolean);
+    students=names.map((n,i)=>({name:n,invoice:names.length===inv.length?inv[i]:'',course:''}));
+  }
+  const city=/DiveArts Bali/i.test(notes)?'Bali':/DiveArts Jakarta/i.test(notes)?'Jakarta':'';
+  return {venue:venue,city:city,type:type,students:students,costs:[{component:'pool_ticket',description:'',amount:''}],note:''};
+}
+async function clApi(action,payload){
+  const r=await fetch('/api/classlog',{method:'POST',headers:osHeaders(),body:JSON.stringify(Object.assign({action:action},payload||{}))});
+  if(r.status===401){osUnauthorised();throw new Error('OS key refused');}
+  if(r.status===404)throw new Error('Class expenses are not on this deployment yet');
+  let j={};try{j=await r.json();}catch(e){j={};}
+  if(!r.ok||j.error)throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+async function tdClReady(){if(CL_READY!==null)return CL_READY;try{const r=await fetch('/api/classlog');const j=await r.json();CL_READY=!!j.sendReady;}catch(e){CL_READY=false;}return CL_READY;}
+function tdClOpen(t){
+  const e=t.expenses;
+  const log=e?{venue:e.venue||'',city:e.city||'',type:e.type||'pool',students:(e.students||[]).map(x=>Object.assign({},x)),costs:(e.costs||[]).map(x=>Object.assign({},x)),note:e.note||''}:tdClGuess(t);
+  if(!log.costs.length)log.costs.push({component:'pool_ticket',description:'',amount:''});
+  CL={id:t.id,log:log,dirty:false,busy:false,msg:'',bad:false,arm:false,pending:e&&e.pendingSessionId||''};
+  tdClRender();
+  tdClReady().then(()=>{if(CL&&CL.id===t.id)tdClRender();});
+}
+function tdClTotal(){return CL?CL.log.costs.reduce((s,c)=>s+tdClDigits(c.amount),0):0;}
+function tdClRender(){
+  const box=document.getElementById('tde-cl');if(!box||!CL)return;const t=TD.byId[CL.id];if(!t)return;
+  if(t.sessionId){
+    const e=t.expenses||{};const res=e.result||{};
+    box.innerHTML='<div class="cl-h">💸 Class expenses<span class="tot">'+tdRp(e.total)+'</span></div>'
+      +'<ul class="cl-sent" style="list-style:none;margin:8px 0 0;padding:0">'+(e.costs||[]).map(c=>'<li><span>'+escapeHtml((CL_COMPONENTS.find(x=>x[0]===c.component)||['',c.component])[1])+(c.description?' · '+escapeHtml(c.description):'')+'</span><b>'+tdRp(c.amount)+'</b></li>').join('')+'</ul>'
+      +((e.students||[]).length?'<div class="cl-note">Students: '+escapeHtml(e.students.map(s=>s.name+(s.invoice?' ('+s.invoice+')':'')).join(', '))+'</div>':'')
+      +'<div class="cl-note ok">In the DiveArts books as '+escapeHtml(t.sessionId)+(e.sentAt?' · sent '+escapeHtml(tdPretty(String(e.sentAt).slice(0,10))):'')+'.'+(res.expensesRow?' 1. SESSION EXPENSES row '+res.expensesRow+'.':'')+'</div>'
+      +(res.expensesError?'<div class="cl-note warn">Not written to 1. SESSION EXPENSES: '+escapeHtml(res.expensesError)+'</div>':'')
+      +'<div class="cl-note">To correct a sent class, change it in the sheet. The books copy a day only once, so a second send from here would not reach them.</div>';
+    return;
+  }
+  const L=CL.log;const opt=(arr,v)=>arr.map(o=>'<option value="'+attr(o[0])+'"'+(o[0]===v?' selected':'')+'>'+escapeHtml(o[1])+'</option>').join('');
+  const day=t.date&&t.date.start?tdDayOf(t.date.start):'';const future=day&&day>(TD.today||tdWita());
+  let h='<div class="cl-h">💸 Class expenses<span class="tot" id="cl-tot">'+tdRp(tdClTotal())+'</span></div>'
+    +'<div class="cl-grid"><label>Venue<input class="fld" data-cl="venue" value="'+attr(L.venue)+'" placeholder="e.g. Cakra Hotel Sanur"></label>'
+    +'<label>Type<select class="fld" data-cl="type">'+opt(CL_TYPES.map(x=>[x,x]),L.type)+'</select></label></div>'
+    +'<div class="td-sub">Costs</div>';
+  L.costs.forEach((c,i)=>{h+='<div class="cl-line"><select class="fld" data-cl="c.component" data-i="'+i+'">'+opt(CL_COMPONENTS,c.component)+'</select>'
+    +'<input class="fld cl-desc" data-cl="c.description" data-i="'+i+'" value="'+attr(c.description||'')+'" placeholder="What, e.g. Tiket kolam 2 pax">'
+    +'<input class="fld" data-cl="c.amount" data-i="'+i+'" inputmode="numeric" value="'+attr(c.amount===''||c.amount==null?'':tdClDigits(c.amount).toLocaleString('id-ID'))+'" placeholder="Rp">'
+    +'<button class="cl-x" data-clx="c" data-i="'+i+'" title="Remove line">×</button></div>';});
+  h+='<button class="cl-add" data-cladd="c" type="button">+ Cost line</button>';
+  h+='<div class="td-sub">Students in this class</div>';
+  L.students.forEach((s,i)=>{h+='<div class="cl-stu"><input class="fld" data-cl="s.name" data-i="'+i+'" value="'+attr(s.name)+'" placeholder="Name"><input class="fld" data-cl="s.invoice" data-i="'+i+'" value="'+attr(s.invoice||'')+'" placeholder="Invoice"><button class="cl-x" data-clx="s" data-i="'+i+'" title="Remove">×</button></div>';});
+  h+='<button class="cl-add" data-cladd="s" type="button">+ Student</button>';
+  h+='<div class="td-actions" style="margin-top:12px"><button class="td-ghost" data-clact="draft"'+(CL.busy?' disabled':'')+'>Save draft</button>'
+    +'<button class="gold-btn'+(CL.arm?' arm':'')+'" data-clact="send"'+(CL.busy||future?' disabled':'')+'>'+(CL.busy?'Working…':CL.arm?'Tap again to send':'Send to DiveArts books')+'</button></div>';
+  if(CL.msg)h+='<div class="cl-note '+(CL.bad?'warn':'ok')+'">'+escapeHtml(CL.msg)+'</div>';
+  else if(future)h+='<div class="cl-note">This class is on '+escapeHtml(tdPretty(day))+'. Save a draft now, send it on the day or after.</div>';
+  else if(CL_READY===false)h+='<div class="cl-note warn">Sending is not switched on yet. DAA_API_URL and DAA_API_KEY need adding in Vercel. Drafts save fine.</div>';
+  else h+='<div class="cl-note">Send writes this class once into OS_SESSIONS, OS_SESSION_COSTS and your 1. SESSION EXPENSES tab'+(CL.pending?' (finishing '+escapeHtml(CL.pending)+')':'')+'.</div>';
+  box.innerHTML=h;
+  tdClBind(box);
+}
+function tdClBind(box){
+  box.oninput=e=>{const el=e.target;const k=el.getAttribute('data-cl');if(!k||!CL)return;const i=Number(el.getAttribute('data-i'));
+    if(k==='venue'||k==='type')CL.log[k]=el.value;
+    else{const p=k.split('.');const list=p[0]==='c'?CL.log.costs:CL.log.students;if(list[i])list[i][p[1]]=el.value;}
+    CL.dirty=true;CL.arm=false;const tot=document.getElementById('cl-tot');if(tot)tot.textContent=tdRp(tdClTotal());};
+  box.onchange=box.oninput;
+  box.addEventListener('focusout',e=>{const el=e.target;if(el.getAttribute&&el.getAttribute('data-cl')==='c.amount'&&el.value)el.value=tdClDigits(el.value).toLocaleString('id-ID');});
+  box.onclick=async e=>{
+    const add=e.target.closest('[data-cladd]'),x=e.target.closest('[data-clx]'),act=e.target.closest('[data-clact]');
+    if(add){e.preventDefault();if(add.getAttribute('data-cladd')==='c')CL.log.costs.push({component:'other',description:'',amount:''});else CL.log.students.push({name:'',invoice:'',course:''});CL.dirty=true;tdClRender();return;}
+    if(x){e.preventDefault();const list=x.getAttribute('data-clx')==='c'?CL.log.costs:CL.log.students;list.splice(Number(x.getAttribute('data-i')),1);CL.dirty=true;tdClRender();return;}
+    if(!act)return;e.preventDefault();
+    if(act.getAttribute('data-clact')==='draft'){tdClDraft(CL.id,false);return;}
+    if(!tdClTotal()){CL.msg='Add at least one cost with an amount first.';CL.bad=true;tdClRender();return;}
+    if(!CL.arm){CL.arm=true;CL.msg='';tdClRender();setTimeout(()=>{if(CL&&CL.arm){CL.arm=false;tdClRender();}},5000);return;}
+    tdClSend(CL.id);
+  };
+}
+function tdClPayload(){const L=CL.log;return {venue:L.venue,city:L.city,type:L.type,note:L.note,students:L.students.filter(s=>String(s.name||'').trim()),costs:L.costs.map(c=>({component:c.component,description:c.description,amount:tdClDigits(c.amount)})).filter(c=>c.description||c.amount)};}
+function tdClApply(task){const t=TD.byId[task.id];if(t){Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,task);}tdRenderAll();}
+async function tdClDraft(id,quiet){
+  if(!CL||CL.id!==id)return;const payload=tdClPayload();CL.busy=true;if(!quiet)tdClRender();
+  try{const j=await clApi('draft',{id:id,log:payload});tdClApply(j.task);if(CL&&CL.id===id){CL.dirty=false;CL.msg='Draft saved. Not in the books yet.';CL.bad=false;}showToast('Expense draft saved',true);}
+  catch(e){if(CL&&CL.id===id){CL.msg=String(e.message||e);CL.bad=true;}showToast('Draft not saved: '+(e.message||e),false);}
+  finally{if(CL&&CL.id===id){CL.busy=false;tdClRender();}}
+}
+async function tdClSend(id){
+  if(!CL||CL.id!==id)return;const payload=tdClPayload();CL.busy=true;CL.arm=false;CL.msg='Sending to the DiveArts books. Google can take up to a minute.';CL.bad=false;tdClRender();
+  try{const j=await clApi('send',{id:id,log:payload});tdClApply(j.task);
+    const r=j.result||{};showToast(r.expensesError?'Saved as '+j.sessionId+' but NOT in 1. SESSION EXPENSES: '+r.expensesError:'In the books as '+j.sessionId+(r.expensesRow?', row '+r.expensesRow:''),!r.expensesError);
+    if(CL&&CL.id===id){CL.busy=false;tdClRender();}}
+  catch(e){if(CL&&CL.id===id){CL.busy=false;CL.msg=String(e.message||e);CL.bad=true;tdClRender();}}
 }
 function tdRenderModalSubs(){const ul=document.getElementById('tde-subs');if(!ul||!TD_EDIT)return;const k=tdKids(TD_EDIT).sort(tdSort);ul.innerHTML=k.length?k.map(t=>tdRowHTML(t,{nested:true,noGrip:true})).join(''):'<li class="td-empty">No sub-tasks.</li>';}
-function tdCloseEditor(){const m=document.getElementById('td-modal');if(m)m.remove();TD_EDIT=null;}
+
 function tdSaveEditor(){
   const t=TD.byId[TD_EDIT];if(!t){tdCloseEditor();return;}
   const v=id=>document.getElementById(id).value;
@@ -1572,8 +1708,11 @@ function tdSaveEditor(){
   if(curDate!==newDate)patch.date=date;
   if('status' in patch){if(patch.status==='Done'&&!t.done){patch.done=true;delete patch.status;}else if(patch.status!=='Done'&&t.done){patch.done=false;}}
   const don=document.getElementById('tde-doneon');if(don&&t.done&&!('done' in patch)&&don.value&&don.value!==t.completedOn){if(don.value>(TD.today||tdWita())){showToast('Pick today or an earlier day',false);return;}patch.completedOn=don.value;}
+  const clPay=(CL&&CL.id===t.id&&CL.dirty&&!t.sessionId)?tdClPayload():null;const clId=t.id;
   tdCloseEditor();
   if(Object.keys(patch).length)tdPatch(t.id,patch,'Saved to Notion ✓');
+  // Typed expenses are kept even when only the main Save is pressed.
+  if(clPay)clApi('draft',{id:clId,log:clPay}).then(j=>{tdClApply(j.task);showToast('Expense draft saved',true);}).catch(e=>showToast('Expense draft not saved: '+(e.message||e),false));
 }
 
 
@@ -1657,7 +1796,7 @@ function tdShowDock(){
 function tdDragStart(){
   const t=TD.byId[TD_DRAG.id];TD_DRAG.started=true;document.body.classList.add('td-dragging');
   const ut=document.getElementById('td-undo');if(ut)ut.remove();
-  const g=document.createElement('div');g.className='td-ghost';g.innerHTML=escapeHtml(t.name)+'<small></small>';document.body.appendChild(g);TD_DRAG.ghost=g;
+  const g=document.createElement('div');g.className='td-dragghost';g.innerHTML=escapeHtml(t.name)+'<small></small>';document.body.appendChild(g);TD_DRAG.ghost=g;
   document.querySelectorAll('.td-row[data-id="'+TD_DRAG.id+'"]').forEach(r=>r.classList.add('dragsrc'));
   tdShowDock();
   const loop=()=>{if(!TD_DRAG||!TD_DRAG.started)return;const y=TD_DRAG.y,h=window.innerHeight;if(y<70)window.scrollBy(0,-Math.ceil((70-y)/5));else if(y>h-130&&y<h-70)window.scrollBy(0,Math.ceil((y-(h-130))/5));TD_DRAG.raf=requestAnimationFrame(loop);};TD_DRAG.raf=requestAnimationFrame(loop);

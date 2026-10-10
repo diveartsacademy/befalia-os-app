@@ -29,6 +29,7 @@ const P = {
   name: 'Name', area: 'Area', section: 'Section', status: 'Status', done: 'Done',
   priority: '⏰ Priority', urgent: '🚨 Urgent', type: 'Type', notes: 'Notes',
   date: 'Date', completedOn: 'Completed on', parent: 'Parent task', order: 'Order',
+  expenses: 'Expenses', sessionId: 'Session ID',
 };
 
 export function witaDate(d = new Date()) {
@@ -40,6 +41,7 @@ const plain = (arr) => (arr || []).map((x) => x.plain_text != null ? x.plain_tex
 const sel = (p) => (p && p.select && p.select.name) || null;
 const chk = (p) => !!(p && p.checkbox);
 const nid = (s) => String(s || '').replace(/-/g, '');
+const readJson = (s) => { if (!s) return null; try { const j = JSON.parse(s); return j && typeof j === 'object' ? j : null; } catch (e) { return null; } };
 
 export function mapPage(pg) {
   const pr = pg.properties || {};
@@ -61,6 +63,10 @@ export function mapPage(pg) {
     completedOn: c ? String(c.start).slice(0, 10) : null,
     parent: par.length ? nid(par[0].id) : null,
     order: pr[P.order] && typeof pr[P.order].number === 'number' ? pr[P.order].number : null,
+    // Class expense log (written only by /api/classlog) and the DiveArts OS
+    // session id once it was sent to the books.
+    expenses: readJson(plain(pr[P.expenses] && pr[P.expenses].rich_text)),
+    sessionId: plain(pr[P.sessionId] && pr[P.sessionId].rich_text) || null,
     created: pg.created_time,
     edited: pg.last_edited_time,
     url: pg.url,
