@@ -418,9 +418,11 @@
 
   <div class="tabpane active" id="tab-command">
     <div id="affirm-bubble"></div>
+    <div id="pack-slot-home"></div>
     <div class="grid" id="command"></div>
   </div>
   <div class="tabpane" id="tab-todo">
+    <div id="pack-slot-todo"></div>
     <div id="todo-root"></div>
   </div>
   <div class="tabpane" id="tab-goals">
@@ -2213,5 +2215,7 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
   watchCards();
 })();
 </script>
+<script>window.PACKING_CONFIG = { api: '/api/packing', slots: ['pack-slot-home', 'pack-slot-todo'], theme: 'dark', headers: function () { return (typeof osHeaders === 'function') ? osHeaders() : {}; } };</script>
+<script src="/packing-panel.js"></script>
 </body>
 </html>
