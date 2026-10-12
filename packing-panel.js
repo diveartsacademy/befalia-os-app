@@ -28,7 +28,7 @@
   var DARK = CFG.theme === 'dark';
   var REFRESH_MS = 120000;
 
-  var DATA = null, ERR = '', LOADING = false, OPEN = {}, BUSY = {}, MSG = {}, timer = null;
+  var DATA = null, ERR = '', LOADING = false, OPEN = {}, BUSY = {}, MSG = {}, timer = null, AGAIN = false;
 
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -92,7 +92,11 @@
     return Object.assign({}, h, extra || {});
   }
 
+  /* Never reload while a tick is saving: the reload could read the sheet just
+     before the tick lands and put the item back as unticked on screen. The
+     reload runs as soon as the last tick has answered. */
   function load() {
+    if (Object.keys(BUSY).length) { AGAIN = true; return; }
     if (LOADING) return;
     LOADING = true; render();
     fetch(API, { method: 'GET', credentials: 'same-origin', cache: 'no-store', headers: headers() })
@@ -106,7 +110,8 @@
   }
 
   function tick(card, item) {
-    var id = cardId(card) + '|' + item.key;
+    var cid = cardId(card), key = item.key;
+    var id = cid + '|' + key;
     if (BUSY[id]) return;
     var want = !item.ticked;
     BUSY[id] = true; item.ticked = want; MSG[cardId(card)] = '';
@@ -115,11 +120,19 @@
                  body: JSON.stringify({ date: card.date, city: card.city, itemKey: item.key, ticked: want }) })
       .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'HTTP ' + r.status }; }); })
       .then(function (j) {
-        if (j && j.ok) { item.ticked = j.ticked; item.by = j.ticked ? j.by : ''; item.at = j.ticked ? j.at : ''; }
-        else { item.ticked = !want; MSG[cardId(card)] = 'Not saved: ' + ((j && j.error) || 'the sheet did not answer') + '. "' + item.item + '" is back as it was.'; }
+        var c = findCard(cid) || card, it = c.items.filter(function (x) { return x.key === key; })[0] || item;
+        if (j && j.ok) { it.ticked = j.ticked; it.by = j.ticked ? j.by : ''; it.at = j.ticked ? j.at : ''; }
+        else { it.ticked = !want; MSG[cid] = 'Not saved: ' + ((j && j.error) || 'the sheet did not answer') + '. "' + it.item + '" is back as it was.'; }
+      }, function () {
+        var c = findCard(cid) || card, it = c.items.filter(function (x) { return x.key === key; })[0] || item;
+        it.ticked = !want; MSG[cid] = 'Not saved, no connection. "' + it.item + '" is back as it was.';
       })
-      .catch(function () { item.ticked = !want; MSG[cardId(card)] = 'Not saved, no connection. "' + item.item + '" is back as it was.'; })
-      .then(function () { delete BUSY[id]; recount(card); render(); });
+      .then(function () {
+        delete BUSY[id];
+        var c = findCard(cid); if (c) recount(c);
+        render();
+        if (AGAIN && !Object.keys(BUSY).length) { AGAIN = false; load(); }
+      });
   }
 
   function recount(card) {
@@ -135,6 +148,7 @@
     if (s.online) bits.push('online, nothing to pack');
     else if (s.location) bits.push(esc(s.location));
     if (s.last) bits.push('last session, graduation items added');
+    if (s.lastUnknown) bits.push('<span class="u">could not confirm if this is the last session, so graduation items are NOT added</span>');
     return '<div>' + bits.join(' · ') + '</div>';
   }
 
@@ -229,7 +243,7 @@
   function start() {
     mo.observe(document.body, { childList: true, subtree: true });
     load();
-    timer = setInterval(function () { if (!document.hidden && Object.keys(BUSY).length === 0) load(); }, REFRESH_MS);
+    timer = setInterval(function () { if (!document.hidden) load(); }, REFRESH_MS);
     document.addEventListener('visibilitychange', function () { if (!document.hidden) load(); });
   }
   window.PackingPanel = { reload: load };
