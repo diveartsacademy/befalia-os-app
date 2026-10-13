@@ -365,6 +365,12 @@ export function build(feed, products, now) {
   const idx = photoIndex(feed && feed.photos, products);
   const marks = markIndex(feed && feed.marks);
   const ticks = tickIndex(feed && feed.ticks);
+  /* Product notes (13 Oct 2026, 22:24): e.g. the customer changed size or
+     colour after checkout. One per product line, shared by both dashboards. */
+  const notes = {};
+  ((feed && feed.notes) || []).forEach((k) => {
+    if (k && k.src && k.invoice && k.slot && txt(k.note)) notes[k.src + '|' + txt(k.invoice) + '|' + k.slot] = { text: String(k.note), at: k.at || null, by: k.by || '' };
+  });
   /* Orders marked "Already shipped" (13 Oct 2026, 22:09) leave the list at
      once, whatever the sheet still says. */
   const shippedBy = {};
@@ -392,6 +398,8 @@ export function build(feed, products, now) {
       if (k && l.group !== 'done') l.packed = markView(k);
       const t = ticks[o.src + '|' + o.invoice + '|' + l.slot];
       if (t) l.inBox = t;
+      const n = notes[o.src + '|' + o.invoice + '|' + l.slot];
+      if (n) l.note = n;
     });
     const open = o.lines.filter((l) => l.group !== 'done' && l.group !== 'ignore');
     let include = false, stage = '';
@@ -433,6 +441,7 @@ export function build(feed, products, now) {
         canPack: l.group !== 'done' && l.group !== 'ignore' && !l.packed && !nonPhysical(l.item),
         packed: l.packed || null,
         inBox: l.inBox || null,
+        note: l.note || null,
         photo: photoFor(idx, o.channel, l)
       }))
     });

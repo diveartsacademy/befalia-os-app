@@ -99,6 +99,15 @@ test('an order marked Already shipped leaves the list and shows under recently s
   assert.deepEqual(r.shipped.map((k) => k.invoice), ['SHP-3RD'], 'only the last three days are listed for Undo');
 });
 
+test('a product note lands on its own line, and an empty note is no note', () => {
+  const f = JSON.parse(JSON.stringify(feed));
+  f.notes = [{ src: 'MANUAL (IG & WA) - OL', invoice: 'SDTMar26-2', slot: 4, note: 'Changed to size M after checkout', at: '2026-10-13T14:30:00Z', by: 'Befa' },
+             { src: 'MANUAL (IG & WA) - OL', invoice: 'SDTMar26-2', slot: 2, note: '   ', by: 'Befa' }];
+  const o = build(f, products, NOW).orders.find((x) => x.invoice === 'SDTMar26-2');
+  assert.equal(o.lines.find((l) => l.slot === 4).note.text, 'Changed to size M after checkout');
+  assert.equal(o.lines.find((l) => l.slot === 2).note, null);
+});
+
 test('To-Do task: name, area, done, and the day of the click in Bali', () => {
   const t = taskFor({ src: 'SHOPEE - OL', invoice: 'SHP-3RD', customer: 'buyer4', via: 'seadiva', at: '2026-10-12T17:30:00Z',
                       items: ['Diving Counterweight Waist Chain - Purple Ocean\nColor: x', 'Belt'] });

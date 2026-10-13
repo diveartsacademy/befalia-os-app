@@ -22,7 +22,7 @@
   'use strict';
   var ROOT = 'biz-root';
   var S = { biz: 'seadiva', stage: 'all', ch: 'all', data: null, err: '', loading: false, at: null,
-            arm: '', busy: '', flash: {}, addr: {} };
+            arm: '', busy: '', flash: {}, addr: {}, noteEdit: '', noteDraft: {}, noteBusy: '' };
   var CH = { shopify: 'Shopify', shopee: 'Shopee', toko: 'Tokopedia/TikTok', manual: 'Manual' };
 
   var BUSINESSES = [
@@ -158,6 +158,14 @@
       '.biz-shipped .r{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:5px 0;border-top:1px solid var(--line)}' +
       '.biz-shipped .r:first-of-type{border-top:0}' +
       '.biz-shipped .h{font:12px var(--sans);color:#ffd99a;flex-basis:100%}' +
+      '.biz-pnote2{margin-top:6px;padding:7px 9px;border-radius:8px;background:rgba(255,210,127,.12);border:1px solid rgba(255,210,127,.4);color:#ffe2a8;font:13px/1.4 var(--sans);white-space:pre-wrap;word-wrap:break-word}' +
+      '.biz-pnote2 .w{display:block;font:11px var(--sans);color:var(--dim);margin-top:3px;white-space:normal}' +
+      '.biz-notebtn{font:600 11.5px var(--sans);color:var(--aqua);background:none;border:0;padding:4px 0;cursor:pointer}' +
+      '.biz-noteed{margin-top:6px}' +
+      '.biz-noteed textarea{width:100%;box-sizing:border-box;min-height:64px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);font:13px/1.4 var(--sans);padding:7px 9px}' +
+      '.biz-noteed .b{display:flex;gap:8px;margin-top:6px}' +
+      '.biz-noteed button{font:600 12px var(--sans);border-radius:7px;padding:5px 10px;cursor:pointer;border:1px solid var(--line);background:none;color:var(--ink)}' +
+      '.biz-noteed button.save{background:#ffd27f;color:#04121f;border-color:#ffd27f}' +
       '.biz-empty{font:13.5px/1.5 var(--sans);color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:14px;margin-top:12px}' +
       '@media (max-width:420px){.biz-list{grid-template-columns:1fr}.biz-ph{flex-basis:64px;width:64px;height:64px}}';
     document.head.appendChild(s);
@@ -205,6 +213,20 @@
       pnote = p.how === 'product' ? '<span class="biz-pnote">check colour and size</span>' : '';
     }
     var detail = (l.detail || []).map(function (d) { return '<div class="d">' + esc(d) + '</div>'; }).join('');
+    /* A note on this product (e.g. size or colour changed after checkout). */
+    var nid = o.src + '|' + o.invoice + '|' + l.slot, noteHtml = '';
+    if (S.noteEdit === nid) {
+      var draft = Object.prototype.hasOwnProperty.call(S.noteDraft, nid) ? S.noteDraft[nid] : (l.note ? l.note.text : '');
+      noteHtml = '<div class="biz-noteed"><textarea data-note-input="' + esc(nid) + '" maxlength="1000" placeholder="e.g. Customer changed to size M after checkout">' + esc(draft) + '</textarea>' +
+        '<div class="b"><button class="save" data-note-save="' + esc(nid) + '"' + (S.noteBusy ? ' disabled' : '') + '>' + (S.noteBusy === nid ? 'Saving…' : 'Save note') + '</button>' +
+        '<button data-note-cancel="' + esc(nid) + '">Cancel</button></div></div>';
+    } else if (l.note) {
+      noteHtml = '<div class="biz-pnote2">' + esc(l.note.text) + '<span class="w">Note' + (l.note.by ? ' by ' + esc(l.note.by) : '') + (l.note.at ? ' · ' + esc(when(l.note.at)) : '') + '</span></div>' +
+        '<button class="biz-notebtn" data-note-edit="' + esc(nid) + '">Edit note</button>';
+    } else {
+      noteHtml = '<button class="biz-notebtn" data-note-edit="' + esc(nid) + '">+ Add note</button>';
+    }
+    detail += noteHtml;
     var pack = '';
     if (l.packed) {
       var sn = sheetNote(o, l);
@@ -473,6 +495,28 @@
       .catch(function (e) { S.addr[key] = { err: e.message || 'Could not read the address.' }; render(); });
   }
 
+  function doNote(id) {
+    if (S.noteBusy) return;
+    var parts = id.split('|'), o = find(parts[0], parts[1]);
+    if (!o) return;
+    var l = o.lines.filter(function (x) { return String(x.slot) === parts[2]; })[0];
+    var ta = document.querySelector('[data-note-input]');
+    var text = (Object.prototype.hasOwnProperty.call(S.noteDraft, id) ? S.noteDraft[id] : (ta ? ta.value : '')).trim();
+    S.noteBusy = id; render();
+    quiet({ action: 'note', src: parts[0], invoice: parts[1], slot: Number(parts[2]), note: text }).then(function () {
+      if (l) l.note = text ? { text: text, at: new Date().toISOString(), by: 'Befa' } : null;
+      delete S.noteDraft[id]; S.noteEdit = ''; S.noteBusy = ''; render();
+    }).catch(function (e) {
+      S.noteBusy = ''; S.flash[parts[0] + '|' + parts[1]] = { text: 'The note was not saved: ' + (e.message || 'error'), bad: true }; render();
+    });
+  }
+
+  /* Keep what is typed in a note while the list redraws around it. */
+  document.addEventListener('input', function (e) {
+    var t = e.target;
+    if (t && t.dataset && t.dataset.noteInput) S.noteDraft[t.dataset.noteInput] = t.value;
+  });
+
   function doShip(key) {
     var i = key.lastIndexOf('|'), o = find(key.slice(0, i), key.slice(i + 1));
     if (!o) return;
@@ -496,8 +540,11 @@
   document.addEventListener('click', function (e) {
     var root = document.getElementById(ROOT);
     if (!root || !root.contains(e.target)) return;
-    var b = e.target.closest('[data-biz],[data-stage],[data-ch],[data-act],[data-pack],[data-undo-mark],[data-undo-click],[data-tick],[data-addr],[data-addr-hide],[data-addr-copy],[data-ship],[data-unship]');
+    var b = e.target.closest('[data-biz],[data-stage],[data-ch],[data-act],[data-pack],[data-undo-mark],[data-undo-click],[data-tick],[data-addr],[data-addr-hide],[data-addr-copy],[data-ship],[data-unship],[data-note-edit],[data-note-save],[data-note-cancel]');
     if (!b) return;
+    if (b.dataset.noteEdit) { S.noteEdit = b.dataset.noteEdit; render(); var ta = document.querySelector('[data-note-input]'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } return; }
+    if (b.dataset.noteCancel) { delete S.noteDraft[b.dataset.noteCancel]; S.noteEdit = ''; render(); return; }
+    if (b.dataset.noteSave) { doNote(b.dataset.noteSave); return; }
     if (b.dataset.ship) {
       if (S.busy) return;
       var arm = 'ship:' + b.dataset.ship;

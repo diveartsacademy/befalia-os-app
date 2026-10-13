@@ -11,6 +11,7 @@
 //        { action: 'undo', click_id } or { action: 'undo', mark_id }
 //        { action: 'contact', src, row, invoice }   name, phone, address for the box
 //        { action: 'tick', src, invoice, slot, on }  "in the box" tick
+//        { action: 'note', src, invoice, slot, note } a note on one product
 //        { action: 'ship', src, row, invoice } / { action: 'unship', id }
 //                                                     already shipped, whole order
 //      A mark moves those products to Ready to be shipped (Manual sheet via the
@@ -142,6 +143,18 @@ async function post(req, res) {
     if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not undone.' });
     return res.status(200).json(r);
   }
+  /* A note on one product line; an empty note clears it. */
+  if (b.action === 'note') {
+    const slot = Number(b.slot);
+    const note = typeof b.note === 'string' ? b.note : '';
+    if (!TABS.includes(b.src) || !Number.isInteger(slot) || slot < 1 || slot > 12 || !String(b.invoice || '').trim()) {
+      return res.status(400).json({ ok: false, error: 'note needs src, invoice and slot.' });
+    }
+    if (note.length > 1000) return res.status(400).json({ ok: false, error: 'A note can be at most 1000 characters.' });
+    const r = await pack({ action: 'note', src: b.src, invoice: String(b.invoice).trim(), slot, note });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not saved.' });
+    return res.status(200).json(r);
+  }
   /* "In the box" tick for one product line. */
   if (b.action === 'tick') {
     const slot = Number(b.slot);
@@ -182,6 +195,7 @@ export default async function handler(req, res) {
   if (!f.ok) return res.status(f.status).json({ ok: false, error: f.error });
   f.body.ticks = (ov && ov.ok && ov.ticks) || [];
   f.body.shipped = (ov && ov.ok && ov.shipped) || [];
+  f.body.notes = (ov && ov.ok && ov.notes) || [];
 
   const out = build(f.body, shop.products, new Date());
   out.photosNote = shop.error || '';

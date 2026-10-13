@@ -189,6 +189,18 @@ test('POST ship and unship go to the database with the order, and check input', 
   assert.equal(r.code, 400);
 });
 
+test('POST note saves one product note and refuses one that is too long', async () => {
+  calls.length = 0;
+  packAnswer = { note: { ok: true } };
+  let r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'note', src: 'SHOPIFY-OL', invoice: '#1065', slot: 2, note: 'Grey changed to pink' } }), r);
+  assert.equal(r.code, 200);
+  assert.deepEqual(calls[0].body, { action: 'note', src: 'SHOPIFY-OL', invoice: '#1065', slot: 2, note: 'Grey changed to pink' });
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'note', src: 'SHOPIFY-OL', invoice: '#1065', slot: 2, note: 'x'.repeat(1001) } }), r);
+  assert.equal(r.code, 400);
+});
+
 test('POST undo archives the To-Do task the database hands back', async () => {
   calls.length = 0;
   packAnswer = { undo: { ok: true, undone: 2, todo_pages: ['page-1'] } };
