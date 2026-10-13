@@ -9,6 +9,10 @@
 //   POST /api/packing {date, city, itemKey, ticked}
 //   POST /api/packing {action:'hide', scope:'card'|'city', date, city, hidden}
 //        hide a day's card, or every card for a city, for Befa only (13 Oct 2026)
+//   POST /api/packing {action:'add', date, kind:'class'|'list', ...}   the + Add button
+//   POST /api/packing {action:'remove', id}                            take an added card off
+//   POST /api/packing {action:'list', mode:'new'|'replace', name, text, shared}  save a list
+//        (13 Oct 2026). Only the fields each action needs are passed on, as Befa.
 //
 // Gate: the OS key, like every route here. Ticks from this app are recorded as
 // "Befa" because this is Befa's personal OS and the key is hers; the sheet also
@@ -18,6 +22,22 @@
 import { requireKey } from './_auth.js';
 
 const BY = 'Befa';
+
+export function addBody(b, key) {
+  const bool = (v) => v === true;
+  if (b.action === 'add') {
+    return { action: 'add', key, who: BY, date: String(b.date || ''), kind: String(b.kind || ''), title: String(b.title || '').slice(0, 200),
+             shared: b.shared === true ? true : (b.shared === false ? false : null),
+             kits: Array.isArray(b.kits) ? b.kits.slice(0, 8).map(String) : [], stage: String(b.stage || ''),
+             kids: bool(b.kids), grad: bool(b.grad), padi: bool(b.padi), city: String(b.city || ''), list: String(b.list || '').slice(0, 200) };
+  }
+  if (b.action === 'remove') return { action: 'remove', key, who: BY, id: String(b.id || '') };
+  if (b.action === 'list') {
+    return { action: 'list', key, who: BY, mode: String(b.mode || ''), name: String(b.name || '').slice(0, 200),
+             text: String(b.text || '').slice(0, 20000), shared: b.shared === true };
+  }
+  return null;
+}
 
 async function brain(init, qs) {
   const url = process.env.PACK_GAS_URL + (qs ? '?' + qs : '');
@@ -54,6 +74,13 @@ export default async function handler(req, res) {
       const out = await brain({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(hide) });
       return res.status(out.ok ? 200 : 409).json(out);
     }
+    if (['add', 'remove', 'list'].indexOf(b.action) !== -1) {
+      const fwd = addBody(b, process.env.PACK_KEY);
+      if (fwd.action === 'add' && fwd.shared === null) return res.status(400).json({ ok: false, error: 'Shared must be true or false.' });
+      const out = await brain({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(fwd) });
+      return res.status(out.ok ? 200 : 409).json(out);
+    }
+    if (b.action && b.action !== 'tick') return res.status(400).json({ ok: false, error: 'Unknown action.' });
     if (b.ticked !== true && b.ticked !== false) return res.status(400).json({ ok: false, error: 'Ticked must be true or false.' });
     const body = { action: 'tick', key: process.env.PACK_KEY, date: String(b.date || ''), city: String(b.city || ''), itemKey: String(b.itemKey || ''), ticked: b.ticked, by: BY };
     const out = await brain({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
