@@ -135,7 +135,32 @@ test('a click undone on the Sea Diva dashboard loses its To-Do task on the next 
   assert.equal(r.code, 200);
   assert.equal(r.body.todo.removed, 1);
   assert.deepEqual(calls.filter((c) => c.pack || c.notion).map((c) => c.pack || (c.method + ' ' + c.notion)),
-    ['todo_claim', 'GET /pages/page1', 'PATCH /pages/page1', 'todo_archived']);
+    ['todo_claim', 'GET /pages/page1', 'PATCH /pages/page1', 'todo_archived', 'ticks']);
+});
+
+test('POST contact asks the database for one order and checks its input', async () => {
+  calls.length = 0;
+  packAnswer = { contact: { ok: true, from: 'Shopify (sheet copy)', name: 'Customer C', phone: '+81 000', lines: ['1-2-3 Street', 'Tokyo 100', 'Japan'], missing: [] } };
+  let r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'contact', src: 'SHOPIFY-OL', row: 74, invoice: '#1065' } }), r);
+  assert.equal(r.code, 200);
+  assert.equal(r.body.name, 'Customer C');
+  assert.deepEqual(calls.map((c) => c.body), [{ action: 'contact', src: 'SHOPIFY-OL', row: 74, invoice: '#1065' }]);
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'contact', src: 'SHOPIFY-OL', invoice: '#1065' } }), r);
+  assert.equal(r.code, 400, 'no row, no lookup');
+});
+
+test('POST tick sends on and off, and refuses a bad slot', async () => {
+  calls.length = 0;
+  packAnswer = { tick: { ok: true } };
+  let r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'tick', src: 'SHOPEE - OL', invoice: 'X1', slot: 2, on: false } }), r);
+  assert.equal(r.code, 200);
+  assert.deepEqual(calls[0].body, { action: 'tick', src: 'SHOPEE - OL', invoice: 'X1', slot: 2, on: false });
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'tick', src: 'SHOPEE - OL', invoice: 'X1', slot: 13 } }), r);
+  assert.equal(r.code, 400);
 });
 
 test('POST undo archives the To-Do task the database hands back', async () => {

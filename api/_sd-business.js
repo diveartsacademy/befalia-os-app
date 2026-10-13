@@ -347,6 +347,13 @@ function markIndex(marks) {
   (marks || []).forEach((k) => { if (k && k.src && k.invoice && k.slot) m[k.src + '|' + txt(k.invoice) + '|' + k.slot] = k; });
   return m;
 }
+/* "In the box" ticks (13 Oct 2026): one per product line, shared by both
+   dashboards, so Befa can tick what is already in the box while packing. */
+function tickIndex(ticks) {
+  const m = {};
+  (ticks || []).forEach((k) => { if (k && k.src && k.invoice && k.slot) m[k.src + '|' + txt(k.invoice) + '|' + k.slot] = { at: k.at || null, by: k.by || '' }; });
+  return m;
+}
 function markView(k) {
   return { id: k.id, click: k.click_id, at: k.at, by: k.by || '', via: k.via || '', write: k.write || '',
            written: !!k.written, writeError: k.writeError || '', todo: !!k.todo };
@@ -357,6 +364,7 @@ export function build(feed, products, now) {
   const tabs = (feed && feed.tabs) || {};
   const idx = photoIndex(feed && feed.photos, products);
   const marks = markIndex(feed && feed.marks);
+  const ticks = tickIndex(feed && feed.ticks);
   const sources = {}, all = [];
   CHANNELS.forEach((ch) => {
     const t = readTab(ch, tabs[SRC[ch]], now);
@@ -376,6 +384,8 @@ export function build(feed, products, now) {
     o.lines.forEach((l) => {
       const k = marks[o.src + '|' + o.invoice + '|' + l.slot];
       if (k && l.group !== 'done') l.packed = markView(k);
+      const t = ticks[o.src + '|' + o.invoice + '|' + l.slot];
+      if (t) l.inBox = t;
     });
     const open = o.lines.filter((l) => l.group !== 'done' && l.group !== 'ignore');
     let include = false, stage = '';
@@ -416,6 +426,7 @@ export function build(feed, products, now) {
         physical: !nonPhysical(l.item),
         canPack: l.group !== 'done' && l.group !== 'ignore' && !l.packed && !nonPhysical(l.item),
         packed: l.packed || null,
+        inBox: l.inBox || null,
         photo: photoFor(idx, o.channel, l)
       }))
     });
