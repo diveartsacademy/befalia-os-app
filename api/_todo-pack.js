@@ -6,8 +6,8 @@
 // One done task per click, in the Tasks database, area Sea Diva:
 //   Packed SDTOct26-3 · Customer name
 // Completed on = the day of the click in Bali time, even when the task is
-// written later (a click made on the Sea Diva dashboard is picked up the next
-// time the Business tab loads).
+// written later. A click made on the Sea Diva dashboard is picked up the next
+// time Befa opens her To-Do or the Business tab in Befalia OS.
 //
 // Which clicks: every click by Befa (her email) from either dashboard that has
 // no task yet. The database hands them out once (todo_claim) so two open tabs
@@ -20,6 +20,21 @@ const VERSION = '2022-06-28';
 const LABEL = { 'MANUAL (IG & WA) - OL': 'Manual', 'SHOPIFY-OL': 'Shopify', 'SHOPEE - OL': 'Shopee', 'TOKOPEDIA/TIKTOK shop -OL': 'Tokopedia/TikTok' };
 
 const nid = (s) => String(s || '').replace(/-/g, '');
+const FEED_URL = process.env.BIZ_FEED_URL || 'https://gszjrsvvpajznwdrtjva.supabase.co/functions/v1/befalia-business';
+
+/* seadiva.befalia_pack through the befalia-business edge function, with the
+   same key as the read feed. */
+export async function packCall(p) {
+  let r;
+  try {
+    r = await fetch(FEED_URL, { method: 'POST', headers: { 'x-feed-key': String(process.env.BIZ_FEED_KEY || '').trim(), 'content-type': 'application/json' },
+                               body: JSON.stringify(p) });
+  } catch (e) { return { ok: false, error: 'The DiveArts OS database could not be reached.' }; }
+  let j = null;
+  try { j = await r.json(); } catch (e) { /* not JSON */ }
+  if (r.status === 401) return { ok: false, error: 'The database refused the feed key.' };
+  return j || { ok: false, error: 'The database answered HTTP ' + r.status + '.' };
+}
 
 export function witaDay(iso) {
   const t = Date.parse(iso);
@@ -70,21 +85,31 @@ export async function logPacks(pack, today) {
   }
   if (done.length) await pack({ action: 'todo_set', items: done });
   if (failed.length) await pack({ action: 'todo_release', click_ids: failed });
-  return { logged: done.length, error };
+  /* A click undone on the Sea Diva dashboard cannot reach Notion, so its task
+     is removed here. */
+  let removed = 0;
+  if ((c.orphans || []).length) {
+    const u = await unlogPacks(c.orphans, pack);
+    removed = u.archived;
+    if (u.error) error = error || u.error;
+  }
+  return { logged: done.length, removed, error };
 }
 
 /* Undo archives the task, but only a page that really sits in the Tasks
    database. */
-export async function unlogPacks(pageIds) {
+export async function unlogPacks(pageIds, pack) {
   let archived = 0, error = '';
-  if (!process.env.NOTION_TOKEN) return { archived, error: pageIds.length ? 'NOTION_TOKEN is not set, so the To-Do task was left.' : '' };
+  const gone = [];
+  if (!process.env.NOTION_TOKEN) return { archived, error: (pageIds || []).length ? 'NOTION_TOKEN is not set, so the To-Do task was left.' : '' };
   for (const id of pageIds || []) {
     try {
       const pg = await notion('/pages/' + nid(id), { method: 'GET' });
-      if (nid((pg.parent || {}).database_id) !== TASKS_DB) continue;
-      await notion('/pages/' + nid(id), { method: 'PATCH', body: { archived: true } });
-      archived++;
+      if (nid((pg.parent || {}).database_id) !== TASKS_DB) { gone.push(id); continue; }
+      if (!pg.archived && !pg.in_trash) { await notion('/pages/' + nid(id), { method: 'PATCH', body: { archived: true } }); archived++; }
+      gone.push(id);
     } catch (e) { error = String(e.message || e); }
   }
+  if (gone.length && pack) await pack({ action: 'todo_archived', page_ids: gone });
   return { archived, error };
 }

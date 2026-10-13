@@ -26,7 +26,7 @@
 // The sorting rules live in api/_sd-business.js.
 import { requireKey } from './_auth.js';
 import { build, SRC } from './_sd-business.js';
-import { logPacks, unlogPacks, witaDay } from './_todo-pack.js';
+import { logPacks, unlogPacks, witaDay, packCall } from './_todo-pack.js';
 
 const FEED_URL = process.env.BIZ_FEED_URL || 'https://gszjrsvvpajznwdrtjva.supabase.co/functions/v1/befalia-business';
 const STORE = 'https://seadivatails.com';
@@ -64,18 +64,7 @@ async function feed() {
   return { ok: true, body: j };
 }
 
-/* seadiva.befalia_pack through the same edge function, same key. */
-async function pack(p) {
-  let r;
-  try {
-    r = await fetch(FEED_URL, { method: 'POST', headers: { 'x-feed-key': String(process.env.BIZ_FEED_KEY || '').trim(), 'content-type': 'application/json' },
-                               body: JSON.stringify(p) });
-  } catch (e) { return { ok: false, error: 'The DiveArts OS database could not be reached.' }; }
-  let j = null;
-  try { j = await r.json(); } catch (e) { /* not JSON */ }
-  if (r.status === 401) return { ok: false, error: 'The database refused the feed key.' };
-  return j || { ok: false, error: 'The database answered HTTP ' + r.status + '.' };
-}
+const pack = packCall;
 
 const TABS = Object.values(SRC);
 
@@ -102,7 +91,7 @@ async function post(req, res) {
     }
     const r = await pack(click ? { action: 'undo', click_id: click } : { action: 'undo', mark_id: mark });
     if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not undone.' });
-    const todo = await unlogPacks(r.todo_pages || []);
+    const todo = await unlogPacks(r.todo_pages || [], pack);
     return res.status(200).json({ ok: true, result: r, todo });
   }
   return res.status(400).json({ ok: false, error: 'Unknown action.' });

@@ -127,6 +127,17 @@ test('POST mark refused by the database writes nothing to the To-Do', async () =
   assert.deepEqual(calls.map((c) => c.pack || c.notion), ['mark']);
 });
 
+test('a click undone on the Sea Diva dashboard loses its To-Do task on the next load', async () => {
+  process.env.NOTION_TOKEN = 'notion-test';
+  calls.length = 0;
+  packAnswer = { todo_claim: { ok: true, clicks: [], orphans: ['page-1'] } };
+  const r = res(); await handler(req({ headers: { 'x-os-key': 'os-key' } }), r);
+  assert.equal(r.code, 200);
+  assert.equal(r.body.todo.removed, 1);
+  assert.deepEqual(calls.filter((c) => c.pack || c.notion).map((c) => c.pack || (c.method + ' ' + c.notion)),
+    ['todo_claim', 'GET /pages/page1', 'PATCH /pages/page1', 'todo_archived']);
+});
+
 test('POST undo archives the To-Do task the database hands back', async () => {
   calls.length = 0;
   packAnswer = { undo: { ok: true, undone: 2, todo_pages: ['page-1'] } };
@@ -134,6 +145,6 @@ test('POST undo archives the To-Do task the database hands back', async () => {
   await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'undo', click_id: '44444444-4444-4444-4444-444444444444' } }), r);
   assert.equal(r.code, 200);
   assert.equal(r.body.todo.archived, 1);
-  assert.deepEqual(calls.map((c) => c.pack || (c.method + ' ' + c.notion)), ['undo', 'GET /pages/page1', 'PATCH /pages/page1']);
+  assert.deepEqual(calls.map((c) => c.pack || (c.method + ' ' + c.notion)), ['undo', 'GET /pages/page1', 'PATCH /pages/page1', 'todo_archived']);
   delete process.env.NOTION_TOKEN;
 });

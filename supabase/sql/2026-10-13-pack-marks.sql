@@ -389,6 +389,9 @@ returns text language sql immutable as $$ select 'diveartsacademy@gmail.com'::te
 --   {"action":"todo_claim"}                 clicks by Befa with no To-Do task yet
 --   {"action":"todo_set", "items":[{"click_id","page_id"}]}
 --   {"action":"todo_release", "click_ids":[...]}   creating the task failed
+--   {"action":"todo_archived", "page_ids":[...]}   tasks of undone clicks removed
+-- todo_claim also hands back "orphans": To-Do tasks whose click was undone
+-- (on either dashboard) and that are still on the To-Do.
 create or replace function seadiva.befalia_pack(p_key text, p jsonb)
 returns jsonb
 language plpgsql
@@ -426,13 +429,22 @@ begin
                                 'customer', min(customer), 'via', min(via),
                                 'items', jsonb_agg(item order by slot)) x
         from c group by click_id) t;
-    return jsonb_build_object('ok', true, 'clicks', r);
+    return jsonb_build_object('ok', true, 'clicks', r,
+      'orphans', coalesce((select jsonb_agg(distinct m.todo_page_id) from seadiva.pack_marks m
+                            where m.by_who = v_by and m.undone_at is not null and m.todo_state = 'logged' and m.todo_page_id is not null
+                              and not exists (select 1 from seadiva.pack_marks k where k.todo_page_id = m.todo_page_id and k.undone_at is null)), '[]'::jsonb));
 
   elsif a = 'todo_set' then
     for i in select * from jsonb_array_elements(coalesce(p->'items', '[]'::jsonb)) loop
       update seadiva.pack_marks set todo_page_id = i->>'page_id', todo_state = 'logged'
        where click_id = (i->>'click_id')::uuid and by_who = v_by;
     end loop;
+    return jsonb_build_object('ok', true);
+
+  elsif a = 'todo_archived' then
+    update seadiva.pack_marks set todo_state = 'archived'
+     where by_who = v_by and undone_at is not null
+       and todo_page_id in (select jsonb_array_elements_text(coalesce(p->'page_ids', '[]'::jsonb)));
     return jsonb_build_object('ok', true);
 
   elsif a = 'todo_release' then

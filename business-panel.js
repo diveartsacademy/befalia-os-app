@@ -210,12 +210,16 @@
   function cardHtml(o) {
     var dated = o.date ? day(o.date) + (o.days != null ? ' · ' + o.days + ' days ago' : '') : (o.dateText || 'no date');
     var packable = o.lines.filter(function (l) { return l.canPack; });
+    /* The big button packs only what the sheet says is ready. Anything else
+       can still be packed one by one, on purpose. */
+    var ready = packable.filter(function (l) { return l.group === 'ready' || l.group === 'shipping'; });
     var key = o.src + '|' + o.invoice;
     var act = '';
-    if (packable.length) {
+    if (ready.length) {
       var all = key + '|*';
       act = '<div class="biz-act"><button class="biz-pack' + (S.arm === all ? ' arm' : '') + '" data-pack="' + esc(all) + '"' + (S.busy ? ' disabled' : '') + '>' +
-        (S.busy === key ? 'Saving…' : (S.arm === all ? 'Tap again to confirm' : 'Packed, ready to ship' + (packable.length > 1 ? ' (' + packable.length + ' products)' : ''))) +
+        (S.busy === key ? 'Saving…' : (S.arm === all ? 'Tap again to confirm' : 'Packed, ready to ship' +
+          (ready.length < packable.length ? ' (the ' + ready.length + ' ready)' : (ready.length > 1 ? ' (' + ready.length + ' products)' : '')))) +
         '</button></div>';
     }
     var f = S.flash[key];
@@ -237,7 +241,7 @@
       '<div class="biz-who">' + esc(o.customer || 'no name') + '</div>' +
       '<div class="biz-meta">' + esc(dated) + (o.country ? ' · ships to ' + esc(o.country) : '') + pay + dueHtml(o) + '</div>' +
       (STAGE_NOTE[o.stage] && o.stage !== 'production' ? '<div class="biz-note">' + esc(STAGE_NOTE[o.stage] + after) + '</div>' : '') +
-      o.lines.map(function (l) { return lineHtml(o, l, packable.length); }).join('') + act +
+      o.lines.map(function (l) { return lineHtml(o, l, ready.length === packable.length ? packable.length : 2); }).join('') + act +
       (o.doneCount ? '<div class="biz-foot">' + o.doneCount + ' of ' + o.lineCount + ' products on this invoice are already DONE and hidden.</div>' : '') +
       '</div>';
   }
@@ -338,7 +342,7 @@
     var parts = id.split('|'), src = parts[0], inv = parts[1], slot = parts[2];
     var o = find(src, inv);
     if (!o) return;
-    var slots = slot === '*' ? o.lines.filter(function (l) { return l.canPack; }).map(function (l) { return l.slot; }) : [Number(slot)];
+    var slots = slot === '*' ? o.lines.filter(function (l) { return l.canPack && (l.group === 'ready' || l.group === 'shipping'); }).map(function (l) { return l.slot; }) : [Number(slot)];
     var key = src + '|' + inv;
     post({ action: 'mark', src: src, row: o.row, invoice: inv, slots: slots }, key).then(function (j) {
       var r = j.result || {}, lines = r.lines || [], n = r.marked || 0;
