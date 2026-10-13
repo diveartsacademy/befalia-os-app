@@ -365,6 +365,11 @@ export function build(feed, products, now) {
   const idx = photoIndex(feed && feed.photos, products);
   const marks = markIndex(feed && feed.marks);
   const ticks = tickIndex(feed && feed.ticks);
+  /* Orders marked "Already shipped" (13 Oct 2026, 22:09) leave the list at
+     once, whatever the sheet still says. */
+  const shippedBy = {};
+  ((feed && feed.shipped) || []).forEach((k) => { if (k && k.src && k.invoice) shippedBy[k.src + '|' + txt(k.invoice)] = k; });
+  let shippedHidden = 0;
   const sources = {}, all = [];
   CHANNELS.forEach((ch) => {
     const t = readTab(ch, tabs[SRC[ch]], now);
@@ -381,6 +386,7 @@ export function build(feed, products, now) {
 
   const orders = [];
   all.forEach((o) => {
+    if (shippedBy[o.src + '|' + o.invoice]) { shippedHidden++; return; }
     o.lines.forEach((l) => {
       const k = marks[o.src + '|' + o.invoice + '|' + l.slot];
       if (k && l.group !== 'done') l.packed = markView(k);
@@ -452,7 +458,12 @@ export function build(feed, products, now) {
       if (l.packed) { counts.packedLines++; if (l.packed.at && witaDay(l.packed.at) === today) counts.packedToday++; }
     });
   });
-  return { ok: true, generatedAt: now.toISOString(), sources, counts, orders };
+  counts.shippedHidden = shippedHidden;
+  /* The last three days of "Already shipped", newest first, for Undo. */
+  const since = now.getTime() - 3 * DAY;
+  const shipped = ((feed && feed.shipped) || []).filter((k) => Date.parse(k.at) >= since)
+    .map((k) => ({ id: k.id, src: k.src, invoice: k.invoice, customer: k.customer || '', at: k.at, by: k.by || '', lines: k.lines || 0, byHand: k.byHand || 0 }));
+  return { ok: true, generatedAt: now.toISOString(), sources, counts, orders, shipped };
 }
 
 /* The calendar day in Bali for a timestamp, YYYY-MM-DD. */

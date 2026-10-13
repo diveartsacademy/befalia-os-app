@@ -88,6 +88,17 @@ test('in-the-box ticks land on their own product line only', () => {
   assert.equal(o.lines.filter((l) => l.inBox).length, 1);
 });
 
+test('an order marked Already shipped leaves the list and shows under recently shipped', () => {
+  const f = JSON.parse(JSON.stringify(feed));
+  f.shipped = [{ id: 3, src: 'SHOPEE - OL', invoice: 'SHP-3RD', at: '2026-10-13T01:00:00Z', by: 'Befa', customer: 'buyer4', lines: 2, byHand: 2 },
+               { id: 2, src: 'MANUAL (IG & WA) - OL', invoice: 'SDTJun26-23', at: '2026-09-01T01:00:00Z', by: 'Befa', lines: 3, byHand: 0 }];
+  const r = build(f, products, NOW);
+  assert.equal(r.orders.find((o) => o.invoice === 'SHP-3RD'), undefined);
+  assert.equal(r.orders.find((o) => o.invoice === 'SDTJun26-23'), undefined, 'old marks still hide the order');
+  assert.equal(r.counts.shippedHidden, 2);
+  assert.deepEqual(r.shipped.map((k) => k.invoice), ['SHP-3RD'], 'only the last three days are listed for Undo');
+});
+
 test('To-Do task: name, area, done, and the day of the click in Bali', () => {
   const t = taskFor({ src: 'SHOPEE - OL', invoice: 'SHP-3RD', customer: 'buyer4', via: 'seadiva', at: '2026-10-12T17:30:00Z',
                       items: ['Diving Counterweight Waist Chain - Purple Ocean\nColor: x', 'Belt'] });

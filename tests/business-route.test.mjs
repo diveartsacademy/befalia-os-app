@@ -135,7 +135,7 @@ test('a click undone on the Sea Diva dashboard loses its To-Do task on the next 
   assert.equal(r.code, 200);
   assert.equal(r.body.todo.removed, 1);
   assert.deepEqual(calls.filter((c) => c.pack || c.notion).map((c) => c.pack || (c.method + ' ' + c.notion)),
-    ['todo_claim', 'GET /pages/page1', 'PATCH /pages/page1', 'todo_archived', 'ticks']);
+    ['todo_claim', 'GET /pages/page1', 'PATCH /pages/page1', 'todo_archived', 'overlay']);
 });
 
 test('POST contact asks the database for one order and checks its input', async () => {
@@ -171,6 +171,22 @@ test('a body that arrives as a Buffer is still read (doubled content-type, 13 Oc
     body: Buffer.from(JSON.stringify({ action: 'tick', src: 'SHOPEE - OL', invoice: 'X1', slot: 1, on: true })) }), r);
   assert.equal(r.code, 200, JSON.stringify(r.body));
   assert.equal(calls[0].body.action, 'tick');
+});
+
+test('POST ship and unship go to the database with the order, and check input', async () => {
+  calls.length = 0;
+  packAnswer = { ship: { ok: true, id: 7, lines: [] }, unship: { ok: true, undone: 1 } };
+  let r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'ship', src: 'SHOPEE - OL', row: 249, invoice: 'X1' } }), r);
+  assert.equal(r.code, 200);
+  assert.equal(r.body.id, 7);
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'unship', id: 7 } }), r);
+  assert.equal(r.code, 200);
+  assert.deepEqual(calls.map((c) => c.body), [{ action: 'ship', src: 'SHOPEE - OL', row: 249, invoice: 'X1' }, { action: 'unship', id: 7 }]);
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'ship', src: 'SHOPEE - OL', invoice: 'X1' } }), r);
+  assert.equal(r.code, 400);
 });
 
 test('POST undo archives the To-Do task the database hands back', async () => {
