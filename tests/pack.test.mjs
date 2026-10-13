@@ -80,6 +80,14 @@ test('counts: per shop, packed lines, packed today in Bali time', () => {
   assert.equal(out.counts.packedToday, 2, '01:30 UTC on 13 Oct is 13 Oct in Bali; 15:00 UTC on 12 Oct is 12 Oct 23:00 in Bali');
 });
 
+test('in-the-box ticks land on their own product line only', () => {
+  const f = JSON.parse(JSON.stringify(feed));
+  f.ticks = [{ src: 'MANUAL (IG & WA) - OL', invoice: 'SDTMar26-2', slot: 2, at: '2026-10-13T14:00:00Z', by: 'Befa' }];
+  const o = build(f, products, NOW).orders.find((x) => x.invoice === 'SDTMar26-2');
+  assert.equal(o.lines.find((l) => l.slot === 2).inBox.by, 'Befa');
+  assert.equal(o.lines.filter((l) => l.inBox).length, 1);
+});
+
 test('To-Do task: name, area, done, and the day of the click in Bali', () => {
   const t = taskFor({ src: 'SHOPEE - OL', invoice: 'SHP-3RD', customer: 'buyer4', via: 'seadiva', at: '2026-10-12T17:30:00Z',
                       items: ['Diving Counterweight Waist Chain - Purple Ocean\nColor: x', 'Belt'] });

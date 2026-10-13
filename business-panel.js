@@ -9,6 +9,10 @@
    The page only draws what the server sends. If it cannot read, it says so in
    red. A photo that does not load says so instead of leaving a blank square.
 
+   "In the box" ticks and the box label (13 Oct 2026, 22:00): a tick per
+   product, shared with the Sea Diva dashboard, and a button that fetches one
+   order's name, phone and address for writing on the box.
+
    One thing writes (13 Oct 2026): "Packed, ready to ship". It needs two taps,
    POSTs to /api/business, and can be undone from the same card. The server
    moves the products to Ready to be shipped, moves the board job to Shipping
@@ -18,7 +22,7 @@
   'use strict';
   var ROOT = 'biz-root';
   var S = { biz: 'seadiva', stage: 'all', ch: 'all', data: null, err: '', loading: false, at: null,
-            arm: '', busy: '', flash: {} };
+            arm: '', busy: '', flash: {}, addr: {} };
   var CH = { shopify: 'Shopify', shopee: 'Shopee', toko: 'Tokopedia/TikTok', manual: 'Manual' };
 
   var BUSINESSES = [
@@ -136,6 +140,17 @@
       '.biz-sheet.todo{color:#ffd99a}' +
       '.biz-flash{font:12.5px/1.45 var(--sans);border-radius:10px;padding:8px 10px;margin-top:10px;background:rgba(95,194,126,.1);border:1px solid rgba(95,194,126,.35);color:#c9f3d6}' +
       '.biz-flash.bad{background:rgba(255,107,129,.08);border-color:rgba(255,107,129,.4);color:#ffb3c0}' +
+      '.biz-box{flex:0 0 auto;width:30px;height:30px;margin-top:22px;border-radius:8px;border:2px solid rgba(126,224,160,.55);background:transparent;color:#04121f;font:900 17px/1 var(--sans);cursor:pointer;padding:0}' +
+      '.biz-box.on{background:#7ee0a0;border-color:#7ee0a0}' +
+      '.biz-line.inbox .biz-it .t{text-decoration:line-through;text-decoration-color:rgba(126,224,160,.7);opacity:.75}' +
+      '.biz-boxcount{font:600 12px var(--sans);color:#9fe8b6;margin-top:8px}' +
+      '.biz-addrbtn{font:600 12px var(--sans);color:var(--aqua);background:none;border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;margin-top:8px}' +
+      '.biz-label{margin-top:8px;padding:10px 12px;border-radius:10px;background:#f7f3ea;color:#16202a;font:15px/1.45 var(--sans)}' +
+      '.biz-label b{font-size:17px}' +
+      '.biz-label .ph{font:700 15px var(--sans);margin-top:2px}' +
+      '.biz-label .miss{font:12.5px/1.4 var(--sans);color:#a3263a;margin-top:6px}' +
+      '.biz-label .src{font:11px var(--sans);color:#6b6659;margin-top:6px}' +
+      '.biz-label button{font:600 12px var(--sans);margin-top:8px;padding:5px 10px;border-radius:7px;border:1px solid #16202a;background:#fff;color:#16202a;cursor:pointer}' +
       '.biz-empty{font:13.5px/1.5 var(--sans);color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:14px;margin-top:12px}' +
       '@media (max-width:420px){.biz-list{grid-template-columns:1fr}.biz-ph{flex-basis:64px;width:64px;height:64px}}';
     document.head.appendChild(s);
@@ -194,10 +209,36 @@
       pack = '<button class="biz-pack small' + (S.arm === id ? ' arm' : '') + '" data-pack="' + esc(id) + '"' + (S.busy ? ' disabled' : '') + '>' +
         (S.arm === id ? 'Tap again to confirm' : 'Pack only this') + '</button>';
     }
-    return '<div class="biz-line">' + ph + '<div class="biz-it"><div class="t">' + esc(l.title) + '</div>' + detail +
+    /* "In the box": tick each product as it goes into the box. Shared with
+       the Sea Diva dashboard. Only physical products that are not done. */
+    var box = '';
+    if (l.physical && l.group !== 'done' && l.group !== 'ignore') {
+      var tid = o.src + '|' + o.invoice + '|' + l.slot;
+      box = '<button class="biz-box' + (l.inBox ? ' on' : '') + '" data-tick="' + esc(tid) + '" title="' +
+        (l.inBox ? 'In the box' + (l.inBox.by ? ' (ticked by ' + esc(l.inBox.by) + ')' : '') + '. Tap to untick.' : 'Tap when this is in the box') +
+        '" aria-pressed="' + (l.inBox ? 'true' : 'false') + '">' + (l.inBox ? '✓' : '') + '</button>';
+    }
+    return '<div class="biz-line' + (l.inBox ? ' inbox' : '') + '">' + box + ph + '<div class="biz-it"><div class="t">' + esc(l.title) + '</div>' + detail +
       '<div class="row">' + (l.qty ? '<span class="biz-q">× ' + esc(l.qty) + '</span>' : '<span class="biz-q">qty not written</span>') +
       (l.packed ? '' : '<span class="biz-s ' + esc(l.group) + '">' + esc(l.status || 'no status') + '</span>') +
       (l.markDone ? '<span class="biz-s mark">not a physical item, mark DONE</span>' : '') + pnote + pack + '</div></div></div>';
+  }
+
+  function labelText(d) {
+    return [d.name || '', d.phone || ''].concat(d.lines || []).filter(Boolean).join('\n');
+  }
+  function labelHtml(d, key) {
+    if (d.marketplace) return '<div class="biz-label">' + esc(d.note) + ' <button data-addr-hide="' + esc(key) + '">Hide</button></div>';
+    var miss = (d.missing || []).map(function (m) {
+      return m === 'address' ? 'The address is not in the sheet. Ask the customer before you seal the box, and write it in the sheet.'
+                             : 'No phone number in the sheet or the contacts book.';
+    });
+    return '<div class="biz-label">' + (d.name ? '<b>' + esc(d.name) + '</b>' : '') +
+      (d.phone ? '<div class="ph">' + esc(d.phone) + '</div>' : '') +
+      (d.lines || []).map(function (x) { return '<div>' + esc(x) + '</div>'; }).join('') +
+      miss.map(function (m) { return '<div class="miss">' + esc(m) + '</div>'; }).join('') +
+      '<div class="src">From: ' + esc(d.from || 'sheet') + '</div>' +
+      '<button data-addr-copy="' + esc(key) + '">Copy</button> <button data-addr-hide="' + esc(key) + '">Hide</button></div>';
   }
 
   function dueHtml(o) {
@@ -227,6 +268,17 @@
       act += '<div class="biz-flash' + (f.bad ? ' bad' : '') + '">' + esc(f.text) +
         (f.click ? ' <button class="biz-undo" data-undo-click="' + esc(f.click) + '">Undo</button>' : '') + '</div>';
     }
+    /* In the box count, and the box label on request. */
+    var boxable = o.lines.filter(function (l) { return l.physical && l.group !== 'done' && l.group !== 'ignore'; });
+    var inBox = boxable.filter(function (l) { return l.inBox; }).length;
+    var boxLine = boxable.length && inBox ? '<div class="biz-boxcount">' + inBox + ' of ' + boxable.length + ' in the box' +
+      (inBox === boxable.length ? '. Everything is in.' : '') + '</div>' : '';
+    var A = S.addr[key], label = '';
+    if (!A) label = '<button class="biz-addrbtn" data-addr="' + esc(key) + '">Name, phone and address for the box</button>';
+    else if (A.loading) label = '<div class="biz-label">Loading…</div>';
+    else if (A.err) label = '<div class="biz-label"><div class="miss">' + esc(A.err) + '</div><button data-addr="' + esc(key) + '">Try again</button></div>';
+    else label = labelHtml(A.data, key);
+    act = label + boxLine + act;
     var after = '';
     if (o.stage === 'packed') {
       after = o.channel === 'shopify' ? ' Once it is sent, mark it fulfilled in Shopify and DONE in the sheet.'
@@ -356,6 +408,43 @@
     }).catch(function (e) { S.flash[key] = { text: e.message || 'Not saved.', bad: true }; render(); });
   }
 
+  function quiet(body) {
+    var h = headers(); h['content-type'] = 'application/json';
+    return fetch('/api/business', { method: 'POST', headers: h, body: JSON.stringify(body), cache: 'no-store' }).then(function (r) {
+      if (r.status === 401 && typeof osUnauthorised === 'function') osUnauthorised();
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok || !j.ok) throw new Error(j.error || ('Not saved (HTTP ' + r.status + ').'));
+        return j;
+      });
+    });
+  }
+
+  /* Tick at once on screen, then save. If saving fails, the tick goes back
+     and the card says why. */
+  function doTick(id) {
+    var parts = id.split('|'), o = find(parts[0], parts[1]);
+    if (!o) return;
+    var l = o.lines.filter(function (x) { return String(x.slot) === parts[2]; })[0];
+    if (!l) return;
+    var was = l.inBox, on = !was;
+    l.inBox = on ? { at: new Date().toISOString(), by: 'Befa' } : null;
+    render();
+    quiet({ action: 'tick', src: parts[0], invoice: parts[1], slot: Number(parts[2]), on: on }).catch(function (e) {
+      l.inBox = was;
+      S.flash[parts[0] + '|' + parts[1]] = { text: 'The tick was not saved: ' + (e.message || 'error'), bad: true };
+      render();
+    });
+  }
+
+  function doAddr(key) {
+    var i = key.lastIndexOf('|'), o = find(key.slice(0, i), key.slice(i + 1));
+    if (!o) return;
+    S.addr[key] = { loading: true }; render();
+    quiet({ action: 'contact', src: o.src, row: o.row, invoice: o.invoice })
+      .then(function (j) { S.addr[key] = { data: j }; render(); })
+      .catch(function (e) { S.addr[key] = { err: e.message || 'Could not read the address.' }; render(); });
+  }
+
   function doUndo(body, key) {
     post(Object.assign({ action: 'undo' }, body), key).then(function (j) {
       var r = j.result || {}, td = j.todo || {};
@@ -368,8 +457,16 @@
   document.addEventListener('click', function (e) {
     var root = document.getElementById(ROOT);
     if (!root || !root.contains(e.target)) return;
-    var b = e.target.closest('[data-biz],[data-stage],[data-ch],[data-act],[data-pack],[data-undo-mark],[data-undo-click]');
+    var b = e.target.closest('[data-biz],[data-stage],[data-ch],[data-act],[data-pack],[data-undo-mark],[data-undo-click],[data-tick],[data-addr],[data-addr-hide],[data-addr-copy]');
     if (!b) return;
+    if (b.dataset.tick) { doTick(b.dataset.tick); return; }
+    if (b.dataset.addr) { doAddr(b.dataset.addr); return; }
+    if (b.dataset.addrHide) { delete S.addr[b.dataset.addrHide]; render(); return; }
+    if (b.dataset.addrCopy) {
+      var A = S.addr[b.dataset.addrCopy];
+      if (A && A.data && navigator.clipboard) navigator.clipboard.writeText(labelText(A.data)).then(function () { b.textContent = 'Copied'; }, function () { b.textContent = 'Copy failed'; });
+      return;
+    }
     if (b.dataset.pack) {
       if (S.busy) return;
       /* Two taps, so a stray tap while scrolling never packs anything. */

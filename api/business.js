@@ -9,6 +9,8 @@
 //   POST /api/business           (x-os-key) pack actions, 13 Oct 2026:
 //        { action: 'mark', src, row, invoice, slots: [1, 2] }
 //        { action: 'undo', click_id } or { action: 'undo', mark_id }
+//        { action: 'contact', src, row, invoice }   name, phone, address for the box
+//        { action: 'tick', src, invoice, slot, on }  "in the box" tick
 //      A mark moves those products to Ready to be shipped (Manual sheet via the
 //      bridge, Shopify/Shopee/Toko recorded and shown until the bridge learns
 //      those tabs), moves the board job to Shipping, and logs one done task on
@@ -94,6 +96,27 @@ async function post(req, res) {
     const todo = await unlogPacks(r.todo_pages || [], pack);
     return res.status(200).json({ ok: true, result: r, todo });
   }
+  /* Box label: name, phone and address for ONE order, only when asked. The
+     database re-checks that the row still holds this invoice. */
+  if (b.action === 'contact') {
+    const row = Number(b.row);
+    if (!TABS.includes(b.src) || !Number.isInteger(row) || row < 2 || !String(b.invoice || '').trim()) {
+      return res.status(400).json({ ok: false, error: 'contact needs src, row and invoice.' });
+    }
+    const r = await pack({ action: 'contact', src: b.src, row, invoice: String(b.invoice).trim() });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Address not found.' });
+    return res.status(200).json(r);
+  }
+  /* "In the box" tick for one product line. */
+  if (b.action === 'tick') {
+    const slot = Number(b.slot);
+    if (!TABS.includes(b.src) || !Number.isInteger(slot) || slot < 1 || slot > 12 || !String(b.invoice || '').trim()) {
+      return res.status(400).json({ ok: false, error: 'tick needs src, invoice and slot.' });
+    }
+    const r = await pack({ action: 'tick', src: b.src, invoice: String(b.invoice).trim(), slot, on: b.on !== false });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not saved.' });
+    return res.status(200).json(r);
+  }
   return res.status(400).json({ ok: false, error: 'Unknown action.' });
 }
 
@@ -120,8 +143,9 @@ export default async function handler(req, res) {
   let todo = { logged: 0, error: '' };
   try { todo = await logPacks(pack, witaDay(new Date().toISOString())); } catch (e) { todo = { logged: 0, error: String(e.message || e) }; }
 
-  const [f, shop] = await Promise.all([feed(), storefront()]);
+  const [f, shop, tk] = await Promise.all([feed(), storefront(), pack({ action: 'ticks' }).catch(() => null)]);
   if (!f.ok) return res.status(f.status).json({ ok: false, error: f.error });
+  f.body.ticks = (tk && tk.ok && tk.ticks) || [];
 
   const out = build(f.body, shop.products, new Date());
   out.photosNote = shop.error || '';
