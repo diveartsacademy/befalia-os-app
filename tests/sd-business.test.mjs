@@ -107,3 +107,84 @@ test('a missing tab says so', () => {
   const t = readTab('manual', [], NOW);
   assert.equal(t.ok, false);
 });
+
+/* ---- Photo rules after the 13 Oct live check. Product names and variant
+   shapes copied from seadivatails.com; image links are placeholders. ---- */
+import { photoIndex, photoFor } from '../api/_sd-business.js';
+
+const shop = [
+  { title: 'Tears of Thalassa Earrings', images: [{ src: 'https://cdn.shopify.com/thalassa.jpg' }],
+    variants: [{ title: 'Sun Gold' }, { title: 'Fairy Gold' }, { title: 'Moon Silver' }] },
+  { title: 'Ocean Spark Necklace', images: [{ src: 'https://cdn.shopify.com/spark.jpg' }],
+    variants: [{ title: 'Pink Starfish Ocean Spark Necklace', featured_image: { src: 'https://cdn.shopify.com/spark-pink.jpg' } },
+               { title: 'Teal Starfish Ocean Spark Necklace', featured_image: { src: 'https://cdn.shopify.com/spark-teal.jpg' } }] },
+  { title: 'Mermaid Temporary Tattoo', images: [{ src: 'https://cdn.shopify.com/tattoo-aqua.jpg' }],
+    variants: [{ title: 'Aqua / Small pack', featured_image: { src: 'https://cdn.shopify.com/tattoo-aqua.jpg' } },
+               { title: 'Orange / Small pack' },
+               { title: 'Orange / Complete pack (S+M+L)', featured_image: { src: 'https://cdn.shopify.com/tattoo-orange.jpg' } }] },
+  { title: 'Sunglasses Case - Mermaid Tail shape', images: [{ src: 'https://cdn.shopify.com/case.jpg' }],
+    variants: [{ title: 'Lola', featured_image: { src: 'https://cdn.shopify.com/case-lola.jpg' } },
+               { title: 'Marina', featured_image: { src: 'https://cdn.shopify.com/case-marina.jpg' } }] },
+  { title: 'Barbie Yellow Fairytopia Mermaid Tail', images: [{ src: 'https://cdn.shopify.com/fairy-yellow.jpg' }], variants: [{ title: 'ADULT' }, { title: 'KIDS' }] },
+  { title: 'Barbie Pink Fairytopia Mermaid Tail', images: [{ src: 'https://cdn.shopify.com/fairy-pink.jpg' }], variants: [{ title: 'ADULT' }, { title: 'KIDS' }] },
+  { title: 'Manta Dive Weight 0.5 KG / 1.1 lbs', images: [{ src: 'https://cdn.shopify.com/manta-05.jpg' }], variants: [{ title: 'White' }, { title: 'Black' }] },
+  { title: 'Manta Dive Weight 1 KG / 2.2 lbs', images: [{ src: 'https://cdn.shopify.com/manta-1.jpg' }], variants: [{ title: 'White' }, { title: 'Black' }] },
+  { title: 'Mermaid Ears', images: [{ src: 'https://cdn.shopify.com/ears.jpg' }], variants: [{ title: 'Default Title' }] },
+  { title: 'Luna Top - Noctara', images: [{ src: 'https://cdn.shopify.com/luna-n.jpg' }], variants: [{ title: 'S' }] },
+  { title: 'Luna Top - Orlune', images: [{ src: 'https://cdn.shopify.com/luna-o.jpg' }], variants: [{ title: 'S' }] }
+];
+const catalog = [
+  { name: 'Headband - Noctara', photo: 'https://lh7-rt.googleusercontent.com/sheetsz/AAA=s2048?key=x' },
+  { name: 'Headband - Vaelora', photo: 'https://photos.example/headband-vaelora.jpg' }
+];
+const IDX = photoIndex(catalog, shop);
+const ph = (item, channel = 'manual') => {
+  const ls = item.split('\n');
+  return photoFor(IDX, channel, { item, title: ls[0], detail: ls.slice(1) });
+};
+
+test('manual lines take Shopify photos, the variant read from the design line', () => {
+  assert.equal(ph('Ocean Spark Necklace\nNecklace design: Pink Starfish Ocean Spark Necklace').url, 'https://cdn.shopify.com/spark-pink.jpg');
+  const t = ph('Tears of Thalassa Earrings\nEarring design: Sun Gold');
+  assert.equal(t.from, 'Shopify');
+  assert.equal(t.how, 'exact', 'no variant has its own photo, so the main photo is the right one');
+});
+
+test('a variant with no photo borrows its same-colour sibling', () => {
+  assert.equal(ph('Mermaid Temporary Tattoo\nColor: Orange\nSize: Small pack').url, 'https://cdn.shopify.com/tattoo-orange.jpg');
+});
+
+test('main photo standing in for an unlisted colour is labelled to check', () => {
+  const c = ph('Sunglasses Case - Mermaid Tail shape\nColor: Jogja');
+  assert.equal(c.url, 'https://cdn.shopify.com/case.jpg');
+  assert.equal(c.how, 'product');
+});
+
+test('loose rule finds the one real product, and the right one', () => {
+  assert.equal(ph('Mermaid Tail Adult - Fairytopia (Yellow)').url, 'https://cdn.shopify.com/fairy-yellow.jpg');
+  assert.equal(ph('Mermaid Tail Kids - Fairytopia (Yellow)').url, 'https://cdn.shopify.com/fairy-yellow.jpg');
+  assert.equal(ph('Manta dive Weight 0,5 KG/ Black').url, 'https://cdn.shopify.com/manta-05.jpg');
+});
+
+test('loose rule refuses when more than one product fits', () => {
+  assert.equal(ph('Luna Top'), null);
+});
+
+test('custom lines never borrow a stock photo', () => {
+  assert.equal(ph('Custom Mermaid Crown (gold crown made of coral with starfish in the middle with pearl and jewels. turquoise fin ears)'), null);
+  assert.equal(ph('Custom Rashguard'), null);
+});
+
+test('private Google Sheets photo links are never shown, public ones are', () => {
+  assert.equal(ph('Headband - Noctara'), null);
+  assert.equal(ph('Headband - Vaelora').url, 'https://photos.example/headband-vaelora.jpg');
+});
+
+test('rule 13 Oct: a non-physical line still open on a paid order is flagged and does not block packing', () => {
+  const bagus = by('SDTSep26-14');
+  const cc = bagus.lines.find((l) => l.title === 'Custom Color');
+  assert.equal(cc.markDone, true);
+  assert.equal(bagus.lines.find((l) => /Manta/.test(l.title)).markDone, false);
+  assert.equal(bagus.stage, 'production', 'the Manta weight is still to buy, so not ready');
+  assert.ok(out.counts.markDone >= 1);
+});

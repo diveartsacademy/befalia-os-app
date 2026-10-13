@@ -20,14 +20,11 @@
 //     its quantity and production status as typed in the sheet.
 //
 //   "the photo of the product ... from Shopify ... or from the product listing"
-//     Shopify lines: the product photo from seadivatails.com (variant photo
-//     when the variant can be told apart, otherwise the product's first photo).
-//     Manual lines: the photo in PRODUCT LIST SDT, then Shopify as a second
-//     source. Every photo says how sure the match is: "exact" (this variant),
-//     or "product" (right product, colour or size may differ). There is no
-//     fuzzy guess. When the name does not clearly match a product, the line
-//     shows no photo rather than a wrong one, because a wrong picture is worse
-//     than none when packing.
+//     Every line, Shopify or Manual, takes its photo from the public Shopify
+//     storefront, the only source whose photos load for anyone. See the
+//     Photos section below for the rules. When the name does not clearly match
+//     one product, the line shows no photo rather than a wrong one, because a
+//     wrong picture is worse than none when packing.
 //
 // Nothing is invented. A line with no photo says so. A column the sheet has
 // renamed makes that tab refuse by name, and the other tab still shows.
@@ -172,100 +169,147 @@ export function readTab(channel, rows, now) {
 }
 
 /* ---------------------------------------------------------------------
-   Photos
+   Photos (rewritten 13 Oct 2026 after the first live check)
+
+   Source order, for every order, Shopify or Manual:
+     1. seadivatails.com, the public Shopify storefront. Its photos are on
+        Shopify's CDN and open for anyone, so they always load.
+     2. PRODUCT LIST SDT, but only links anyone can open. The links the sheet
+        holds today (lh7-rt.googleusercontent.com/sheetsz/...) answer 403 to a
+        server, with or without their key, checked 13 Oct 2026, so they are
+        skipped rather than drawn as a broken square.
+
+   Rules, in order. The first that matches wins:
+     - name starts with a Shopify product name ("Kaia Bottom - Unicorn - M")
+     - a Shopify product name sits inside the line
+     - every word of a Shopify product name (3 words or more) is in the line
+     - every main word of the line is in exactly one Shopify product's name or
+       its variant names ("Mermaid Tail Adult - Fairytopia (Yellow)" finds
+       "Barbie Yellow Fairytopia Mermaid Tail"). One product only, or nothing.
+   A line with the word "custom" never gets a photo by the last two rules: a
+   stock picture of a custom tail or crown shows the wrong thing.
+
+   The variant comes from the words left over plus the lines under the product
+   in the sheet ("Earring design: Sun Gold", "Color: Jogja"). A variant with
+   its own photo gives that photo. Otherwise the product photo, marked
+   "product" only when the product has other colours with their own photos,
+   so the picture might not be the colour ordered.
 --------------------------------------------------------------------- */
-const STOP = { the: 1, and: 1, with: 1, 'for': 1, of: 1, a: 1, size: 1, color: 1, colour: 1, design: 1, variasi: 1, best: 1, seller: 1, default: 1, title: 1 };
+const STOP = { the: 1, and: 1, with: 1, 'for': 1, of: 1, a: 1, size: 1, color: 1, colour: 1, design: 1, variasi: 1,
+               best: 1, seller: 1, default: 1, title: 1, warna: 1, ukuran: 1, earring: 1, necklace: 1 };
+/* Words that say which size or who, not which product. */
+const SIZEISH = { adult: 1, adults: 1, kids: 1, kid: 1, xs: 1, s: 1, m: 1, l: 1, xl: 1, xxl: 1, short: 1, long: 1, pcs: 1, pc: 1 };
+
 export function words(s) {
-  return low(s).replace(/0,5/g, '0.5').replace(/&amp;/g, '&').replace(/[–—]/g, '-')
+  return low(s).replace(/(\d),(\d)/g, '$1.$2').replace(/&amp;/g, '&').replace(/[–—]/g, '-')
+    .replace(/(\d)(kg|gr|g|lbs|lb|cm)\b/g, '$1 $2')
     .replace(/[^a-z0-9.&]+/g, ' ').replace(/\.(?!\d)/g, ' ').replace(/&/g, ' ')
     .split(' ').filter((w) => w && !STOP[w]);
 }
 const key = (s) => words(s).join(' ');
+const PRIVATE = /^https?:\/\/lh\d+(-rt)?\.googleusercontent\.com\/sheetsz\//i;
 
-/* products: seadivatails.com /products.json rows. catalog: [{name, category, photo}] */
 export function photoIndex(catalog, products) {
   const shop = [];
   (products || []).forEach((p) => {
     if (!p || !p.title) return;
     const imgs = (p.images || []).map((i) => i && i.src).filter(Boolean);
-    const first = imgs[0] || '';
     const variants = (p.variants || []).map((v) => ({
-      key: key(String(v.title || '').replace(/\//g, ' ')),
+      set: words(String(v.title || '').replace(/\//g, ' ')),
+      opt1: key(String(v.title || '').split('/')[0]),
       img: (v.featured_image && v.featured_image.src) || ''
-    })).filter((v) => v.key);
-    shop.push({ title: p.title, key: key(p.title), set: words(p.title), img: first, variants, handle: p.handle || '' });
+    })).filter((v) => v.set.length && v.set.join(' ') !== '');
+    const vwords = {};
+    variants.forEach((v) => v.set.forEach((w) => { vwords[w] = 1; }));
+    shop.push({ title: p.title, key: key(p.title), set: words(p.title), img: imgs[0] || '', variants, vwords,
+                ownVariantPhotos: variants.some((v) => v.img) });
   });
   const cat = [];
   (catalog || []).forEach((r) => {
-    if (!r || !r.name || !/^https?:\/\//i.test(r.photo || '')) return;
+    if (!r || !r.name || !/^https?:\/\//i.test(r.photo || '') || PRIVATE.test(r.photo)) return;
     cat.push({ title: r.name, key: key(r.name), set: words(r.name), img: r.photo });
   });
   return { shop, cat };
 }
 
-function contained(hay, needle) { return needle.length >= 6 && (' ' + hay + ' ').indexOf(' ' + needle + ' ') >= 0; }
+function contains(hay, needle) { return needle.length >= 6 && (' ' + hay + ' ').indexOf(' ' + needle + ' ') >= 0; }
 
-/* Every word of the product name appears in the order text, in any order.
-   "Mermaid Tail Adult - Fairytopia (Yellow)" finds "Mermaid Tail - Fairytopia
-   (Yellow)". Needs at least two words so a one word name cannot grab lines. */
-function allWords(list, ws) {
+function pickProduct(list, text, allowLoose) {
+  const k = key(text), ws = words(text);
   const wset = {}; ws.forEach((w) => { wset[w] = 1; });
   let best = null;
-  list.forEach((q) => {
-    if (q.set.length < 2) return;
-    if (q.set.every((w) => wset[w]) && (!best || q.set.length > best.set.length)) best = q;
+  const longer = (q) => !best || q.key.length > best.key.length;
+  list.forEach((q) => { if (q.key && (k === q.key || k.indexOf(q.key + ' ') === 0) && longer(q)) best = q; });
+  if (best) return best;
+  list.forEach((q) => { if (contains(k, q.key) && longer(q)) best = q; });
+  if (best) return best;
+  if (!allowLoose) return null;
+  list.forEach((q) => { if (q.set.length >= 3 && q.set.every((w) => wset[w]) && longer(q)) best = q; });
+  if (best) return best;
+  const core = ws.filter((w) => !SIZEISH[w] && !/^\d+(-\d+)?$/.test(w));
+  if (core.length < 2) return null;
+  const hits = list.filter((q) => {
+    const tset = {}; q.set.forEach((w) => { tset[w] = 1; });
+    const inTitle = core.filter((w) => tset[w]).length;
+    return inTitle >= 2 && core.every((w) => tset[w] || (q.vwords && q.vwords[w]));
+  });
+  return hits.length === 1 ? hits[0] : null;
+}
+
+function pickVariant(p, text, hints) {
+  if (!p.variants || !p.variants.length) return null;
+  const tset = {}; p.set.forEach((w) => { tset[w] = 1; });
+  const left = {};
+  words(text).forEach((w) => { if (!tset[w]) left[w] = 1; });
+  (hints || []).forEach((h) => words(String(h).replace(/^[^:]*:/, '')).forEach((w) => { left[w] = 1; }));
+  let best = null;
+  p.variants.forEach((v) => {
+    if (v.set.every((w) => left[w]) && (!best || v.set.length > best.set.length || (v.set.length === best.set.length && v.img && !best.img))) best = v;
   });
   return best;
 }
 
-function fromShop(idx, text) {
-  const k = key(text), ws = words(text);
-  let p = null;
-  idx.shop.forEach((q) => { if ((k === q.key || k.indexOf(q.key + ' ') === 0) && (!p || q.key.length > p.key.length)) p = q; });
-  if (p) {
-    const rest = k === p.key ? '' : k.slice(p.key.length + 1);
-    let v = null;
-    if (rest) {
-      v = p.variants.find((x) => x.key === rest) ||
-          p.variants.find((x) => { const xs = x.key.split(' '); return xs.length && xs.every((w) => (' ' + rest + ' ').indexOf(' ' + w + ' ') >= 0); }) || null;
-    }
-    if (v && v.img) return { url: v.img, how: 'exact', from: 'Shopify', product: p.title };
-    if (p.img) return { url: p.img, how: rest && p.variants.length > 1 ? 'product' : 'exact', from: 'Shopify', product: p.title };
-    return null;
+function fromShop(idx, line, loose) {
+  const text = line.title || line.item;
+  const p = pickProduct(idx.shop, text, loose);
+  if (!p) return null;
+  const v = pickVariant(p, text, line.detail);
+  if (v && v.img) return { url: v.img, how: 'exact', from: 'Shopify', product: p.title };
+  /* "Orange / Small pack" has no photo, "Orange / Complete pack" does. Same
+     first option means same colour or design, so borrow that photo. */
+  if (v && v.opt1) {
+    const sib = p.variants.find((x) => x.img && x.opt1 === v.opt1);
+    if (sib) return { url: sib.img, how: 'exact', from: 'Shopify', product: p.title };
   }
-  let q = null;
-  idx.shop.forEach((x) => { if (contained(k, x.key) && (!q || x.key.length > q.key.length)) q = x; });
-  if (!q) q = allWords(idx.shop, ws);
-  if (q && q.img) return { url: q.img, how: 'product', from: 'Shopify', product: q.title };
-  return null;
+  if (!p.img) return null;
+  /* The main photo shows one colour. If other colours have their own photos,
+     the main one may not be the colour ordered, so say so. */
+  return { url: p.img, how: p.ownVariantPhotos ? 'product' : 'exact', from: 'Shopify', product: p.title };
 }
 
-function fromList(idx, text) {
-  const k = key(text), ws = words(text);
-  let p = idx.cat.find((q) => q.key === k) || null;
-  if (p) return { url: p.img, how: 'exact', from: 'Product list', product: p.title };
-  idx.cat.forEach((q) => { if (contained(k, q.key) && (!p || q.key.length > p.key.length)) p = q; });
-  if (!p) p = allWords(idx.cat, ws);
-  if (p) return { url: p.img, how: 'product', from: 'Product list', product: p.title };
-  return null;
+function fromList(idx, line) {
+  const p = pickProduct(idx.cat, line.item || line.title, true);
+  return p ? { url: p.img, how: 'product', from: 'Product list', product: p.title } : null;
 }
 
-/* The first line of a cell is the product. Lines under it ("Earring design:
-   Sun Gold", "Size: Long") often carry the design, so the product list match
-   reads the whole cell, and the Shopify name match reads the first line. */
 export function photoFor(idx, channel, line) {
-  const title = line.title || line.item;
-  const full = line.item || title;
-  if (channel === 'shopify') {
-    return fromShop(idx, title) || fromList(idx, full);
-  }
-  return fromList(idx, full) || fromShop(idx, title);
+  const custom = /\bcustom\b/i.test(line.item || line.title || '');
+  return fromShop(idx, line, !custom) || (custom ? null : fromList(idx, line));
 }
 
 /* ---------------------------------------------------------------------
    The Sea Diva section
 --------------------------------------------------------------------- */
 const READY = { ready: 1, shipping: 1 };
+
+/* Befa's rule, 13 Oct 2026: lines that are not a physical item (custom colour,
+   design fees, design buy out, warranty and similar) are marked DONE as soon
+   as the invoice is paid. The tab checks for that. Such a line that is still
+   open is flagged "mark DONE", and it does not hold the order out of Ready to
+   pack. The list is kept narrow on purpose: "Upgrade" and "Performance
+   Support Program" lines are real production and are not on it. */
+export const NON_PHYSICAL = /\b(custom colou?r|custom design fee|design fee|design buy ?out|buy ?out|warranty|garansi|shipping fee|ongkir|insurance|asuransi)\b/i;
+export function nonPhysical(item) { return NON_PHYSICAL.test(String(item || '')); }
 
 export function build(feed, products, now) {
   now = now || new Date();
@@ -299,11 +343,13 @@ export function build(feed, products, now) {
       include = true;
     }
     if (!include) return;
+    const physical = open.filter((l) => !nonPhysical(l.item));
     if (!stage) {
-      const ready = open.filter((l) => READY[l.group]);
-      const blank = open.filter((l) => l.group === 'blank');
-      if (ready.length === open.length) stage = 'ready';
-      else if (blank.length === open.length) stage = 'not_set';
+      const ready = physical.filter((l) => READY[l.group]);
+      const blank = physical.filter((l) => l.group === 'blank');
+      if (!physical.length) stage = 'paperwork';
+      else if (ready.length === physical.length) stage = 'ready';
+      else if (blank.length === physical.length) stage = 'not_set';
       else if (ready.length) stage = 'partly';
       else stage = 'production';
     }
@@ -314,18 +360,19 @@ export function build(feed, products, now) {
       doneCount: o.lines.length - open.length, lineCount: o.lines.length,
       lines: show.map((l) => ({
         title: l.title, detail: l.detail, qty: l.qty, status: l.status || '', group: l.group,
+        markDone: o.pay !== 'unpaid' && l.group !== 'done' && nonPhysical(l.item),
         photo: photoFor(idx, o.channel, l)
       }))
     });
   });
 
-  const RANK = { ready: 0, partly: 1, production: 2, not_set: 3, close_in_shopify: 4, no_items: 5 };
+  const RANK = { ready: 0, partly: 1, production: 2, not_set: 3, paperwork: 4, close_in_shopify: 5, no_items: 6 };
   orders.sort((a, b) => (RANK[a.stage] - RANK[b.stage]) || ((b.days == null ? -1 : b.days) - (a.days == null ? -1 : a.days)));
 
-  const counts = { all: orders.length, shopify: 0, manual: 0, ready: 0, partly: 0, production: 0, not_set: 0, close_in_shopify: 0, no_items: 0, lines: 0, photos: 0, productPhotos: 0 };
+  const counts = { all: orders.length, shopify: 0, manual: 0, ready: 0, partly: 0, production: 0, not_set: 0, close_in_shopify: 0, paperwork: 0, no_items: 0, lines: 0, photos: 0, productPhotos: 0, markDone: 0 };
   orders.forEach((o) => {
     counts[o.channel]++; counts[o.stage]++;
-    o.lines.forEach((l) => { counts.lines++; if (l.photo) { counts.photos++; if (l.photo.how === 'product') counts.productPhotos++; } });
+    o.lines.forEach((l) => { counts.lines++; if (l.markDone) counts.markDone++; if (l.photo) { counts.photos++; if (l.photo.how === 'product') counts.productPhotos++; } });
   });
   return { ok: true, generatedAt: now.toISOString(), sources, counts, orders };
 }

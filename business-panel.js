@@ -26,6 +26,7 @@
     ['partly', 'Partly ready'],
     ['production', 'In production'],
     ['not_set', 'No status yet'],
+    ['paperwork', 'Only paperwork left'],
     ['close_in_shopify', 'Close in Shopify']
   ];
   var STAGE_NOTE = {
@@ -33,6 +34,7 @@
     partly: 'Some products are ready, the rest are still being made or bought.',
     production: 'Still being designed, made or bought.',
     not_set: 'Paid, but no production status is written in the sheet yet.',
+    paperwork: 'Nothing physical is left, only lines like design fees or custom colour. Mark them DONE in the sheet.',
     close_in_shopify: 'Every product is DONE in the sheet, but Shopify still says unfulfilled. Mark it fulfilled in Shopify.',
     no_items: 'This Shopify order has no products in the sheet.'
   };
@@ -104,6 +106,7 @@
       '.biz-s.third_todo,.biz-s.third_ordered{background:rgba(255,210,127,.13);color:#ffd99a}' +
       '.biz-s.making{background:rgba(46,230,255,.12);color:var(--aquasoft)}' +
       '.biz-s.blank{background:rgba(255,107,129,.10);color:#ffa3b3}' +
+      '.biz-s.mark{background:rgba(255,210,127,.16);color:#ffd99a;border:1px dashed rgba(255,210,127,.5)}' +
       '.biz-pnote{font:11px var(--sans);color:var(--dim)}' +
       '.biz-foot{font:12px var(--sans);color:var(--dim);margin-top:6px}' +
       '.biz-empty{font:13.5px/1.5 var(--sans);color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:14px;margin-top:12px}' +
@@ -129,16 +132,17 @@
         '<img loading="lazy" referrerpolicy="no-referrer" alt="' + esc(l.title) + '" src="' + esc(p.url) + '" ' +
         'onerror="this.parentNode.outerHTML=\'<div class=&quot;biz-ph&quot;>photo did not load</div>\'"></a>';
     } else {
-      ph = '<div class="biz-ph">no photo on file</div>';
+      ph = '<div class="biz-ph">no shop photo</div>';
     }
     var pnote = '';
     if (p) {
-      pnote = '<span class="biz-pnote">' + esc(p.from) + (p.how === 'product' ? ', product photo, check colour and size' : '') + '</span>';
+      pnote = p.how === 'product' ? '<span class="biz-pnote">check colour and size</span>' : '';
     }
     var detail = (l.detail || []).map(function (d) { return '<div class="d">' + esc(d) + '</div>'; }).join('');
     return '<div class="biz-line">' + ph + '<div class="biz-it"><div class="t">' + esc(l.title) + '</div>' + detail +
       '<div class="row">' + (l.qty ? '<span class="biz-q">× ' + esc(l.qty) + '</span>' : '<span class="biz-q">qty not written</span>') +
-      '<span class="biz-s ' + esc(l.group) + '">' + esc(l.status || 'no status') + '</span>' + pnote + '</div></div></div>';
+      '<span class="biz-s ' + esc(l.group) + '">' + esc(l.status || 'no status') + '</span>' +
+      (l.markDone ? '<span class="biz-s mark">not a physical item, mark DONE</span>' : '') + pnote + '</div></div></div>';
   }
 
   function cardHtml(o) {
@@ -195,8 +199,10 @@
     });
     var body = list.length ? '<div class="biz-list">' + list.map(cardHtml).join('') + '</div>'
       : '<div class="biz-empty">' + (c.all ? 'Nothing in this filter.' : 'No paid order is waiting. Every paid Shopify and Manual order in the sheet is done or shipped.') + '</div>';
-    var photoLine = c.lines ? '<div class="biz-fresh">' + c.photos + ' of ' + c.lines + ' products have a photo. ' +
-      'A photo marked "product photo" shows the right product, but the colour or size may differ, so check the line text.</div>' : '';
+    var photoLine = c.lines ? '<div class="biz-fresh">' + c.photos + ' of ' + c.lines + ' products have a photo, all from seadivatails.com. ' +
+      'A photo marked "check colour and size" shows the right product, but maybe not the colour ordered. Custom pieces and items not on the shop have no photo.</div>' : '';
+    if (c.markDone) photoLine += '<div class="biz-warn">' + c.markDone + (c.markDone === 1 ? ' line is' : ' lines are') +
+      ' not a physical item but still open on a paid order (design fee, custom colour and similar). Your rule: mark these DONE in the sheet once the invoice is paid. They no longer hold an order out of Ready to pack.</div>';
     return h + '<div class="biz-fresh">' + esc(fresh) + '</div>' + warn + tiles + chans + photoLine + body;
   }
 
