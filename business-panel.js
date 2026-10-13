@@ -288,19 +288,27 @@
     return ' · <span class="biz-due ' + cls + '">ship by ' + esc(day(o.shipBy)) + ', ' + t + '</span>';
   }
 
+  /* Everything ticked in the box (Befa, 13 Oct 23:44): then the big button
+     packs every product, whatever the sheet still says, so pickup or send
+     follows straight away. Worked out on each draw, so a tick counts at once. */
+  function boxAllIn(o) {
+    var phys = o.lines.filter(function (l) { return l.physical && l.group !== 'done' && l.group !== 'ignore'; });
+    return phys.length > 0 && phys.every(function (l) { return l.inBox || l.packed; });
+  }
   function cardHtml(o) {
     var dated = o.date ? day(o.date) + (o.days != null ? ' · ' + o.days + ' days ago' : '') : (o.dateText || 'no date');
     var packable = o.lines.filter(function (l) { return l.canPack; });
     /* The big button packs only what the sheet says is ready. Anything else
        can still be packed one by one, on purpose. */
-    var ready = packable.filter(function (l) { return l.group === 'ready' || l.group === 'shipping'; });
+    var boxAll = boxAllIn(o);
+    var ready = packable.filter(function (l) { return l.group === 'ready' || l.group === 'shipping' || boxAll; });
     var key = o.src + '|' + o.invoice;
     var act = '';
     if (ready.length) {
       var all = key + '|*';
       act = '<div class="biz-act"><button class="biz-pack' + (S.arm === all ? ' arm' : '') + '" data-pack="' + esc(all) + '"' + (S.busy ? ' disabled' : '') + '>' +
         (S.busy === key ? 'Saving…' : (S.arm === all ? 'Tap again to confirm' : 'Packed, ready to ship' +
-          (ready.length < packable.length ? ' (the ' + ready.length + ' ready)' : (ready.length > 1 ? ' (' + ready.length + ' products)' : '')))) +
+          (ready.length < packable.length ? ' (the ' + ready.length + ' ready)' : (boxAll && ready.length > 1 ? ' (all ' + ready.length + ' in the box)' : (ready.length > 1 ? ' (' + ready.length + ' products)' : ''))))) +
         '</button></div>';
     }
     var f = S.flash[key];
@@ -482,7 +490,8 @@
     var parts = id.split('|'), src = parts[0], inv = parts[1], slot = parts[2];
     var o = find(src, inv);
     if (!o) return;
-    var slots = slot === '*' ? o.lines.filter(function (l) { return l.canPack && (l.group === 'ready' || l.group === 'shipping'); }).map(function (l) { return l.slot; }) : [Number(slot)];
+    var all = boxAllIn(o);
+    var slots = slot === '*' ? o.lines.filter(function (l) { return l.canPack && (l.group === 'ready' || l.group === 'shipping' || all); }).map(function (l) { return l.slot; }) : [Number(slot)];
     var key = src + '|' + inv;
     post({ action: 'mark', src: src, row: o.row, invoice: inv, slots: slots }, key).then(function (j) {
       var r = j.result || {}, lines = r.lines || [], n = r.marked || 0;
