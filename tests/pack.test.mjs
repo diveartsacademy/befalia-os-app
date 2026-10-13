@@ -150,3 +150,29 @@ test('To send sorts after packed-without-a-choice and before pickup', () => {
   const j = r.orders.findIndex((o) => o.stage === 'ready');
   assert.ok(j < i);
 });
+
+test('TailCraft: paid invoices are listed from the invoice lines, by project stage', () => {
+  const f = JSON.parse(JSON.stringify(feed));
+  f.tailcraft = [
+    { invoice: 'INV-TC-AUG26-1', customer: 'Customer TC', project: 'TC-2026-002', stage: 'deposit_paid', stage_label: 'Paid, Process Order',
+      date: '2026-07-31', country: 'Bali', pay: 'paid', lines: [{ slot: 1, title: 'TailCraft Mermaid Tail, Dark Pink Patra', qty: 1 }, { slot: 2, title: 'Swimmable Corset', qty: 1 }] },
+    { invoice: 'INV-TC-X', customer: 'Customer TX', project: 'TC-2026-099', stage: 'ready_ship', stage_label: 'Ready to be shipped',
+      date: '2026-09-01', pay: 'paid', lines: [{ slot: 1, title: 'TailCraft Mermaid Tail, Test', qty: 1 }] }];
+  f.marks = (f.marks || []).concat([{ id: 99, click_id: 'c-tc', src: 'TAILCRAFT', invoice: 'INV-TC-X', slot: 1, at: '2026-10-13T01:00:00Z', by: 'Befa', write: 'tailcraft' }]);
+  const r = build(f, products, NOW);
+  const a = r.orders.find((o) => o.invoice === 'INV-TC-AUG26-1');
+  assert.equal(a.channel, 'tailcraft');
+  assert.equal(a.src, 'TAILCRAFT');
+  assert.equal(a.row, 0);
+  assert.equal(a.stage, 'production', 'still being made');
+  assert.deepEqual(a.lines.map((l) => l.title), ['TailCraft Mermaid Tail, Dark Pink Patra', 'Swimmable Corset'], 'follows the invoice');
+  assert.ok(a.lines.every((l) => l.photo === null && l.canPack));
+  assert.equal(r.orders.find((o) => o.invoice === 'INV-TC-X').stage, 'packed');
+  assert.equal(r.counts.tailcraft, 2);
+});
+
+test('TailCraft: a feed without TailCraft still builds (older feeds)', () => {
+  const r = build(feed, products, NOW);
+  assert.equal(r.counts.tailcraft, 0);
+  assert.equal(r.sources.tailcraft, undefined);
+});

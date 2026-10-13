@@ -196,6 +196,31 @@ export function readTab(channel, rows, now) {
 }
 
 /* ---------------------------------------------------------------------
+   TailCraft (13 Oct 2026, 23:00). Befa: "Follow the invoice." Paid TailCraft
+   orders come from the database (tailcraft.invoices and invoice_lines), not
+   from the TAILCRAFT DASHBOARD sheet. Every product carries the project's
+   stage; Ready to be shipped counts as ready, anything earlier as still being
+   made. No shop photos: these are custom pieces.
+--------------------------------------------------------------------- */
+export const TC_SRC = 'TAILCRAFT';
+export function readTailcraft(list, now) {
+  return (list || []).filter((t) => t && t.invoice).map((t) => {
+    const date = t.date ? new Date(String(t.date).slice(0, 10) + 'T00:00:00') : null;
+    const ready = t.stage === 'ready_ship';
+    return {
+      channel: 'tailcraft', src: TC_SRC, invoice: txt(t.invoice), customer: txt(t.customer), row: 0,
+      dateText: t.date || '', date: ymd(date), days: daysSince(date, now),
+      payText: t.pay || '', pay: t.pay === 'paid' ? 'paid' : 'part', fulfil: '', shipped: false,
+      country: txt(t.country), shipBy: null, shipByText: '', shipByDays: null, project: t.project || '',
+      lines: (t.lines || []).map((l) => ({
+        slot: Number(l.slot), item: txt(l.title), title: txt(l.title), detail: t.project ? ['TailCraft ' + t.project] : [],
+        qty: Number(l.qty) || null, status: t.stage_label || '', group: ready ? 'ready' : 'tc_making', tailcraft: true
+      }))
+    };
+  });
+}
+
+/* ---------------------------------------------------------------------
    Photos (rewritten 13 Oct 2026 after the first live check)
 
    Source order, for every order, Shopify or Manual:
@@ -398,6 +423,11 @@ export function build(feed, products, now, opts) {
     }
     all.push(...t.orders);
   });
+  /* TailCraft: only when the feed carries it (older feeds do not). */
+  if (feed && Array.isArray(feed.tailcraft)) {
+    sources.tailcraft = { ok: true, error: '', loadedAt: null };
+    all.push(...readTailcraft(feed.tailcraft, now));
+  }
 
   const orders = [];
   all.forEach((o) => {
@@ -454,7 +484,7 @@ export function build(feed, products, now, opts) {
         packed: l.packed || null,
         inBox: l.inBox || null,
         note: l.note || null,
-        photo: photoFor(idx, o.channel, l)
+        photo: l.tailcraft ? null : photoFor(idx, o.channel, l)
       }))
     });
   });
@@ -466,7 +496,7 @@ export function build(feed, products, now, opts) {
   orders.sort((a, b) => (RANK[a.stage] - RANK[b.stage]) || (due(a) - due(b)) ||
     ((b.days == null ? -1 : b.days) - (a.days == null ? -1 : a.days)));
 
-  const counts = { all: orders.length, shopify: 0, manual: 0, shopee: 0, toko: 0, ready: 0, partly: 0, production: 0, not_set: 0,
+  const counts = { all: orders.length, shopify: 0, manual: 0, shopee: 0, toko: 0, tailcraft: 0, ready: 0, partly: 0, production: 0, not_set: 0,
                    packed: 0, to_send: 0, pickup: 0, close_in_shopify: 0, paperwork: 0, no_items: 0, lines: 0, photos: 0, productPhotos: 0, markDone: 0,
                    packedLines: 0, packedToday: 0 };
   const today = witaDay(now.toISOString());

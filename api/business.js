@@ -33,7 +33,7 @@
 //      Shopify product photos. Public, no key. Cached for 30 minutes.
 // The sorting rules live in api/_sd-business.js.
 import { requireKey } from './_auth.js';
-import { build, SRC } from './_sd-business.js';
+import { build, SRC, TC_SRC } from './_sd-business.js';
 import { logPacks, unlogPacks, witaDay, packCall } from './_todo-pack.js';
 
 const FEED_URL = process.env.BIZ_FEED_URL || 'https://gszjrsvvpajznwdrtjva.supabase.co/functions/v1/befalia-business';
@@ -74,7 +74,10 @@ async function feed() {
 
 const pack = packCall;
 
-const TABS = Object.values(SRC);
+const TABS = Object.values(SRC).concat(TC_SRC);
+/* A sheet order needs its row (the database re-checks it holds the invoice).
+   A TailCraft order has no sheet row: it is found by invoice, row 0. */
+const badRow = (src, row) => (src === TC_SRC ? row !== 0 : (!Number.isInteger(row) || row < 2));
 
 /* The body as an object, whatever shape Vercel hands over: already parsed,
    a string, a Buffer, or (when the content type was unusual) unread. */
@@ -99,7 +102,7 @@ async function post(req, res) {
   if (b.action === 'mark') {
     const slots = Array.isArray(b.slots) ? b.slots.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 12) : [];
     const row = Number(b.row);
-    if (!TABS.includes(b.src) || !Number.isInteger(row) || row < 2 || !String(b.invoice || '').trim() || !slots.length) {
+    if (!TABS.includes(b.src) || badRow(b.src, row) || !String(b.invoice || '').trim() || !slots.length) {
       return res.status(400).json({ ok: false, error: 'mark needs src, row, invoice and slots.' });
     }
     const r = await pack({ action: 'mark', src: b.src, row, invoice: String(b.invoice).trim(), slots });
@@ -121,7 +124,7 @@ async function post(req, res) {
      database re-checks that the row still holds this invoice. */
   if (b.action === 'contact') {
     const row = Number(b.row);
-    if (!TABS.includes(b.src) || !Number.isInteger(row) || row < 2 || !String(b.invoice || '').trim()) {
+    if (!TABS.includes(b.src) || badRow(b.src, row) || !String(b.invoice || '').trim()) {
       return res.status(400).json({ ok: false, error: 'contact needs src, row and invoice.' });
     }
     const r = await pack({ action: 'contact', src: b.src, row, invoice: String(b.invoice).trim() });
@@ -132,7 +135,7 @@ async function post(req, res) {
      DONE to the board and (Manual) the sheet. Undo with its id. */
   if (b.action === 'ship') {
     const row = Number(b.row);
-    if (!TABS.includes(b.src) || !Number.isInteger(row) || row < 2 || !String(b.invoice || '').trim()) {
+    if (!TABS.includes(b.src) || badRow(b.src, row) || !String(b.invoice || '').trim()) {
       return res.status(400).json({ ok: false, error: 'ship needs src, row and invoice.' });
     }
     const r = await pack({ action: 'ship', src: b.src, row, invoice: String(b.invoice).trim() });

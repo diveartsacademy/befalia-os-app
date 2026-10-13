@@ -235,3 +235,19 @@ test('GET leaves pickup orders out of Befalia OS and counts them', async () => {
   assert.equal(r.body.orders.find((o) => o.invoice === '#1069'), undefined);
   assert.equal(r.body.counts.pickupHidden, 1);
 });
+
+test('POST for a TailCraft order needs row 0, never a sheet row', async () => {
+  calls.length = 0;
+  packAnswer = { mark: { ok: true, marked: 1, click_id: 'c1', lines: [] }, contact: { ok: true, name: 'X' } };
+  delete process.env.NOTION_TOKEN;
+  let r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'contact', src: 'TAILCRAFT', row: 0, invoice: 'INV-TC-AUG26-1' } }), r);
+  assert.equal(r.code, 200);
+  assert.deepEqual(calls[0].body, { action: 'contact', src: 'TAILCRAFT', row: 0, invoice: 'INV-TC-AUG26-1' });
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'ship', src: 'TAILCRAFT', row: 79, invoice: 'INV-TC-AUG26-1' } }), r);
+  assert.equal(r.code, 400, 'a sheet row on a TailCraft order is refused');
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'mark', src: 'SHOPEE - OL', row: 0, invoice: 'X1', slots: [1] } }), r);
+  assert.equal(r.code, 400, 'row 0 on a sheet order is refused');
+});

@@ -23,7 +23,7 @@
   var ROOT = 'biz-root';
   var S = { biz: 'seadiva', stage: 'all', ch: 'all', data: null, err: '', loading: false, at: null,
             arm: '', busy: '', flash: {}, addr: {}, noteEdit: '', noteDraft: {}, noteBusy: '', notice: null, visible: [] };
-  var CH = { shopify: 'Shopify', shopee: 'Shopee', toko: 'Tokopedia/TikTok', manual: 'Manual' };
+  var CH = { shopify: 'Shopify', shopee: 'Shopee', toko: 'Tokopedia/TikTok', manual: 'Manual', tailcraft: 'TailCraft' };
 
   var BUSINESSES = [
     ['seadiva', 'Sea Diva'],
@@ -126,6 +126,7 @@
       '.biz-foot{font:12px var(--sans);color:var(--dim);margin-top:6px}' +
       '.biz-badge.shopee{background:rgba(255,120,60,.16);color:#ffb08a}' +
       '.biz-badge.toko{background:rgba(95,194,126,.16);color:#9fe8b6}' +
+      '.biz-badge.tailcraft{background:rgba(206,160,255,.16);color:#dcc2ff}' +
       '.biz-card.st-packed{border-style:dashed}' +
       '.biz-stage.to_send{color:#8fd3ff;border-color:rgba(143,211,255,.5)}' +
       '.biz-hand{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}' +
@@ -335,7 +336,9 @@
     }
     act = hand + act;
     var after = '';
-    if (o.stage === 'packed' || o.stage === 'to_send') {
+    if ((o.stage === 'packed' || o.stage === 'to_send') && o.channel === 'tailcraft') {
+      after = ' Once it is sent, tap Courier has it, mark DONE. That moves the TailCraft project to Shipped.';
+    } else if (o.stage === 'packed' || o.stage === 'to_send') {
       after = o.channel === 'shopify' ? ' Once it is sent, mark it fulfilled in Shopify and DONE in the sheet.'
         : (o.channel === 'manual' ? ' Once it is sent, tick Shipped and set DONE in the sheet.' : ' Once the courier has it, set DONE in the sheet.');
     }
@@ -384,7 +387,7 @@
       if (s[0] !== 'all' && !n) return '';
       return '<button class="biz-tile' + (S.stage === s[0] ? ' on' : '') + '" data-stage="' + s[0] + '"><b>' + (n || 0) + '</b><span>' + esc(s[1]) + '</span></button>';
     }).join('') + '</div>';
-    var chans = '<div class="biz-sub">' + [['all', 'All shops'], ['shopify', 'Shopify'], ['shopee', 'Shopee'], ['toko', 'Tokopedia/TikTok'], ['manual', 'Manual']].map(function (x) {
+    var chans = '<div class="biz-sub">' + [['all', 'All shops'], ['shopify', 'Shopify'], ['shopee', 'Shopee'], ['toko', 'Tokopedia/TikTok'], ['manual', 'Manual'], ['tailcraft', 'TailCraft']].map(function (x) {
       var n = x[0] === 'all' ? c.all : c[x[0]];
       if (x[0] !== 'all' && !n) return '';
       return '<button class="biz-chip' + (S.ch === x[0] ? ' on' : '') + '" data-ch="' + x[0] + '">' + esc(x[1]) + '<i>' + (n || 0) + '</i></button>';
@@ -396,7 +399,7 @@
     var shipBox = '';
     if ((d.shipped || []).length) {
       shipBox = '<div class="biz-shipped"><h4>Marked already shipped, last 3 days</h4>' + d.shipped.map(function (k) {
-        return '<div class="r"><b>' + esc(k.invoice) + '</b> <span>' + esc(CH[{ 'MANUAL (IG & WA) - OL': 'manual', 'SHOPIFY-OL': 'shopify', 'SHOPEE - OL': 'shopee', 'TOKOPEDIA/TIKTOK shop -OL': 'toko' }[k.src]] || '') +
+        return '<div class="r"><b>' + esc(k.invoice) + '</b> <span>' + esc(CH[{ 'MANUAL (IG & WA) - OL': 'manual', 'SHOPIFY-OL': 'shopify', 'SHOPEE - OL': 'shopee', 'TOKOPEDIA/TIKTOK shop -OL': 'toko', 'TAILCRAFT': 'tailcraft' }[k.src]] || '') +
           (k.customer ? ' · ' + esc(k.customer) : '') + ' · ' + esc(when(k.at)) + '</span>' +
           '<button class="biz-undo" data-unship="' + esc(k.id) + '">Undo</button>' +
           (k.byHand ? '<span class="h">Set DONE by hand in the sheet for ' + k.byHand + (k.byHand === 1 ? ' product' : ' products') +
