@@ -449,6 +449,11 @@
     <div class="section-label">Journals &amp; trackers</div>
     <div class="grid" id="trackers"></div>
   </div>
+  <div class="tabpane" id="tab-business">
+    <div class="section-label">Business</div>
+    <div class="blurb" style="margin:8px 4px 0;font-style:italic">How each business is moving. Sea Diva first: every paid order that is not finished yet, with the photo of each product, so you can help pack and ship. Read only, nothing here changes the sheet.</div>
+    <div id="biz-root"></div>
+  </div>
   <div class="tabpane" id="tab-finance">
     <div class="section-label">Personal finance</div>
     <div class="grid" id="pending"></div>
@@ -613,10 +618,10 @@ const ROUTES={
 };
 
 /* ---------- tabs ---------- */
-function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
+function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-business'&&typeof window.bizOpen==='function')window.bizOpen();if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
 function buildTabs(){
   const bar=document.getElementById('tabs');
-  [['tab-command','Home'],['tab-todo','To-Do'],['tab-goals','Goals'],['tab-health','Health'],['tab-areas','Relationship'],['tab-room','About Me'],['tab-finance','Finance'],['tab-social','Social'],['tab-agents','Agents']].forEach((t,i)=>{
+  [['tab-command','Home'],['tab-todo','To-Do'],['tab-goals','Goals'],['tab-health','Health'],['tab-areas','Relationship'],['tab-room','About Me'],['tab-business','Business'],['tab-finance','Finance'],['tab-social','Social'],['tab-agents','Agents']].forEach((t,i)=>{
     const b=document.createElement('button');b.className='tab'+(i===0?' active':'');b.textContent=t[1];b.setAttribute('data-pane',t[0]);
     b.onclick=()=>showTab(t[0]);
     bar.appendChild(b);
@@ -2217,5 +2222,6 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
 </script>
 <script>window.PACKING_CONFIG = { api: '/api/packing', slots: ['pack-slot-home', 'pack-slot-todo'], theme: 'dark', headers: function () { return (typeof osHeaders === 'function') ? osHeaders() : {}; } };</script>
 <script src="/packing-panel.js"></script>
+<script src="/business-panel.js"></script>
 </body>
 </html>
