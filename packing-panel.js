@@ -19,6 +19,11 @@
    "nothing tomorrow" can be told apart from "could not read". A session the
    brain cannot recognise is shown as UNKNOWN in red, and that card can never
    show as done. A tick only stays ticked on screen if the sheet saved it.
+
+   The × on a card (13 Oct 2026) hides it for the person looking, either that
+   one day or every class in that city. It is saved in the sheet, so it holds
+   on every device for that person, and the line "Hidden for you" with Show
+   brings it back. Hiding never changes what the other person sees.
    --------------------------------------------------------------------------- */
 (function () {
   'use strict';
@@ -29,6 +34,7 @@
   var REFRESH_MS = 120000;
 
   var DATA = null, ERR = '', LOADING = false, OPEN = {}, BUSY = {}, MSG = {}, timer = null, AGAIN = false;
+  var ASK = {}, HIDEMSG = '';   // ASK[cardId] = the hide choices are open for that card
 
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -56,10 +62,18 @@
       '.pk{font-family:inherit;color:' + P.ink + ';margin-bottom:16px}' +
       '.pk-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 8px}' +
       '.pk-h b{font-size:15.5px}.pk-h button{background:none;border:0;color:' + P.mute + ';font:700 12px inherit;cursor:pointer;padding:4px 0}' +
-      '.pk-card{background:' + P.card + ';border:1px solid ' + P.line + ';border-radius:14px;margin-bottom:10px;overflow:hidden}' +
+      '.pk-card{position:relative;background:' + P.card + ';border:1px solid ' + P.line + ';border-radius:14px;margin-bottom:10px;overflow:hidden}' +
+      '.pk-x{position:absolute;top:6px;right:6px;width:36px;height:36px;border:0;background:none;color:' + P.mute + ';font-family:inherit;font-size:26px;line-height:1;cursor:pointer;border-radius:50%;z-index:2}' +
+      '.pk-x:hover{background:' + P.row + ';color:' + P.ink + '}' +
+      '.pk-ask{border-top:1px solid ' + P.line + ';padding:11px 15px 13px;font-size:13px}' +
+      '.pk-ask .q{color:' + P.mute + ';margin-bottom:8px}' +
+      '.pk-ask button{border:1px solid ' + P.line + ';background:' + P.row + ';color:' + P.ink + ';border-radius:999px;padding:8px 13px;font:700 12.5px inherit;cursor:pointer;margin:0 6px 6px 0;min-height:36px}' +
+      '.pk-ask button.go{background:' + P.accent + ';border-color:' + P.accent + ';color:' + (DARK ? '#06202b' : '#fff') + '}' +
+      '.pk-hid{font-size:12.5px;color:' + P.mute + ';padding:8px 2px;line-height:1.7}' +
+      '.pk-hid button{background:none;border:0;color:' + P.accent + ';font:700 12.5px inherit;cursor:pointer;padding:0 2px;text-decoration:underline}' +
       '.pk-card.late{border-color:' + P.red + ';box-shadow:inset 4px 0 0 ' + P.red + '}' +
       '.pk-card.ok{border-color:' + P.done + ';box-shadow:inset 4px 0 0 ' + P.done + '}' +
-      '.pk-top{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit;padding:13px 15px;cursor:pointer}' +
+      '.pk-top{display:block;width:100%;text-align:left;background:none;border:0;color:inherit;font:inherit;padding:13px 46px 13px 15px;cursor:pointer}' +
       '.pk-when{font-size:11px;letter-spacing:.07em;text-transform:uppercase;font-weight:800;color:' + P.mute + '}' +
       '.pk-card.late .pk-when{color:' + P.red + '}.pk-card.ok .pk-when{color:' + P.done + '}' +
       '.pk-ttl{font-size:15px;font-weight:800;margin-top:3px;display:flex;gap:10px;align-items:baseline}' +
@@ -135,6 +149,32 @@
       });
   }
 
+  /* ---------------------------------------------------------------- hiding
+     Per person: what Befa hides, Dia still sees. A hidden card never vanishes
+     without a trace: the panel always says how many are hidden, with Show. */
+  function hides() { return (DATA && DATA.hides) || { cities: [], cards: [] }; }
+  function isHidden(c) {
+    var h = hides();
+    return h.cities.indexOf(c.city) !== -1 || h.cards.indexOf(cardId(c)) !== -1;
+  }
+  function hide(scope, city, date, hidden) {
+    if (!DATA) return;
+    var before = JSON.parse(JSON.stringify(hides()));
+    var h = DATA.hides = DATA.hides || { cities: [], cards: [] };
+    var key = date + '|' + city;
+    if (scope === 'city') h.cities = hidden ? h.cities.concat([city]).filter(function (v, i, a) { return a.indexOf(v) === i; }) : h.cities.filter(function (v) { return v !== city; });
+    else h.cards = hidden ? h.cards.concat([key]).filter(function (v, i, a) { return a.indexOf(v) === i; }) : h.cards.filter(function (v) { return v !== key; });
+    ASK = {}; HIDEMSG = ''; render();
+    fetch(API, { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: headers({ 'Content-Type': 'application/json' }),
+                 body: JSON.stringify({ action: 'hide', scope: scope, city: city, date: scope === 'card' ? date : '', hidden: hidden }) })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'HTTP ' + r.status }; }); })
+      .then(function (j) {
+        if (j && j.ok && j.hides) DATA.hides = j.hides;
+        else { DATA.hides = before; HIDEMSG = 'Not saved: ' + ((j && j.error) || 'the sheet did not answer') + '. Nothing was hidden.'; }
+      }, function () { DATA.hides = before; HIDEMSG = 'Not saved, no connection. Nothing was hidden.'; })
+      .then(render);
+  }
+
   function recount(card) {
     card.ticked = card.items.filter(function (x) { return x.ticked; }).length;
     card.done = card.items.length > 0 && card.ticked === card.items.length && !(card.unknown || []).length;
@@ -162,11 +202,18 @@
     c.sessions.forEach(function (s) { if (!s.unknown && !s.online) { var k = (s.kits || []).join(' + ').replace('MERMAID', 'Mermaid').replace('UWD', 'UW Dance').replace('UW_MODEL', 'UW Modeling').replace('PADI_MI', 'PADI MI'); if (s.kids) k += ' Kids'; k += ' (' + s.stageLabel + ')'; if (kinds.indexOf(k) === -1) kinds.push(k); } });
     var pct = c.total ? Math.round(c.ticked / c.total * 100) : 0;
     var status = c.done ? 'Packed' : (late ? 'Class is today, not packed yet' : 'Pack the day before');
-    var h = '<div class="' + cls + '"><button class="pk-top" data-pk-open="' + esc(id) + '">' +
+    var h = '<div class="' + cls + '"><button class="pk-x" data-pk-x="' + esc(id) + '" aria-label="Hide this card" title="Hide this card">×</button>' +
+      '<button class="pk-top" data-pk-open="' + esc(id) + '">' +
       '<div class="pk-when">' + when + ' · ' + esc(nice(c.date)) + ' · ' + esc(c.city) + ' · ' + status + '</div>' +
       '<div class="pk-ttl"><span>' + (kinds.length ? esc(kinds.join(', ')) : 'Check these sessions') + '</span><span class="n">' + c.ticked + ' of ' + c.total + '</span></div>' +
       '<div class="pk-bar"><i style="width:' + pct + '%"></i></div>' +
       '<div class="pk-ses">' + c.sessions.map(sessionLine).join('') + '</div></button>';
+    if (ASK[id]) {
+      h += '<div class="pk-ask"><div class="q">Hide this from your list? Only you stop seeing it. You can show it again below.</div>' +
+        '<button class="go" data-pk-hide="card" data-pk-city="' + esc(c.city) + '" data-pk-date="' + esc(c.date) + '">Hide just ' + esc(nice(c.date)) + '</button>' +
+        '<button class="go" data-pk-hide="city" data-pk-city="' + esc(c.city) + '">Hide all ' + esc(c.city) + ' classes</button>' +
+        '<button data-pk-cancel="' + esc(id) + '">Cancel</button></div>';
+    }
     if (OPEN[id]) {
       h += '<div class="pk-body">';
       if (MSG[id]) h += '<div class="pk-msg red">' + esc(MSG[id]) + '</div>';
@@ -195,13 +242,27 @@
     }
     if (!DATA) return h + '<div class="pk-quiet">Reading tomorrow\'s classes…</div></div>';
     if ((DATA.kitProblems || []).length) h += '<div class="pk-msg amber">Some rows in the KITS sheet were skipped: ' + esc(DATA.kitProblems.join('; ')) + '</div>';
-    var cards = (DATA.cards || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : (a.city < b.city ? -1 : 1); });
-    if (!cards.length) {
+    var all = (DATA.cards || []).slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : (a.city < b.city ? -1 : 1); });
+    var cards = all.filter(function (c) { return !isHidden(c); });
+    var hiddenNow = all.length - cards.length;
+    if (HIDEMSG) h += '<div class="pk-msg red">' + esc(HIDEMSG) + '</div>';
+    if (!all.length) {
       var n = 0; Object.keys(DATA.scanned || {}).forEach(function (d) { Object.keys(DATA.scanned[d]).forEach(function (c) { n += DATA.scanned[d][c]; }); });
       h += '<div class="pk-quiet">No class to pack for today or tomorrow in Bali or Jakarta. Checked both calendars (' + n + ' event' + (n === 1 ? '' : 's') + ').</div>';
     } else {
       cards.forEach(function (c) { h += cardHtml(c); });
     }
+    var hs = hides(), parts = [];
+    hs.cities.slice().sort().forEach(function (city) {
+      parts.push('all ' + esc(city) + ' classes <button data-pk-show="city" data-pk-city="' + esc(city) + '">Show</button>');
+    });
+    hs.cards.slice().sort().forEach(function (k) {
+      var d = k.split('|')[0], city = k.split('|')[1];
+      if (hs.cities.indexOf(city) !== -1) return;
+      if (!all.some(function (c) { return cardId(c) === k; })) return;   // an old day, nothing to show
+      parts.push(esc(nice(d)) + ' ' + esc(city) + ' <button data-pk-show="card" data-pk-city="' + esc(city) + '" data-pk-date="' + esc(d) + '">Show</button>');
+    });
+    if (parts.length) h += '<div class="pk-hid">Hidden for you' + (hiddenNow ? ' (' + hiddenNow + ' card' + (hiddenNow > 1 ? 's' : '') + ' now)' : '') + ': ' + parts.join(' · ') + '</div>';
     (DATA.quiet || []).forEach(function (x) {
       h += '<div class="pk-quiet">' + esc(nice(x.date)) + ' · ' + esc(x.city) + ' · ' + esc(x.time) + ' ' + esc(x.title) + ': ' + (x.online ? 'online, nothing to pack.' : 'nothing to pack.') + '</div>';
     });
@@ -223,10 +284,14 @@
   function findCard(id) { return ((DATA && DATA.cards) || []).filter(function (c) { return cardId(c) === id; })[0]; }
 
   document.addEventListener('click', function (e) {
-    var t = e.target.closest && e.target.closest('[data-pk-open],[data-pk-tick],[data-pk-refresh]');
+    var t = e.target.closest && e.target.closest('[data-pk-open],[data-pk-tick],[data-pk-refresh],[data-pk-x],[data-pk-hide],[data-pk-show],[data-pk-cancel]');
     if (!t) return;
     e.preventDefault();
     if (t.hasAttribute('data-pk-refresh')) { load(); return; }
+    if (t.hasAttribute('data-pk-x')) { var xid = t.getAttribute('data-pk-x'); ASK[xid] = !ASK[xid]; render(); return; }
+    if (t.hasAttribute('data-pk-cancel')) { delete ASK[t.getAttribute('data-pk-cancel')]; render(); return; }
+    if (t.hasAttribute('data-pk-hide')) { hide(t.getAttribute('data-pk-hide'), t.getAttribute('data-pk-city'), t.getAttribute('data-pk-date') || '', true); return; }
+    if (t.hasAttribute('data-pk-show')) { hide(t.getAttribute('data-pk-show'), t.getAttribute('data-pk-city'), t.getAttribute('data-pk-date') || '', false); return; }
     if (t.hasAttribute('data-pk-open')) { var id = t.getAttribute('data-pk-open'); OPEN[id] = !OPEN[id]; render(); return; }
     var c = findCard(t.getAttribute('data-pk-tick'));
     var it = c && c.items.filter(function (x) { return x.key === t.getAttribute('data-pk-key'); })[0];

@@ -7,6 +7,8 @@
 //   GET  /api/packing              today + tomorrow
 //   GET  /api/packing?date=Y-M-D   one day
 //   POST /api/packing {date, city, itemKey, ticked}
+//   POST /api/packing {action:'hide', scope:'card'|'city', date, city, hidden}
+//        hide a day's card, or every card for a city, for Befa only (13 Oct 2026)
 //
 // Gate: the OS key, like every route here. Ticks from this app are recorded as
 // "Befa" because this is Befa's personal OS and the key is hers; the sheet also
@@ -36,7 +38,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     const date = String((req.query && req.query.date) || '').trim();
     if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ ok: false, error: 'Bad date.' });
-    const qs = new URLSearchParams({ action: 'cards', key: process.env.PACK_KEY });
+    const qs = new URLSearchParams({ action: 'cards', key: process.env.PACK_KEY, who: BY });
     if (date) qs.set('date', date);
     const out = await brain({ method: 'GET' }, qs.toString());
     return res.status(out.ok ? 200 : 502).json({ ...out, you: BY });
@@ -46,6 +48,12 @@ export default async function handler(req, res) {
     let b = req.body;
     if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { return res.status(400).json({ ok: false, error: 'Body is not JSON.' }); } }
     b = b || {};
+    if (b.action === 'hide') {
+      if (b.hidden !== true && b.hidden !== false) return res.status(400).json({ ok: false, error: 'Hidden must be true or false.' });
+      const hide = { action: 'hide', key: process.env.PACK_KEY, who: BY, scope: String(b.scope || ''), date: String(b.date || ''), city: String(b.city || ''), hidden: b.hidden };
+      const out = await brain({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(hide) });
+      return res.status(out.ok ? 200 : 409).json(out);
+    }
     if (b.ticked !== true && b.ticked !== false) return res.status(400).json({ ok: false, error: 'Ticked must be true or false.' });
     const body = { action: 'tick', key: process.env.PACK_KEY, date: String(b.date || ''), city: String(b.city || ''), itemKey: String(b.itemKey || ''), ticked: b.ticked, by: BY };
     const out = await brain({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
