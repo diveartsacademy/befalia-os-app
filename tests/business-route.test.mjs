@@ -163,6 +163,16 @@ test('POST tick sends on and off, and refuses a bad slot', async () => {
   assert.equal(r.code, 400);
 });
 
+test('a body that arrives as a Buffer is still read (doubled content-type, 13 Oct)', async () => {
+  calls.length = 0;
+  packAnswer = { tick: { ok: true } };
+  const r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key', 'content-type': 'application/json, application/json' },
+    body: Buffer.from(JSON.stringify({ action: 'tick', src: 'SHOPEE - OL', invoice: 'X1', slot: 1, on: true })) }), r);
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  assert.equal(calls[0].body.action, 'tick');
+});
+
 test('POST undo archives the To-Do task the database hands back', async () => {
   calls.length = 0;
   packAnswer = { undo: { ok: true, undone: 2, todo_pages: ['page-1'] } };

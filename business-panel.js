@@ -380,7 +380,10 @@
 
   function post(body, key) {
     S.busy = key || 'x'; S.arm = ''; render();
-    var h = headers(); h['content-type'] = 'application/json';
+    /* osHeaders() already sends Content-Type. Adding a second, lower-case one
+       made the browser send "application/json, application/json", which the
+       server could not read: every tick and pack failed (13 Oct 2026). */
+    var h = headers(); if (!h['Content-Type'] && !h['content-type']) h['Content-Type'] = 'application/json';
     return fetch('/api/business', { method: 'POST', headers: h, body: JSON.stringify(body), cache: 'no-store' }).then(function (r) {
       if (r.status === 401) { if (typeof osUnauthorised === 'function') osUnauthorised(); throw new Error('Your OS key was refused. Enter it again.'); }
       return r.json().catch(function () { return {}; }).then(function (j) {
@@ -409,7 +412,10 @@
   }
 
   function quiet(body) {
-    var h = headers(); h['content-type'] = 'application/json';
+    /* osHeaders() already sends Content-Type. Adding a second, lower-case one
+       made the browser send "application/json, application/json", which the
+       server could not read: every tick and pack failed (13 Oct 2026). */
+    var h = headers(); if (!h['Content-Type'] && !h['content-type']) h['Content-Type'] = 'application/json';
     return fetch('/api/business', { method: 'POST', headers: h, body: JSON.stringify(body), cache: 'no-store' }).then(function (r) {
       if (r.status === 401 && typeof osUnauthorised === 'function') osUnauthorised();
       return r.json().catch(function () { return {}; }).then(function (j) {

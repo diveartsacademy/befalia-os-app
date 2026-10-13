@@ -70,10 +70,25 @@ const pack = packCall;
 
 const TABS = Object.values(SRC);
 
+/* The body as an object, whatever shape Vercel hands over: already parsed,
+   a string, a Buffer, or (when the content type was unusual) unread. */
+export async function readBody(req) {
+  let b;
+  try { b = req.body; } catch (e) { b = undefined; }
+  if (b && typeof b === 'object' && !Buffer.isBuffer(b)) return b;
+  let text = '';
+  if (typeof b === 'string') text = b;
+  else if (Buffer.isBuffer(b)) text = b.toString('utf8');
+  else if (req.readable !== false && typeof req.on === 'function') {
+    text = await new Promise((resolve) => {
+      let t = ''; req.on('data', (c) => { t += c; }); req.on('end', () => resolve(t)); req.on('error', () => resolve(''));
+    });
+  }
+  try { const j = JSON.parse(text || '{}'); return j && typeof j === 'object' ? j : {}; } catch (e) { return {}; }
+}
+
 async function post(req, res) {
-  let b = req.body;
-  if (typeof b === 'string') { try { b = JSON.parse(b || '{}'); } catch (e) { b = {}; } }
-  b = b || {};
+  const b = await readBody(req);
   const today = witaDay(new Date().toISOString());
   if (b.action === 'mark') {
     const slots = Array.isArray(b.slots) ? b.slots.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 12) : [];
