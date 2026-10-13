@@ -397,8 +397,13 @@
       return (S.stage === 'all' || o.stage === S.stage) && (S.ch === 'all' || o.channel === S.ch);
     });
     var shipBox = '';
-    if ((d.shipped || []).length) {
-      shipBox = '<div class="biz-shipped"><h4>Marked already shipped, last 3 days</h4>' + d.shipped.map(function (k) {
+    /* Finished orders leave the list. Only a one-line count stays, folded,
+       so Undo is still possible for three days (Befa, 13 Oct 23:11). */
+    if ((d.shipped || []).length && !S.showShipped) {
+      shipBox = '<div class="biz-fresh">' + d.shipped.length + (d.shipped.length === 1 ? ' order' : ' orders') +
+        ' marked shipped in the last 3 days, off the list. <button class="biz-undo" data-act="show-shipped">Show to undo</button></div>';
+    } else if ((d.shipped || []).length) {
+      shipBox = '<div class="biz-shipped"><h4>Marked already shipped, last 3 days <button class="biz-undo" data-act="hide-shipped">Hide</button></h4>' + d.shipped.map(function (k) {
         return '<div class="r"><b>' + esc(k.invoice) + '</b> <span>' + esc(CH[{ 'MANUAL (IG & WA) - OL': 'manual', 'SHOPIFY-OL': 'shopify', 'SHOPEE - OL': 'shopee', 'TOKOPEDIA/TIKTOK shop -OL': 'toko', 'TAILCRAFT': 'tailcraft' }[k.src]] || '') +
           (k.customer ? ' · ' + esc(k.customer) : '') + ' · ' + esc(when(k.at)) + '</span>' +
           '<button class="biz-undo" data-unship="' + esc(k.id) + '">Undo</button>' +
@@ -417,7 +422,8 @@
     S.visible = list.filter(function (o) { return o.stage === 'to_send'; }).map(function (o) { return o.src + '|' + o.invoice; });
     var notice = '';
     if (S.notice) notice = '<div class="biz-notice">' + esc(S.notice.text) +
-      (S.notice.undo ? '<button class="biz-undo" data-hand="' + esc(S.notice.undo + '|none') + '">Undo</button>' : '') + '</div>';
+      (S.notice.undo ? '<button class="biz-undo" data-hand="' + esc(S.notice.undo + '|none') + '">Undo</button>' : '') +
+      (S.notice.unship ? '<button class="biz-undo" data-unship="' + esc(S.notice.unship) + '">Undo</button>' : '') + '</div>';
     if (c.pickupHidden) notice += '<div class="biz-fresh">' + c.pickupHidden + (c.pickupHidden === 1 ? ' packed order is' : ' packed orders are') +
       ' waiting for the customer to pick up. They are on the Sea Diva dashboard only, Pack and ship, Waiting for pickup.</div>';
     return h + '<div class="biz-fresh">' + esc(fresh) + '</div>' + warn + notice + tiles + chans + photoLine0 + photoLine + shipBox + body;
@@ -555,7 +561,10 @@
   function doShip(key) {
     var i = key.lastIndexOf('|'), o = find(key.slice(0, i), key.slice(i + 1));
     if (!o) return;
-    post({ action: 'ship', src: o.src, row: o.row, invoice: o.invoice }, key).then(function () { load(); })
+    post({ action: 'ship', src: o.src, row: o.row, invoice: o.invoice }, key).then(function (j) {
+      S.notice = { text: o.invoice + (o.customer ? ' (' + o.customer + ')' : '') + ' is marked shipped and DONE, and is off the list.', unship: j && j.id };
+      load();
+    })
       .catch(function (e) { S.flash[key] = { text: 'Not marked: ' + (e.message || 'error'), bad: true }; render(); });
   }
   function doHand(id) {
@@ -571,7 +580,7 @@
     }).catch(function (e) { S.flash[key] = { text: 'Not saved: ' + (e.message || 'error'), bad: true }; render(); });
   }
   function doUnship(id) {
-    post({ action: 'unship', id: id }, 'unship').then(function () { load(); })
+    post({ action: 'unship', id: id }, 'unship').then(function () { S.notice = null; load(); })
       .catch(function (e) { S.err = 'Undo failed: ' + (e.message || 'error'); render(); });
   }
 
@@ -637,6 +646,8 @@
     if (b.dataset.biz) { S.biz = b.dataset.biz; render(); if (S.biz === 'seadiva' && !S.data && !S.loading) load(); return; }
     if (b.dataset.stage) { S.stage = S.stage === b.dataset.stage ? 'all' : b.dataset.stage; render(); return; }
     if (b.dataset.ch) { S.ch = b.dataset.ch; render(); return; }
+    if (b.dataset.act === 'show-shipped') { S.showShipped = true; render(); return; }
+    if (b.dataset.act === 'hide-shipped') { S.showShipped = false; render(); return; }
     if (b.dataset.act === 'refresh') { S.flash = {}; S.notice = null; load(); }
   });
 
