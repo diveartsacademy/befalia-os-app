@@ -11,6 +11,7 @@
 // because a phone clock or a Vercel region said otherwise.
 import { requireKey } from './_auth.js';
 import { loadArchive } from './_archive.js';
+import { logPacks, packCall } from './_todo-pack.js';
 
 export const TASKS_DB = (process.env.TASKS_DB_ID || 'ac45a1773bfc4e3c96652745a1ea4c46').replace(/-/g, '');
 const NOTION = 'https://api.notion.com/v1';
@@ -250,6 +251,12 @@ export default async function handler(req, res) {
   try {
     if (body.action === 'ping') { res.status(200).json({ ok: true }); return; }
     if (body.action === 'list') {
+      // Pack clicks Befa made on the Sea Diva dashboard become done tasks
+      // before the list is read, so they show today. Best effort, 4 s at most:
+      // the To-Do never waits on or fails because of the Sea Diva database.
+      if (process.env.BIZ_FEED_KEY) {
+        try { await Promise.race([logPacks(packCall, today), new Promise((r) => setTimeout(r, 4000))]); } catch (e) { /* the list matters more */ }
+      }
       const [all, sections] = await Promise.all([listAll(H), sectionOptions(H)]);
       res.status(200).json({ today, tz: TZ, complete: all.complete, sections, areas: AREAS, tasks: all.pages.filter((p) => !p.archived && !p.in_trash).map(mapPage) });
       return;

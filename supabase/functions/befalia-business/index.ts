@@ -1,6 +1,7 @@
 // befalia-business (13 Oct 2026)
 // ---------------------------------------------------------------------------
-// A thin, read-only door for the Business tab in Befalia OS.
+// A thin door for the Business tab in Befalia OS: the read feed, and the
+// "Packed, ready to ship" clicks.
 //
 // Befalia OS runs on Vercel, outside Cloudflare Access, so it cannot get a
 // signed-in database session the way DiveArts OS pages do. Instead its server
@@ -12,6 +13,9 @@
 //
 //   GET ?check=1   booleans only: is the service key set, does the feed answer
 //   GET            the feed, with header x-feed-key
+//   POST           pack actions (13 Oct 2026), header x-feed-key, JSON body
+//                  passed unchanged to seadiva.befalia_pack(p_key, p). The
+//                  database checks the key and decides what is allowed.
 //
 // Deployed with verify_jwt off because the caller has no Supabase login; the
 // gate is the feed key. Until Befa runs  select seadiva.new_befalia_feed_key();
@@ -24,10 +28,10 @@ function out(status: number, body: unknown) {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
 
-async function feed(key: string) {
+async function rpc(fn: string, args: unknown) {
   const base = Deno.env.get('SUPABASE_URL') || '';
   const sr = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-  const r = await fetch(base + '/rest/v1/rpc/befalia_business_feed', {
+  const r = await fetch(base + '/rest/v1/rpc/' + fn, {
     method: 'POST',
     headers: {
       apikey: sr,
@@ -36,17 +40,31 @@ async function feed(key: string) {
       'content-profile': 'seadiva',
       'accept-profile': 'seadiva',
     },
-    body: JSON.stringify({ p_key: key }),
+    body: JSON.stringify(args),
   });
   const text = await r.text();
   let j: any = null;
   try { j = JSON.parse(text); } catch (_e) { /* not JSON */ }
   return { status: r.status, body: j, raw: j ? '' : text.slice(0, 200) };
 }
+const feed = (key: string) => rpc('befalia_business_feed', { p_key: key });
 
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
-  if (req.method !== 'GET') return out(405, { ok: false, error: 'GET only' });
+  if (req.method === 'POST') {
+    const key = (req.headers.get('x-feed-key') || '').trim();
+    if (key.length < 32) return out(401, { ok: false, error: 'unauthorised' });
+    let p: unknown = null;
+    try { p = await req.json(); } catch (_e) { return out(400, { ok: false, error: 'JSON body needed' }); }
+    if (!p || typeof p !== 'object' || Array.isArray(p)) return out(400, { ok: false, error: 'JSON object needed' });
+    const f = await rpc('befalia_pack', { p_key: key, p });
+    if (f.status !== 200 || !f.body) {
+      return out(502, { ok: false, error: 'The database did not answer (HTTP ' + f.status + ').' });
+    }
+    if (f.body.ok !== true && f.body.error === 'unauthorised') return out(401, { ok: false, error: 'unauthorised' });
+    return out(200, f.body);
+  }
+  if (req.method !== 'GET') return out(405, { ok: false, error: 'GET or POST only' });
 
   if (url.searchParams.get('check') === '1') {
     const hasUrl = !!Deno.env.get('SUPABASE_URL');
