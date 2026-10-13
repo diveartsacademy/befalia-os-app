@@ -26,6 +26,18 @@
 //     one product, the line shows no photo rather than a wrong one, because a
 //     wrong picture is worse than none when packing.
 //
+//   "Order at the Shopee order as well" (13 Oct 2026)
+//     SHOPEE - OL and TOKOPEDIA/TIKTOK shop -OL rows with a product not DONE.
+//     The marketplace has the buyer's money, so they always count as paid, as
+//     in the Sea Diva Overview. An order whose products all have no status is
+//     only listed for its first 45 days. Ship-by date (Batas Pengiriman) shown.
+//
+//   "click ready to ship ... once I pack the order"
+//     Pack marks from the database (seadiva.pack_marks) are laid over the
+//     sheet: a packed line counts as ready at once and shows who packed it and
+//     whether the sheet has caught up. Stage "packed" = every physical product
+//     packed, waiting for the courier.
+//
 // Nothing is invented. A line with no photo says so. A column the sheet has
 // renamed makes that tab refuse by name, and the other tab still shows.
 // ---------------------------------------------------------------------------
@@ -33,7 +45,13 @@ import './_sd-overview.js';
 
 const SO = globalThis.SDOverview;
 
-export const SRC = { manual: 'MANUAL (IG & WA) - OL', shopify: 'SHOPIFY-OL' };
+export const SRC = { manual: 'MANUAL (IG & WA) - OL', shopify: 'SHOPIFY-OL', shopee: 'SHOPEE - OL', toko: 'TOKOPEDIA/TIKTOK shop -OL' };
+export const CHANNELS = ['shopify', 'shopee', 'toko', 'manual'];
+const MARKETPLACE = { shopee: 1, toko: 1 };
+/* Same window as the Sea Diva Overview (NOTSET_DAYS in sd-overview.js): a
+   marketplace order whose products all have no status is only listed while it
+   is this new. Older blank rows are almost always long delivered. */
+export const NOTSET_DAYS = 45;
 
 const DAY = 86400000;
 
@@ -73,6 +91,10 @@ function findHeader(h, name) {
 
 function payKind(channel, payText, cancelledText) {
   const p = low(payText);
+  /* Shopee and Tokopedia/TikTok pay Sea Diva only after delivery, but the
+     buyer has paid the marketplace, so the order is real and must be packed.
+     Same rule as sd-overview.js. */
+  if (MARKETPLACE[channel]) return 'paid';
   if (channel === 'shopify') {
     if (cancelledText) return 'cancelled';
     if (p === 'paid' || p === 'partially_paid' || p === 'partially paid') return 'paid';
@@ -123,6 +145,7 @@ export function readTab(channel, rows, now) {
   const h = headers(rows);
   const shippedCol = channel === 'manual' ? findHeader(h, 'shipped') : null;
   const countryCol = channel === 'shopify' ? findHeader(h, 'shipping country') : null;
+  const shipByCol = MARKETPLACE[channel] ? findHeader(h, 'batas pengiriman') : null;
   /* Quantity sits in the column straight after each product's item column.
      It is only read if that column's header really says Qty. */
   const slots = c.slots.map((s) => {
@@ -137,8 +160,9 @@ export function readTab(channel, rows, now) {
     const invoice = cell(cells, c.inv);
     if (!invoice || /^qa[-_ ]/i.test(invoice)) return;
     const date = SO.parseDate(cells[c.date] ? cells[c.date].v : null, cell(cells, c.date));
+    const shipBy = shipByCol ? SO.parseDate(cells[shipByCol] ? cells[shipByCol].v : null, cell(cells, shipByCol)) : null;
     const o = {
-      channel, invoice,
+      channel, src, invoice,
       customer: cell(cells, c.name).split(/\n| Mail:/)[0].trim(),
       row: r.row_no,
       dateText: cell(cells, c.date),
@@ -149,6 +173,9 @@ export function readTab(channel, rows, now) {
       fulfil: c.fulfil ? low(cell(cells, c.fulfil)) : '',
       shipped: shippedCol ? /^true$/i.test(cell(cells, shippedCol)) : false,
       country: countryCol ? cell(cells, countryCol) : '',
+      shipBy: ymd(shipBy),
+      shipByText: shipByCol ? cell(cells, shipByCol) : '',
+      shipByDays: shipBy ? -daysSince(shipBy, now) : null,
       lines: []
     };
     slots.forEach((s, i) => {
@@ -311,12 +338,27 @@ const READY = { ready: 1, shipping: 1 };
 export const NON_PHYSICAL = /\b(custom colou?r|custom design fee|design fee|design buy ?out|buy ?out|warranty|garansi|shipping fee|ongkir|insurance|asuransi)\b/i;
 export function nonPhysical(item) { return NON_PHYSICAL.test(String(item || '')); }
 
+/* Pack marks (13 Oct 2026). Befa or staff clicked "Packed, ready to ship" on
+   a product line, in Befalia OS or on the Sea Diva dashboard. The click is the
+   truth from that moment, even before the sheet bridge writes the word, so the
+   line counts as ready and carries the mark for the Undo button. */
+function markIndex(marks) {
+  const m = {};
+  (marks || []).forEach((k) => { if (k && k.src && k.invoice && k.slot) m[k.src + '|' + txt(k.invoice) + '|' + k.slot] = k; });
+  return m;
+}
+function markView(k) {
+  return { id: k.id, click: k.click_id, at: k.at, by: k.by || '', via: k.via || '', write: k.write || '',
+           written: !!k.written, writeError: k.writeError || '', todo: !!k.todo };
+}
+
 export function build(feed, products, now) {
   now = now || new Date();
   const tabs = (feed && feed.tabs) || {};
   const idx = photoIndex(feed && feed.photos, products);
+  const marks = markIndex(feed && feed.marks);
   const sources = {}, all = [];
-  ['shopify', 'manual'].forEach((ch) => {
+  CHANNELS.forEach((ch) => {
     const t = readTab(ch, tabs[SRC[ch]], now);
     sources[ch] = { ok: t.ok, error: t.error || '', loadedAt: (feed && feed.loaded && feed.loaded[SRC[ch]]) || null };
     if (ch === 'shopify' && t.ok) {
@@ -331,6 +373,10 @@ export function build(feed, products, now) {
 
   const orders = [];
   all.forEach((o) => {
+    o.lines.forEach((l) => {
+      const k = marks[o.src + '|' + o.invoice + '|' + l.slot];
+      if (k && l.group !== 'done') l.packed = markView(k);
+    });
     const open = o.lines.filter((l) => l.group !== 'done' && l.group !== 'ignore');
     let include = false, stage = '';
     if (o.channel === 'shopify') {
@@ -339,15 +385,20 @@ export function build(feed, products, now) {
         if (!o.lines.length) stage = 'no_items';
         else if (!open.length) stage = 'close_in_shopify';
       }
+    } else if (MARKETPLACE[o.channel]) {
+      const anySet = open.some((l) => l.group !== 'blank' || l.packed);
+      include = open.length > 0 && (anySet || (o.days !== null && o.days <= NOTSET_DAYS));
     } else if ((o.pay === 'paid' || o.pay === 'part') && open.length && !o.shipped) {
       include = true;
     }
     if (!include) return;
     const physical = open.filter((l) => !nonPhysical(l.item));
     if (!stage) {
-      const ready = physical.filter((l) => READY[l.group]);
-      const blank = physical.filter((l) => l.group === 'blank');
+      const packed = physical.filter((l) => l.packed);
+      const ready = physical.filter((l) => l.packed || READY[l.group]);
+      const blank = physical.filter((l) => !l.packed && l.group === 'blank');
       if (!physical.length) stage = 'paperwork';
+      else if (packed.length === physical.length) stage = 'packed';
       else if (ready.length === physical.length) stage = 'ready';
       else if (blank.length === physical.length) stage = 'not_set';
       else if (ready.length) stage = 'partly';
@@ -355,24 +406,47 @@ export function build(feed, products, now) {
     }
     const show = open.length ? open : o.lines;
     orders.push({
-      channel: o.channel, invoice: o.invoice, customer: o.customer, date: o.date, dateText: o.dateText,
+      channel: o.channel, src: o.src, row: o.row, invoice: o.invoice, customer: o.customer, date: o.date, dateText: o.dateText,
       days: o.days, pay: o.pay, payText: o.payText, country: o.country, stage,
+      shipBy: o.shipBy, shipByText: o.shipByText, shipByDays: o.shipByDays,
       doneCount: o.lines.length - open.length, lineCount: o.lines.length,
       lines: show.map((l) => ({
-        title: l.title, detail: l.detail, qty: l.qty, status: l.status || '', group: l.group,
+        slot: l.slot, title: l.title, detail: l.detail, qty: l.qty, status: l.status || '', group: l.group,
         markDone: o.pay !== 'unpaid' && l.group !== 'done' && nonPhysical(l.item),
+        physical: !nonPhysical(l.item),
+        canPack: l.group !== 'done' && l.group !== 'ignore' && !l.packed && !nonPhysical(l.item),
+        packed: l.packed || null,
         photo: photoFor(idx, o.channel, l)
       }))
     });
   });
 
-  const RANK = { ready: 0, partly: 1, production: 2, not_set: 3, paperwork: 4, close_in_shopify: 5, no_items: 6 };
-  orders.sort((a, b) => (RANK[a.stage] - RANK[b.stage]) || ((b.days == null ? -1 : b.days) - (a.days == null ? -1 : a.days)));
+  /* Packing first: everything ready, then the ones half ready, then what is
+     still being made. Packed and waiting for the courier sit after those. */
+  const RANK = { ready: 0, partly: 1, production: 2, not_set: 3, packed: 4, paperwork: 5, close_in_shopify: 6, no_items: 7 };
+  const due = (o) => (o.shipByDays == null ? 9999 : o.shipByDays);
+  orders.sort((a, b) => (RANK[a.stage] - RANK[b.stage]) || (due(a) - due(b)) ||
+    ((b.days == null ? -1 : b.days) - (a.days == null ? -1 : a.days)));
 
-  const counts = { all: orders.length, shopify: 0, manual: 0, ready: 0, partly: 0, production: 0, not_set: 0, close_in_shopify: 0, paperwork: 0, no_items: 0, lines: 0, photos: 0, productPhotos: 0, markDone: 0 };
+  const counts = { all: orders.length, shopify: 0, manual: 0, shopee: 0, toko: 0, ready: 0, partly: 0, production: 0, not_set: 0,
+                   packed: 0, close_in_shopify: 0, paperwork: 0, no_items: 0, lines: 0, photos: 0, productPhotos: 0, markDone: 0,
+                   packedLines: 0, packedToday: 0 };
+  const today = witaDay(now.toISOString());
   orders.forEach((o) => {
     counts[o.channel]++; counts[o.stage]++;
-    o.lines.forEach((l) => { counts.lines++; if (l.markDone) counts.markDone++; if (l.photo) { counts.photos++; if (l.photo.how === 'product') counts.productPhotos++; } });
+    o.lines.forEach((l) => {
+      counts.lines++;
+      if (l.markDone) counts.markDone++;
+      if (l.photo) { counts.photos++; if (l.photo.how === 'product') counts.productPhotos++; }
+      if (l.packed) { counts.packedLines++; if (l.packed.at && witaDay(l.packed.at) === today) counts.packedToday++; }
+    });
   });
   return { ok: true, generatedAt: now.toISOString(), sources, counts, orders };
+}
+
+/* The calendar day in Bali for a timestamp, YYYY-MM-DD. */
+export function witaDay(iso) {
+  const t = Date.parse(iso);
+  if (!isFinite(t)) return null;
+  return new Date(t + 8 * 3600000).toISOString().slice(0, 10);
 }

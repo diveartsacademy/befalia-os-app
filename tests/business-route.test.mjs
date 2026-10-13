@@ -14,7 +14,21 @@ function res() {
 const req = (o = {}) => ({ method: 'GET', headers: {}, query: {}, ...o });
 
 let mode = 'ok';
+const calls = [];
+let packAnswer = {};
 globalThis.fetch = async (url, init) => {
+  if (String(url).startsWith('https://api.notion.com/')) {
+    const body = init.body ? JSON.parse(init.body) : null;
+    calls.push({ notion: String(url).slice(25), method: init.method, body });
+    if (init.method === 'GET') return { ok: true, status: 200, json: async () => ({ object: 'page', id: 'page-1', parent: { database_id: 'ac45a1773bfc4e3c96652745a1ea4c46' } }) };
+    return { ok: true, status: 200, json: async () => ({ object: 'page', id: 'aaaa-bbbb', archived: !!(body && body.archived) }) };
+  }
+  if (init && init.method === 'POST' && !String(url).includes('seadivatails.com')) {
+    const body = JSON.parse(init.body);
+    calls.push({ pack: body.action, body });
+    assert.equal(init.headers['x-feed-key'], 'feed-key-for-tests-0123456789abcdef');
+    return { ok: true, status: 200, json: async () => (packAnswer[body.action] || { ok: true }) };
+  }
   if (String(url).includes('seadivatails.com')) {
     if (mode === 'noshop') throw new Error('offline');
     return { ok: true, status: 200, json: async () => ({ products: String(url).includes('page=1') ? products : [] }) };
@@ -62,7 +76,64 @@ test('good answer, and storefront trouble only costs photos', async () => {
   assert.equal(r.body.photosNote, '');
 });
 
-test('POST is not allowed', async () => {
-  const r = res(); await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' } }), r);
+test('PUT is not allowed', async () => {
+  const r = res(); await handler(req({ method: 'PUT', headers: { 'x-os-key': 'os-key' } }), r);
   assert.equal(r.code, 405);
+});
+
+test('POST without the OS key is refused before anything is written', async () => {
+  calls.length = 0;
+  const r = res(); await handler(req({ method: 'POST', body: { action: 'mark' } }), r);
+  assert.equal(r.code, 401);
+  assert.equal(calls.length, 0);
+});
+
+test('POST mark checks its input', async () => {
+  calls.length = 0;
+  const r = res(); await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'mark', src: 'SOMETHING', row: 5, invoice: 'X', slots: [1] } }), r);
+  assert.equal(r.code, 400);
+  assert.equal(calls.length, 0);
+});
+
+test('POST mark: database first, then one done task on the To-Do, then the link back', async () => {
+  process.env.NOTION_TOKEN = 'notion-test';
+  calls.length = 0;
+  packAnswer = {
+    mark: { ok: true, click_id: '44444444-4444-4444-4444-444444444444', marked: 2, lines: [] },
+    todo_claim: { ok: true, clicks: [{ click_id: '44444444-4444-4444-4444-444444444444', at: '2026-10-13T03:00:00Z', src: 'MANUAL (IG & WA) - OL',
+      invoice: 'SDTMar26-2', customer: 'Customer I', via: 'befalia-os', items: ['Ocean Spark Necklace', 'Dive Socks - Lola'] }] }
+  };
+  const r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: JSON.stringify({ action: 'mark', src: 'MANUAL (IG & WA) - OL', row: 275, invoice: 'SDTMar26-2', slots: [2, 4] }) }), r);
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  assert.equal(r.body.todo.logged, 1);
+  assert.deepEqual(calls.map((c) => c.pack || (c.method + ' ' + c.notion)), ['mark', 'todo_claim', 'POST /pages', 'todo_set']);
+  assert.deepEqual(calls[0].body.slots, [2, 4]);
+  const props = calls[2].body.properties;
+  assert.equal(props.Name.title[0].text.content, 'Packed SDTMar26-2 · Customer I');
+  assert.equal(props.Area.select.name, 'Sea Diva');
+  assert.equal(props.Done.checkbox, true);
+  assert.equal(props['Completed on'].date.start, '2026-10-13');
+  assert.deepEqual(calls[3].body.items, [{ click_id: '44444444-4444-4444-4444-444444444444', page_id: 'aaaabbbb' }]);
+});
+
+test('POST mark refused by the database writes nothing to the To-Do', async () => {
+  calls.length = 0;
+  packAnswer = { mark: { ok: false, error: 'Row 275 of MANUAL no longer holds SDTMar26-2' } };
+  const r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'mark', src: 'MANUAL (IG & WA) - OL', row: 275, invoice: 'SDTMar26-2', slots: [2] } }), r);
+  assert.equal(r.code, 409);
+  assert.match(r.body.error, /no longer holds/);
+  assert.deepEqual(calls.map((c) => c.pack || c.notion), ['mark']);
+});
+
+test('POST undo archives the To-Do task the database hands back', async () => {
+  calls.length = 0;
+  packAnswer = { undo: { ok: true, undone: 2, todo_pages: ['page-1'] } };
+  const r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'undo', click_id: '44444444-4444-4444-4444-444444444444' } }), r);
+  assert.equal(r.code, 200);
+  assert.equal(r.body.todo.archived, 1);
+  assert.deepEqual(calls.map((c) => c.pack || (c.method + ' ' + c.notion)), ['undo', 'GET /pages/page1', 'PATCH /pages/page1']);
+  delete process.env.NOTION_TOKEN;
 });
