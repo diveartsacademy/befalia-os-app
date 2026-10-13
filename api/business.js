@@ -11,6 +11,8 @@
 //        { action: 'undo', click_id } or { action: 'undo', mark_id }
 //        { action: 'contact', src, row, invoice }   name, phone, address for the box
 //        { action: 'tick', src, invoice, slot, on }  "in the box" tick
+//        { action: 'ship', src, row, invoice } / { action: 'unship', id }
+//                                                     already shipped, whole order
 //      A mark moves those products to Ready to be shipped (Manual sheet via the
 //      bridge, Shopify/Shopee/Toko recorded and shown until the bridge learns
 //      those tabs), moves the board job to Shipping, and logs one done task on
@@ -122,6 +124,24 @@ async function post(req, res) {
     if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Address not found.' });
     return res.status(200).json(r);
   }
+  /* Already shipped: the whole order is finished. Takes it off both lists,
+     DONE to the board and (Manual) the sheet. Undo with its id. */
+  if (b.action === 'ship') {
+    const row = Number(b.row);
+    if (!TABS.includes(b.src) || !Number.isInteger(row) || row < 2 || !String(b.invoice || '').trim()) {
+      return res.status(400).json({ ok: false, error: 'ship needs src, row and invoice.' });
+    }
+    const r = await pack({ action: 'ship', src: b.src, row, invoice: String(b.invoice).trim() });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not saved.' });
+    return res.status(200).json(r);
+  }
+  if (b.action === 'unship') {
+    const id = Number(b.id);
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ ok: false, error: 'unship needs id.' });
+    const r = await pack({ action: 'unship', id });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not undone.' });
+    return res.status(200).json(r);
+  }
   /* "In the box" tick for one product line. */
   if (b.action === 'tick') {
     const slot = Number(b.slot);
@@ -158,9 +178,10 @@ export default async function handler(req, res) {
   let todo = { logged: 0, error: '' };
   try { todo = await logPacks(pack, witaDay(new Date().toISOString())); } catch (e) { todo = { logged: 0, error: String(e.message || e) }; }
 
-  const [f, shop, tk] = await Promise.all([feed(), storefront(), pack({ action: 'ticks' }).catch(() => null)]);
+  const [f, shop, ov] = await Promise.all([feed(), storefront(), pack({ action: 'overlay' }).catch(() => null)]);
   if (!f.ok) return res.status(f.status).json({ ok: false, error: f.error });
-  f.body.ticks = (tk && tk.ok && tk.ticks) || [];
+  f.body.ticks = (ov && ov.ok && ov.ticks) || [];
+  f.body.shipped = (ov && ov.ok && ov.shipped) || [];
 
   const out = build(f.body, shop.products, new Date());
   out.photosNote = shop.error || '';

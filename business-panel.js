@@ -151,6 +151,13 @@
       '.biz-label .miss{font:12.5px/1.4 var(--sans);color:#a3263a;margin-top:6px}' +
       '.biz-label .src{font:11px var(--sans);color:#6b6659;margin-top:6px}' +
       '.biz-label button{font:600 12px var(--sans);margin-top:8px;padding:5px 10px;border-radius:7px;border:1px solid #16202a;background:#fff;color:#16202a;cursor:pointer}' +
+      '.biz-ship{font:600 12px var(--sans);color:var(--muted);background:none;border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer;margin:8px 0 0 8px}' +
+      '.biz-ship.arm{color:#04121f;background:#ffd27f;border-color:#ffd27f}' +
+      '.biz-shipped{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:10px 2px;font:13px/1.45 var(--sans)}' +
+      '.biz-shipped h4{margin:0 0 6px;font:600 13px var(--sans);color:var(--ink)}' +
+      '.biz-shipped .r{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:5px 0;border-top:1px solid var(--line)}' +
+      '.biz-shipped .r:first-of-type{border-top:0}' +
+      '.biz-shipped .h{font:12px var(--sans);color:#ffd99a;flex-basis:100%}' +
       '.biz-empty{font:13.5px/1.5 var(--sans);color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:14px;margin-top:12px}' +
       '@media (max-width:420px){.biz-list{grid-template-columns:1fr}.biz-ph{flex-basis:64px;width:64px;height:64px}}';
     document.head.appendChild(s);
@@ -278,7 +285,11 @@
     else if (A.loading) label = '<div class="biz-label">Loading…</div>';
     else if (A.err) label = '<div class="biz-label"><div class="miss">' + esc(A.err) + '</div><button data-addr="' + esc(key) + '">Try again</button></div>';
     else label = labelHtml(A.data, key);
-    act = label + boxLine + act;
+    /* Already shipped: for orders that are finished but the sheet still
+       shows them. Two taps, undoable from the list at the top. */
+    var sid = key;
+    act = label + boxLine + act + '<button class="biz-ship' + (S.arm === 'ship:' + sid ? ' arm' : '') + '" data-ship="' + esc(sid) + '"' + (S.busy ? ' disabled' : '') + '>' +
+      (S.arm === 'ship:' + sid ? 'Tap again: already shipped' : 'Already shipped, mark DONE') + '</button>';
     var after = '';
     if (o.stage === 'packed') {
       after = o.channel === 'shopify' ? ' Once it is sent, mark it fulfilled in Shopify and DONE in the sheet.'
@@ -337,6 +348,17 @@
     var list = (d.orders || []).filter(function (o) {
       return (S.stage === 'all' || o.stage === S.stage) && (S.ch === 'all' || o.channel === S.ch);
     });
+    var shipBox = '';
+    if ((d.shipped || []).length) {
+      shipBox = '<div class="biz-shipped"><h4>Marked already shipped, last 3 days</h4>' + d.shipped.map(function (k) {
+        return '<div class="r"><b>' + esc(k.invoice) + '</b> <span>' + esc(CH[{ 'MANUAL (IG & WA) - OL': 'manual', 'SHOPIFY-OL': 'shopify', 'SHOPEE - OL': 'shopee', 'TOKOPEDIA/TIKTOK shop -OL': 'toko' }[k.src]] || '') +
+          (k.customer ? ' · ' + esc(k.customer) : '') + ' · ' + esc(when(k.at)) + '</span>' +
+          '<button class="biz-undo" data-unship="' + esc(k.id) + '">Undo</button>' +
+          (k.byHand ? '<span class="h">Set DONE by hand in the sheet for ' + k.byHand + (k.byHand === 1 ? ' product' : ' products') +
+            (k.src === 'MANUAL (IG & WA) - OL' ? ' (their status is a word the writer never overwrites).' : ' (this tab cannot be written automatically yet).') +
+            (k.src === 'SHOPIFY-OL' ? ' Also mark it fulfilled in Shopify.' : '') + '</span>' : '') + '</div>';
+      }).join('') + '</div>';
+    }
     var body = list.length ? '<div class="biz-list">' + list.map(cardHtml).join('') + '</div>'
       : '<div class="biz-empty">' + (c.all ? 'Nothing in this filter.' : 'No paid order is waiting. Every paid order in the sheet is done or shipped.') + '</div>';
     if (c.packedToday) photoLine0 = '<div class="biz-fresh">Packed today: ' + c.packedToday + (c.packedToday === 1 ? ' product.' : ' products.') + ' Each pack is a done task on your To-Do.</div>';
@@ -344,7 +366,7 @@
       'A photo marked "check colour and size" shows the right product, but maybe not the colour ordered. Custom pieces and items not on the shop have no photo.</div>' : '';
     if (c.markDone) photoLine += '<div class="biz-warn">' + c.markDone + (c.markDone === 1 ? ' line is' : ' lines are') +
       ' not a physical item but still open on a paid order (design fee, custom colour and similar). Your rule: mark these DONE in the sheet once the invoice is paid. They no longer hold an order out of Ready to pack.</div>';
-    return h + '<div class="biz-fresh">' + esc(fresh) + '</div>' + warn + tiles + chans + photoLine0 + photoLine + body;
+    return h + '<div class="biz-fresh">' + esc(fresh) + '</div>' + warn + tiles + chans + photoLine0 + photoLine + shipBox + body;
   }
 
   function render() {
@@ -451,6 +473,17 @@
       .catch(function (e) { S.addr[key] = { err: e.message || 'Could not read the address.' }; render(); });
   }
 
+  function doShip(key) {
+    var i = key.lastIndexOf('|'), o = find(key.slice(0, i), key.slice(i + 1));
+    if (!o) return;
+    post({ action: 'ship', src: o.src, row: o.row, invoice: o.invoice }, key).then(function () { load(); })
+      .catch(function (e) { S.flash[key] = { text: 'Not marked: ' + (e.message || 'error'), bad: true }; render(); });
+  }
+  function doUnship(id) {
+    post({ action: 'unship', id: id }, 'unship').then(function () { load(); })
+      .catch(function (e) { S.err = 'Undo failed: ' + (e.message || 'error'); render(); });
+  }
+
   function doUndo(body, key) {
     post(Object.assign({ action: 'undo' }, body), key).then(function (j) {
       var r = j.result || {}, td = j.todo || {};
@@ -463,8 +496,15 @@
   document.addEventListener('click', function (e) {
     var root = document.getElementById(ROOT);
     if (!root || !root.contains(e.target)) return;
-    var b = e.target.closest('[data-biz],[data-stage],[data-ch],[data-act],[data-pack],[data-undo-mark],[data-undo-click],[data-tick],[data-addr],[data-addr-hide],[data-addr-copy]');
+    var b = e.target.closest('[data-biz],[data-stage],[data-ch],[data-act],[data-pack],[data-undo-mark],[data-undo-click],[data-tick],[data-addr],[data-addr-hide],[data-addr-copy],[data-ship],[data-unship]');
     if (!b) return;
+    if (b.dataset.ship) {
+      if (S.busy) return;
+      var arm = 'ship:' + b.dataset.ship;
+      if (S.arm !== arm) { S.arm = arm; render(); setTimeout(function () { if (S.arm === arm) { S.arm = ''; render(); } }, 5000); return; }
+      doShip(b.dataset.ship); return;
+    }
+    if (b.dataset.unship) { if (!S.busy) doUnship(Number(b.dataset.unship)); return; }
     if (b.dataset.tick) { doTick(b.dataset.tick); return; }
     if (b.dataset.addr) { doAddr(b.dataset.addr); return; }
     if (b.dataset.addrHide) { delete S.addr[b.dataset.addrHide]; render(); return; }
