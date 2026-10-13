@@ -359,8 +359,9 @@ function markView(k) {
            written: !!k.written, writeError: k.writeError || '', todo: !!k.todo };
 }
 
-export function build(feed, products, now) {
+export function build(feed, products, now, opts) {
   now = now || new Date();
+  opts = opts || {};
   const tabs = (feed && feed.tabs) || {};
   const idx = photoIndex(feed && feed.photos, products);
   const marks = markIndex(feed && feed.marks);
@@ -376,6 +377,14 @@ export function build(feed, products, now) {
   const shippedBy = {};
   ((feed && feed.shipped) || []).forEach((k) => { if (k && k.src && k.invoice) shippedBy[k.src + '|' + txt(k.invoice)] = k; });
   let shippedHidden = 0;
+  /* Pickup or send (13 Oct 2026, 22:27): chosen once an order is packed.
+     Pickup orders live only on the Sea Diva dashboard (opts.hidePickup is set
+     by Befalia OS); send orders get their own To send list. */
+  const handoff = {};
+  ((feed && feed.handoff) || []).forEach((k) => {
+    if (k && k.src && k.invoice && (k.method === 'pickup' || k.method === 'send')) handoff[k.src + '|' + txt(k.invoice)] = { method: k.method, at: k.at || null, by: k.by || '' };
+  });
+  let pickupHidden = 0;
   const sources = {}, all = [];
   CHANNELS.forEach((ch) => {
     const t = readTab(ch, tabs[SRC[ch]], now);
@@ -428,10 +437,13 @@ export function build(feed, products, now) {
       else if (ready.length) stage = 'partly';
       else stage = 'production';
     }
+    const ho = handoff[o.src + '|' + o.invoice] || null;
+    if (stage === 'packed' && ho) stage = ho.method === 'pickup' ? 'pickup' : 'to_send';
+    if (stage === 'pickup' && opts.hidePickup) { pickupHidden++; return; }
     const show = open.length ? open : o.lines;
     orders.push({
       channel: o.channel, src: o.src, row: o.row, invoice: o.invoice, customer: o.customer, date: o.date, dateText: o.dateText,
-      days: o.days, pay: o.pay, payText: o.payText, country: o.country, stage,
+      days: o.days, pay: o.pay, payText: o.payText, country: o.country, stage, handoff: ho,
       shipBy: o.shipBy, shipByText: o.shipByText, shipByDays: o.shipByDays,
       doneCount: o.lines.length - open.length, lineCount: o.lines.length,
       lines: show.map((l) => ({
@@ -449,13 +461,13 @@ export function build(feed, products, now) {
 
   /* Packing first: everything ready, then the ones half ready, then what is
      still being made. Packed and waiting for the courier sit after those. */
-  const RANK = { ready: 0, partly: 1, production: 2, not_set: 3, packed: 4, paperwork: 5, close_in_shopify: 6, no_items: 7 };
+  const RANK = { ready: 0, partly: 1, production: 2, not_set: 3, packed: 4, to_send: 5, pickup: 6, paperwork: 7, close_in_shopify: 8, no_items: 9 };
   const due = (o) => (o.shipByDays == null ? 9999 : o.shipByDays);
   orders.sort((a, b) => (RANK[a.stage] - RANK[b.stage]) || (due(a) - due(b)) ||
     ((b.days == null ? -1 : b.days) - (a.days == null ? -1 : a.days)));
 
   const counts = { all: orders.length, shopify: 0, manual: 0, shopee: 0, toko: 0, ready: 0, partly: 0, production: 0, not_set: 0,
-                   packed: 0, close_in_shopify: 0, paperwork: 0, no_items: 0, lines: 0, photos: 0, productPhotos: 0, markDone: 0,
+                   packed: 0, to_send: 0, pickup: 0, close_in_shopify: 0, paperwork: 0, no_items: 0, lines: 0, photos: 0, productPhotos: 0, markDone: 0,
                    packedLines: 0, packedToday: 0 };
   const today = witaDay(now.toISOString());
   orders.forEach((o) => {
@@ -468,6 +480,7 @@ export function build(feed, products, now) {
     });
   });
   counts.shippedHidden = shippedHidden;
+  counts.pickupHidden = pickupHidden;
   /* The last three days of "Already shipped", newest first, for Undo. */
   const since = now.getTime() - 3 * DAY;
   const shipped = ((feed && feed.shipped) || []).filter((k) => Date.parse(k.at) >= since)

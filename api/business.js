@@ -12,6 +12,9 @@
 //        { action: 'contact', src, row, invoice }   name, phone, address for the box
 //        { action: 'tick', src, invoice, slot, on }  "in the box" tick
 //        { action: 'note', src, invoice, slot, note } a note on one product
+//        { action: 'handoff', src, invoice, method }  pickup, send or none
+//                                                     once packed; pickup orders
+//                                                     leave this tab
 //        { action: 'ship', src, row, invoice } / { action: 'unship', id }
 //                                                     already shipped, whole order
 //      A mark moves those products to Ready to be shipped (Manual sheet via the
@@ -155,6 +158,15 @@ async function post(req, res) {
     if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not saved.' });
     return res.status(200).json(r);
   }
+  /* Pickup or send, chosen once the order is packed. 'none' clears it. */
+  if (b.action === 'handoff') {
+    if (!TABS.includes(b.src) || !String(b.invoice || '').trim() || !['pickup', 'send', 'none'].includes(b.method)) {
+      return res.status(400).json({ ok: false, error: 'handoff needs src, invoice and method pickup, send or none.' });
+    }
+    const r = await pack({ action: 'handoff', src: b.src, invoice: String(b.invoice).trim(), method: b.method });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not saved.' });
+    return res.status(200).json(r);
+  }
   /* "In the box" tick for one product line. */
   if (b.action === 'tick') {
     const slot = Number(b.slot);
@@ -196,8 +208,10 @@ export default async function handler(req, res) {
   f.body.ticks = (ov && ov.ok && ov.ticks) || [];
   f.body.shipped = (ov && ov.ok && ov.shipped) || [];
   f.body.notes = (ov && ov.ok && ov.notes) || [];
+  f.body.handoff = (ov && ov.ok && ov.handoff) || [];
 
-  const out = build(f.body, shop.products, new Date());
+  /* Pickup orders are shown only on the Sea Diva dashboard (Befa, 13 Oct). */
+  const out = build(f.body, shop.products, new Date(), { hidePickup: true });
   out.photosNote = shop.error || '';
   out.shopProducts = (shop.products || []).length;
   out.todo = todo;

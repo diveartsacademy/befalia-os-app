@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { feed, products } from './fixture-feed.mjs';
+import { feed as packFeed } from './fixture-pack.mjs';
 
 function res() {
   const r = { code: 0, body: null, headers: {} };
@@ -35,7 +36,7 @@ globalThis.fetch = async (url, init) => {
   }
   assert.equal(init.headers['x-feed-key'], 'feed-key-for-tests-0123456789abcdef');
   if (mode === 'refused') return { ok: false, status: 401, json: async () => ({ ok: false, error: 'unauthorised' }) };
-  return { ok: true, status: 200, json: async () => feed };
+  return { ok: true, status: 200, json: async () => (mode === 'packfeed' ? packFeed : feed) };
 };
 
 process.env.OS_KEY = 'os-key';
@@ -210,4 +211,27 @@ test('POST undo archives the To-Do task the database hands back', async () => {
   assert.equal(r.body.todo.archived, 1);
   assert.deepEqual(calls.map((c) => c.pack || (c.method + ' ' + c.notion)), ['undo', 'GET /pages/page1', 'PATCH /pages/page1', 'todo_archived']);
   delete process.env.NOTION_TOKEN;
+});
+
+test('POST handoff saves pickup, send or none and refuses anything else', async () => {
+  calls.length = 0;
+  packAnswer = { handoff: { ok: true, method: 'pickup' } };
+  let r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'handoff', src: 'SHOPIFY-OL', invoice: ' #1069 ', method: 'pickup' } }), r);
+  assert.equal(r.code, 200);
+  assert.deepEqual(calls[0].body, { action: 'handoff', src: 'SHOPIFY-OL', invoice: '#1069', method: 'pickup' });
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'handoff', src: 'SHOPIFY-OL', invoice: '#1069', method: 'drone' } }), r);
+  assert.equal(r.code, 400);
+});
+
+test('GET leaves pickup orders out of Befalia OS and counts them', async () => {
+  delete process.env.NOTION_TOKEN;
+  mode = 'packfeed';
+  packAnswer = { overlay: { ok: true, ticks: [], shipped: [], notes: [], handoff: [{ src: 'SHOPIFY-OL', invoice: '#1069', method: 'pickup', by: 'Befa' }] } };
+  const r = res(); await handler(req({ headers: { 'x-os-key': 'os-key' } }), r);
+  mode = 'ok';
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  assert.equal(r.body.orders.find((o) => o.invoice === '#1069'), undefined);
+  assert.equal(r.body.counts.pickupHidden, 1);
 });

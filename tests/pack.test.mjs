@@ -120,3 +120,33 @@ test('To-Do task: name, area, done, and the day of the click in Bali', () => {
   assert.equal(witaDay('2026-10-12T15:59:00Z'), '2026-10-12');
   assert.equal(witaDay('2026-10-12T16:00:00Z'), '2026-10-13');
 });
+
+test('pickup or send: a packed order moves to Waiting for pickup or To send; not before it is packed', () => {
+  const f = JSON.parse(JSON.stringify(feed));
+  f.handoff = [{ src: 'SHOPIFY-OL', invoice: '#1069', method: 'send', at: '2026-10-13T14:40:00Z', by: 'Befa' },
+               { src: 'MANUAL (IG & WA) - OL', invoice: 'SDTMar26-2', method: 'pickup', by: 'Befa' }];
+  let r = build(f, products, NOW);
+  const o = r.orders.find((x) => x.invoice === '#1069');
+  assert.equal(o.stage, 'to_send');
+  assert.equal(o.handoff.method, 'send');
+  assert.equal(r.counts.to_send, 1);
+  assert.notEqual(r.orders.find((x) => x.invoice === 'SDTMar26-2').stage, 'pickup', 'only a fully packed order changes stage');
+  f.handoff[0].method = 'pickup';
+  r = build(f, products, NOW);
+  assert.equal(r.orders.find((x) => x.invoice === '#1069').stage, 'pickup', 'the Sea Diva dashboard still lists it');
+  assert.equal(r.counts.pickup, 1);
+  r = build(f, products, NOW, { hidePickup: true });
+  assert.equal(r.orders.find((x) => x.invoice === '#1069'), undefined, 'Befalia OS does not list pickup orders');
+  assert.equal(r.counts.pickupHidden, 1);
+  f.handoff[0].method = 'none';
+  assert.equal(build(f, products, NOW).orders.find((x) => x.invoice === '#1069').stage, 'packed', 'none clears the choice');
+});
+
+test('To send sorts after packed-without-a-choice and before pickup', () => {
+  const f = JSON.parse(JSON.stringify(feed));
+  f.handoff = [{ src: 'SHOPIFY-OL', invoice: '#1069', method: 'send' }];
+  const r = build(f, products, NOW);
+  const i = r.orders.findIndex((o) => o.stage === 'to_send');
+  const j = r.orders.findIndex((o) => o.stage === 'ready');
+  assert.ok(j < i);
+});
