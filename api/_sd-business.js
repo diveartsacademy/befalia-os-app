@@ -407,7 +407,7 @@ export function build(feed, products, now, opts) {
      by Befalia OS); send orders get their own To send list. */
   const handoff = {};
   ((feed && feed.handoff) || []).forEach((k) => {
-    if (k && k.src && k.invoice && (k.method === 'pickup' || k.method === 'send')) handoff[k.src + '|' + txt(k.invoice)] = { method: k.method, at: k.at || null, by: k.by || '' };
+    if (k && k.src && k.invoice && (k.method === 'pickup' || k.method === 'send')) handoff[k.src + '|' + txt(k.invoice)] = { method: k.method, at: k.at || null, by: k.by || '', tracking: k.tracking || '' };
   });
   let pickupHidden = 0;
   const sources = {}, all = [];
@@ -449,10 +449,18 @@ export function build(feed, products, now, opts) {
         else if (!open.length) stage = 'close_in_shopify';
       }
     } else if (MARKETPLACE[o.channel]) {
+      /* Nothing is hidden any more (Befa, 14 Oct 00:21: unfinished orders
+         were missing). Old orders with no status at all get their own tile
+         instead of dropping off the list. */
       const anySet = open.some((l) => l.group !== 'blank' || l.packed);
-      include = open.length > 0 && (anySet || (o.days !== null && o.days <= NOTSET_DAYS));
+      include = open.length > 0;
+      if (include && !anySet && !(o.days !== null && o.days <= NOTSET_DAYS)) stage = 'old_no_status';
     } else if ((o.pay === 'paid' || o.pay === 'part') && open.length && !o.shipped) {
       include = true;
+    } else if (o.pay === 'unpaid' && open.length && !o.shipped && open.some((l) => l.group !== 'blank')) {
+      /* Not paid yet, but production has started: shown, never packed. */
+      include = true;
+      stage = 'unpaid';
     }
     if (!include) return;
     const physical = open.filter((l) => !nonPhysical(l.item));
@@ -480,7 +488,7 @@ export function build(feed, products, now, opts) {
         slot: l.slot, title: l.title, detail: l.detail, qty: l.qty, status: l.status || '', group: l.group,
         markDone: o.pay !== 'unpaid' && l.group !== 'done' && nonPhysical(l.item),
         physical: !nonPhysical(l.item),
-        canPack: l.group !== 'done' && l.group !== 'ignore' && !l.packed && !nonPhysical(l.item),
+        canPack: stage !== 'unpaid' && l.group !== 'done' && l.group !== 'ignore' && !l.packed && !nonPhysical(l.item),
         packed: l.packed || null,
         inBox: l.inBox || null,
         note: l.note || null,
@@ -491,17 +499,20 @@ export function build(feed, products, now, opts) {
 
   /* Packing first: everything ready, then the ones half ready, then what is
      still being made. Packed and waiting for the courier sit after those. */
-  const RANK = { ready: 0, partly: 1, production: 2, not_set: 3, packed: 4, to_send: 5, pickup: 6, paperwork: 7, close_in_shopify: 8, no_items: 9 };
+  const RANK = { ready: 0, partly: 1, production: 2, not_set: 3, packed: 4, to_send: 5, pickup: 6, paperwork: 7, close_in_shopify: 8, no_items: 9, unpaid: 10, old_no_status: 11 };
   const due = (o) => (o.shipByDays == null ? 9999 : o.shipByDays);
   orders.sort((a, b) => (RANK[a.stage] - RANK[b.stage]) || (due(a) - due(b)) ||
     ((b.days == null ? -1 : b.days) - (a.days == null ? -1 : a.days)));
 
-  const counts = { all: orders.length, shopify: 0, manual: 0, shopee: 0, toko: 0, tailcraft: 0, ready: 0, partly: 0, production: 0, not_set: 0,
-                   packed: 0, to_send: 0, pickup: 0, close_in_shopify: 0, paperwork: 0, no_items: 0, lines: 0, photos: 0, productPhotos: 0, markDone: 0,
+  /* "All" leaves out the old no-status marketplace orders; they have their
+     own tile so they never bury the work of today. */
+  const counts = { all: orders.filter((o) => o.stage !== 'old_no_status').length, shopify: 0, manual: 0, shopee: 0, toko: 0, tailcraft: 0, ready: 0, partly: 0, production: 0, not_set: 0,
+                   packed: 0, to_send: 0, pickup: 0, unpaid: 0, old_no_status: 0, close_in_shopify: 0, paperwork: 0, no_items: 0, lines: 0, photos: 0, productPhotos: 0, markDone: 0,
                    packedLines: 0, packedToday: 0 };
   const today = witaDay(now.toISOString());
   orders.forEach((o) => {
-    counts[o.channel]++; counts[o.stage]++;
+    counts[o.stage]++;
+    if (o.stage !== 'old_no_status') counts[o.channel]++;
     o.lines.forEach((l) => {
       counts.lines++;
       if (l.markDone) counts.markDone++;

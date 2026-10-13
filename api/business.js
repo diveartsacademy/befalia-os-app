@@ -13,6 +13,7 @@
 //        { action: 'tick', src, invoice, slot, on }  "in the box" tick
 //        { action: 'note', src, invoice, slot, note } a note on one product
 //        { action: 'handoff', src, invoice, method }  pickup, send or none
+//        { action: 'tracking', src, invoice, tracking } courier tracking code
 //                                                     once packed; pickup orders
 //                                                     leave this tab
 //        { action: 'ship', src, row, invoice } / { action: 'unship', id }
@@ -167,6 +168,15 @@ async function post(req, res) {
       return res.status(400).json({ ok: false, error: 'handoff needs src, invoice and method pickup, send or none.' });
     }
     const r = await pack({ action: 'handoff', src: b.src, invoice: String(b.invoice).trim(), method: b.method });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not saved.' });
+    return res.status(200).json(r);
+  }
+  /* Tracking code for a parcel that is being sent (14 Oct 2026). */
+  if (b.action === 'tracking') {
+    const tr = typeof b.tracking === 'string' ? b.tracking.trim() : '';
+    if (!TABS.includes(b.src) || !String(b.invoice || '').trim()) return res.status(400).json({ ok: false, error: 'tracking needs src and invoice.' });
+    if (tr.length > 120) return res.status(400).json({ ok: false, error: 'A tracking code can be at most 120 characters.' });
+    const r = await pack({ action: 'tracking', src: b.src, invoice: String(b.invoice).trim(), tracking: tr });
     if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not saved.' });
     return res.status(200).json(r);
   }
