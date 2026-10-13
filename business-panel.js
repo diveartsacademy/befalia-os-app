@@ -22,7 +22,7 @@
   'use strict';
   var ROOT = 'biz-root';
   var S = { biz: 'seadiva', stage: 'all', ch: 'all', data: null, err: '', loading: false, at: null,
-            arm: '', busy: '', flash: {}, addr: {}, noteEdit: '', noteDraft: {}, noteBusy: '', notice: null, visible: [] };
+            arm: '', busy: '', flash: {}, addr: {}, noteEdit: '', noteDraft: {}, noteBusy: '', notice: null, visible: [], trackDraft: {} };
   var CH = { shopify: 'Shopify', shopee: 'Shopee', toko: 'Tokopedia/TikTok', manual: 'Manual', tailcraft: 'TailCraft' };
 
   var BUSINESSES = [
@@ -39,13 +39,17 @@
     ['not_set', 'No status yet'],
     ['packed', 'Packed, pickup or send?'],
     ['to_send', 'To send'],
+    ['unpaid', 'Not paid yet'],
+    ['old_no_status', 'Old, no status'],
     ['paperwork', 'Only paperwork left'],
     ['close_in_shopify', 'Close in Shopify']
   ];
   var STAGE_NOTE = {
     ready: 'Every product left on this invoice is ready. Pack it, then tap Packed, ready to ship.',
     packed: 'Packed. Does the customer pick it up, or do we send it?',
-    to_send: 'Packed, going out by courier. Write the name, phone and address below on the box.',
+    to_send: 'Packed, going out by courier. Print or write the label below, then save the tracking code.',
+    unpaid: 'Not paid yet, but production has started. Do not send before it is paid.',
+    old_no_status: 'Older than 45 days with no production status. If it went out long ago, tap Already shipped. If not, set its status in the sheet.',
     partly: 'Some products are ready, the rest are still being made or bought.',
     production: 'Still being designed, made or bought.',
     not_set: 'Paid, but no production status is written in the sheet yet.',
@@ -130,6 +134,10 @@
       '.biz-card.st-packed{border-style:dashed}' +
       '.biz-stage.to_send{color:#8fd3ff;border-color:rgba(143,211,255,.5)}' +
       '.biz-hand{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}' +
+      '.biz-go{flex-direction:column;align-items:stretch}.biz-golead{font:600 13px var(--sans);color:#9fe8b6}' +
+      '.biz-pack.alt{background:#8fd3ff}.biz-pack.alt.arm{background:#ffd27f}' +
+      '.biz-track{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}' +
+      '.biz-track input{flex:1 1 180px;min-width:0;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);font:14px var(--sans);padding:9px 11px}' +
       '.biz-hand button{font:700 13px var(--sans);border-radius:10px;padding:10px 14px;cursor:pointer;border:1px solid rgba(143,211,255,.55);background:rgba(143,211,255,.12);color:#cfeaff}' +
       '.biz-hand button.arm{background:#ffd27f;color:#04121f;border-color:#ffd27f}' +
       '.biz-hand .now{font:600 12px var(--sans);color:#8fd3ff;align-self:center}' +
@@ -278,7 +286,25 @@
       (d.lines || []).map(function (x) { return '<div>' + esc(x) + '</div>'; }).join('') +
       miss.map(function (m) { return '<div class="miss">' + esc(m) + '</div>'; }).join('') +
       '<div class="src">From: ' + esc(d.from || 'sheet') + '</div>' +
-      '<button data-addr-copy="' + esc(key) + '">Copy</button> <button data-addr-hide="' + esc(key) + '">Hide</button></div>';
+      '<button data-addr-print="' + esc(key) + '">Print label</button> <button data-addr-copy="' + esc(key) + '">Copy</button> <button data-addr-hide="' + esc(key) + '">Hide</button></div>';
+  }
+  /* A printable shipping label: big name, phone and address, one page. */
+  function printLabel(key) {
+    var A = S.addr[key];
+    if (!A || !A.data) return;
+    var d = A.data, i = key.lastIndexOf('|'), inv = key.slice(i + 1);
+    var w = window.open('', '_blank');
+    if (!w) { S.flash[key] = { text: 'The browser blocked the print window. Allow pop-ups for this site, or use Copy.', bad: true }; render(); return; }
+    w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Label ' + esc(inv) + '</title><style>' +
+      'body{font:18px/1.45 Arial,sans-serif;margin:24px;color:#000}.box{border:2px solid #000;border-radius:8px;padding:18px 20px;max-width:420px}' +
+      '.to{font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}.n{font-size:24px;font-weight:700}.p{font-size:20px;font-weight:700;margin:2px 0 8px}' +
+      '.inv{margin-top:12px;font-size:12px;color:#444}.from{margin-top:14px;font-size:13px;border-top:1px dashed #000;padding-top:8px}' +
+      '@media print{body{margin:0}}</style></head><body><div class="box"><div class="to">Ship to</div>' +
+      (d.name ? '<div class="n">' + esc(d.name) + '</div>' : '') + (d.phone ? '<div class="p">' + esc(d.phone) + '</div>' : '') +
+      (d.lines || []).map(function (x) { return '<div>' + esc(x) + '</div>'; }).join('') +
+      '<div class="inv">Order ' + esc(inv) + '</div><div class="from">From: Sea Diva Tails</div></div>' +
+      '<script>window.onload=function(){window.print();}<\/script></body></html>');
+    w.document.close();
   }
 
   function dueHtml(o) {
@@ -304,7 +330,16 @@
     var ready = packable.filter(function (l) { return l.group === 'ready' || l.group === 'shipping' || boxAll; });
     var key = o.src + '|' + o.invoice;
     var act = '';
-    if (ready.length) {
+    if (boxAll && packable.length) {
+      /* Everything is in the box (Befa, 14 Oct 00:21): one step, packed
+         and sent or picked up. */
+      var gs = 'go:' + key + '|send', gp = 'go:' + key + '|pickup';
+      act = '<div class="biz-act biz-go"><div class="biz-golead">Everything is in the box. How does it leave?</div>' +
+        '<button class="biz-pack' + (S.arm === gs ? ' arm' : '') + '" data-packgo="' + esc(key + '|send') + '"' + (S.busy ? ' disabled' : '') + '>' +
+        (S.busy === key ? 'Saving…' : (S.arm === gs ? 'Tap again: packed, we send it' : 'We send it')) + '</button>' +
+        '<button class="biz-pack alt' + (S.arm === gp ? ' arm' : '') + '" data-packgo="' + esc(key + '|pickup') + '"' + (S.busy ? ' disabled' : '') + '>' +
+        (S.arm === gp ? 'Tap again: packed, customer picks it up' : 'Customer picks it up at the studio') + '</button></div>';
+    } else if (ready.length) {
       var all = key + '|*';
       act = '<div class="biz-act"><button class="biz-pack' + (S.arm === all ? ' arm' : '') + '" data-pack="' + esc(all) + '"' + (S.busy ? ' disabled' : '') + '>' +
         (S.busy === key ? 'Saving…' : (S.arm === all ? 'Tap again to confirm' : 'Packed, ready to ship' +
@@ -339,8 +374,13 @@
         (S.arm === pk ? 'Tap again: leaves this tab, goes to Sea Diva' : 'Customer picks it up') + '</button>' +
         '<button data-hand="' + esc(key + '|send') + '"' + (S.busy ? ' disabled' : '') + '>We send it</button></div>';
     } else if (o.stage === 'to_send') {
+      var tv = Object.prototype.hasOwnProperty.call(S.trackDraft, key) ? S.trackDraft[key] : ((o.handoff && o.handoff.tracking) || '');
+      var ta = 'track:' + key;
       hand = '<div class="biz-hand"><span class="now">Going by courier' + (o.handoff && o.handoff.by ? ', set by ' + esc(o.handoff.by) : '') + '.</span>' +
-        '<button class="chg" data-hand="' + esc(key + '|none') + '"' + (S.busy ? ' disabled' : '') + '>Change</button></div>';
+        '<button class="chg" data-hand="' + esc(key + '|none') + '"' + (S.busy ? ' disabled' : '') + '>Change</button></div>' +
+        '<div class="biz-track"><input data-track-input="' + esc(key) + '" placeholder="Tracking code (resi)" value="' + esc(tv) + '" maxlength="120">' +
+        '<button class="biz-pack' + (S.arm === ta ? ' arm' : '') + '" data-track-save="' + esc(key) + '"' + (S.busy ? ' disabled' : '') + '>' +
+        (S.arm === ta ? 'Tap again: sent, mark DONE' : 'Save tracking, mark sent') + '</button></div>';
     }
     act = hand + act;
     var after = '';
@@ -402,7 +442,7 @@
     }).join('') + '</div>';
 
     var list = (d.orders || []).filter(function (o) {
-      return (S.stage === 'all' || o.stage === S.stage) && (S.ch === 'all' || o.channel === S.ch);
+      return ((S.stage === 'all' && o.stage !== 'old_no_status') || o.stage === S.stage) && (S.ch === 'all' || o.channel === S.ch);
     });
     var shipBox = '';
     /* Finished orders leave the list. Only a one-line count stays, folded,
@@ -413,7 +453,7 @@
     } else if ((d.shipped || []).length) {
       shipBox = '<div class="biz-shipped"><h4>Marked already shipped, last 3 days <button class="biz-undo" data-act="hide-shipped">Hide</button></h4>' + d.shipped.map(function (k) {
         return '<div class="r"><b>' + esc(k.invoice) + '</b> <span>' + esc(CH[{ 'MANUAL (IG & WA) - OL': 'manual', 'SHOPIFY-OL': 'shopify', 'SHOPEE - OL': 'shopee', 'TOKOPEDIA/TIKTOK shop -OL': 'toko', 'TAILCRAFT': 'tailcraft' }[k.src]] || '') +
-          (k.customer ? ' · ' + esc(k.customer) : '') + ' · ' + esc(when(k.at)) + '</span>' +
+          (k.customer ? ' · ' + esc(k.customer) : '') + ' · ' + esc(when(k.at)) + (k.tracking ? ' · resi ' + esc(k.tracking) : '') + '</span>' +
           '<button class="biz-undo" data-unship="' + esc(k.id) + '">Undo</button>' +
           (k.byHand ? '<span class="h">Set DONE by hand in the sheet for ' + k.byHand + (k.byHand === 1 ? ' product' : ' products') +
             (k.src === 'MANUAL (IG & WA) - OL' ? ' (their status is a word the writer never overwrites).' : ' (this tab cannot be written automatically yet).') +
@@ -563,6 +603,8 @@
 
   /* Keep what is typed in a note while the list redraws around it. */
   document.addEventListener('input', function (e) {
+    var ti = e.target && e.target.getAttribute && e.target.getAttribute('data-track-input');
+    if (ti) { S.trackDraft[ti] = e.target.value; return; }
     var t = e.target;
     if (t && t.dataset && t.dataset.noteInput) S.noteDraft[t.dataset.noteInput] = t.value;
   });
@@ -575,6 +617,39 @@
       load();
     })
       .catch(function (e) { S.flash[key] = { text: 'Not marked: ' + (e.message || 'error'), bad: true }; render(); });
+  }
+  /* Everything in the box: pack every product, then send or pickup. */
+  function doPackGo(id) {
+    var i = id.lastIndexOf('|'), method = id.slice(i + 1), key = id.slice(0, i);
+    var j = key.lastIndexOf('|'), src = key.slice(0, j), inv = key.slice(j + 1);
+    var o = find(src, inv);
+    if (!o) return;
+    var slots = o.lines.filter(function (l) { return l.canPack; }).map(function (l) { return l.slot; });
+    post({ action: 'mark', src: src, row: o.row, invoice: inv, slots: slots }, key).then(function () {
+      return post({ action: 'handoff', src: src, invoice: inv, method: method }, key);
+    }).then(function () {
+      var who = o.customer ? ' (' + o.customer + ')' : '';
+      S.notice = method === 'pickup'
+        ? { text: inv + who + ' is packed and waiting for pickup. It is now only on the Sea Diva dashboard, Pack and ship, Waiting for pickup.', undo: key }
+        : { text: inv + who + ' is packed and under To send, with its label open.', undo: key };
+      if (method === 'send') S.stage = 'to_send';
+      load();
+    }).catch(function (e) { S.flash[key] = { text: 'Not saved: ' + (e.message || 'error'), bad: true }; render(); });
+  }
+  /* Tracking code saved, then the order is marked sent and DONE. */
+  function doTrack(key) {
+    var j = key.lastIndexOf('|'), src = key.slice(0, j), inv = key.slice(j + 1);
+    var o = find(src, inv);
+    if (!o) return;
+    var tr = String(S.trackDraft[key] != null ? S.trackDraft[key] : ((o.handoff && o.handoff.tracking) || '')).trim();
+    if (!tr) { S.flash[key] = { text: 'Type the tracking code first.', bad: true }; render(); return; }
+    post({ action: 'tracking', src: src, invoice: inv, tracking: tr }, key).then(function () {
+      return post({ action: 'ship', src: src, row: o.row, invoice: inv }, key);
+    }).then(function (j2) {
+      delete S.trackDraft[key];
+      S.notice = { text: inv + (o.customer ? ' (' + o.customer + ')' : '') + ' is sent with tracking ' + tr + ', marked DONE and off the list.', unship: j2 && j2.id };
+      load();
+    }).catch(function (e) { S.flash[key] = { text: 'Not saved: ' + (e.message || 'error'), bad: true }; render(); });
   }
   function doHand(id) {
     var i = id.lastIndexOf('|'), method = id.slice(i + 1), key = id.slice(0, i);
@@ -605,7 +680,7 @@
   document.addEventListener('click', function (e) {
     var root = document.getElementById(ROOT);
     if (!root || !root.contains(e.target)) return;
-    var b = e.target.closest('[data-biz],[data-stage],[data-ch],[data-act],[data-pack],[data-undo-mark],[data-undo-click],[data-tick],[data-addr],[data-addr-hide],[data-addr-copy],[data-ship],[data-unship],[data-note-edit],[data-note-save],[data-note-cancel],[data-hand]');
+    var b = e.target.closest('[data-biz],[data-stage],[data-ch],[data-act],[data-pack],[data-undo-mark],[data-undo-click],[data-tick],[data-addr],[data-addr-hide],[data-addr-copy],[data-ship],[data-unship],[data-note-edit],[data-note-save],[data-note-cancel],[data-hand],[data-packgo],[data-track-save],[data-addr-print]');
     if (!b) return;
     if (b.dataset.noteEdit) { S.noteEdit = b.dataset.noteEdit; render(); var ta = document.querySelector('[data-note-input]'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } return; }
     if (b.dataset.noteCancel) { delete S.noteDraft[b.dataset.noteCancel]; S.noteEdit = ''; render(); return; }
@@ -615,6 +690,15 @@
       var arm = 'ship:' + b.dataset.ship;
       if (S.arm !== arm) { S.arm = arm; render(); setTimeout(function () { if (S.arm === arm) { S.arm = ''; render(); } }, 5000); return; }
       doShip(b.dataset.ship); return;
+    }
+    if (b.dataset.addrPrint) { printLabel(b.dataset.addrPrint); return; }
+    if (b.dataset.packgo || b.dataset.trackSave) {
+      if (S.busy) return;
+      var ga = b.dataset.packgo ? 'go:' + b.dataset.packgo : 'track:' + b.dataset.trackSave;
+      if (S.arm !== ga) { S.arm = ga; render(); setTimeout(function () { if (S.arm === ga) { S.arm = ''; render(); } }, 5000); return; }
+      S.arm = '';
+      if (b.dataset.packgo) doPackGo(b.dataset.packgo); else doTrack(b.dataset.trackSave);
+      return;
     }
     if (b.dataset.hand) {
       if (S.busy) return;

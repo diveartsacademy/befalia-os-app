@@ -31,8 +31,10 @@ test('Manual: paid or deposit with an unfinished product shows', () => {
   assert.ok(by('SDTSep26-14'), 'a deposit counts as paid');
 });
 
-test('Manual: waiting for payment, shipped, all DONE and QA rows are left out', () => {
-  assert.equal(by('SDTOct26-01'), undefined, 'not paid yet');
+test('Manual: shipped, all DONE and QA rows are left out; not paid yet but in production is shown, never packed', () => {
+  const u = by('SDTOct26-01');
+  assert.equal(u.stage, 'unpaid', 'not paid yet, production started (Befa, 14 Oct: unfinished orders must show)');
+  assert.ok(u.lines.every((l) => !l.canPack));
   assert.equal(by('SDTOct26-02'), undefined, 'ticked Shipped');
   assert.equal(by('18'), undefined, 'every product DONE');
   assert.equal(out.orders.some((o) => /^QA/i.test(o.invoice)), false);

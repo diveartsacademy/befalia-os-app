@@ -15,11 +15,12 @@ test('Shopee and Tokopedia/TikTok tabs are read by header', () => {
   assert.equal(out.sources.toko.ok, true, out.sources.toko.error);
 });
 
-test('marketplace: open product shows, DONE and old blank rows do not, new blank rows ask for a status', () => {
+test('marketplace: open product shows, DONE does not, old blank rows get their own tile, new blank rows ask for a status', () => {
   assert.ok(by('SHP-3RD'));
   assert.ok(by('TOK-1'));
   assert.equal(by('SHP-OLD-DONE'), undefined);
-  assert.equal(by('SHP-OLD-BLANK'), undefined, 'blank and older than 45 days: long delivered');
+  assert.equal(by('SHP-OLD-BLANK').stage, 'old_no_status', 'blank and older than 45 days: shown under its own tile, not hidden (Befa, 14 Oct)');
+  assert.equal(out.counts.all, out.orders.filter((o) => o.stage !== 'old_no_status').length, 'All leaves the old no-status ones out');
   assert.equal(by('SHP-NEW-BLANK').stage, 'not_set');
   assert.equal(by('SHP-3RD').stage, 'partly');
   assert.equal(by('SHP-3RD').channel, 'shopee');

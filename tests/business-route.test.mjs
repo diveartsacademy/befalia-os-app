@@ -72,7 +72,7 @@ test('good answer, and storefront trouble only costs photos', async () => {
   mode = 'ok';
   const r = res(); await handler(req({ headers: { 'x-os-key': 'os-key' } }), r);
   assert.equal(r.code, 200);
-  assert.equal(r.body.counts.all, 9);
+  assert.equal(r.body.counts.all, 10, '9 open plus SDTOct26-01, not paid yet but in production (14 Oct)');
   assert.equal(r.body.shopProducts, 3);
   assert.equal(r.body.photosNote, '');
 });
