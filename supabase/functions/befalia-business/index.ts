@@ -13,6 +13,11 @@
 //
 //   GET ?check=1   booleans only: is the service key set, does the feed answer
 //   GET            the feed, with header x-feed-key
+//   GET ?catalog=1 product titles and photo links from the public storefront
+//                  seadivatails.com/products.json, slimmed (no prices, no stock).
+//                  Public data, no key. Exists because Shopify answers 403 to
+//                  Cloudflare Workers, so the Sea Diva Pack and ship page reads
+//                  its photos through here. Cached 30 minutes. (13 Oct 2026)
 //   POST           pack actions (13 Oct 2026), header x-feed-key, JSON body
 //                  passed unchanged to seadiva.befalia_pack(p_key, p). The
 //                  database checks the key and decides what is allowed.
@@ -49,6 +54,27 @@ async function rpc(fn: string, args: unknown) {
 }
 const feed = (key: string) => rpc('befalia_business_feed', { p_key: key });
 
+let shopCache: { at: number; products: unknown[] } = { at: 0, products: [] };
+async function catalog() {
+  if (shopCache.products.length && Date.now() - shopCache.at < 30 * 60000) return { ok: true, products: shopCache.products, cached: true };
+  const all: any[] = [];
+  for (let page = 1; page <= 8; page++) {
+    const r = await fetch('https://seadivatails.com/products.json?limit=250&page=' + page, { headers: { accept: 'application/json' } });
+    if (!r.ok) return { ok: false, error: 'The shop answered HTTP ' + r.status + '.', products: shopCache.products };
+    const j = await r.json();
+    const list = (j && j.products) || [];
+    all.push(...list);
+    if (list.length < 250) break;
+  }
+  const products = all.map((p: any) => ({
+    title: p.title,
+    images: (p.images || []).slice(0, 1).map((i: any) => ({ src: i.src })),
+    variants: (p.variants || []).map((v: any) => ({ title: v.title, featured_image: v.featured_image && v.featured_image.src ? { src: v.featured_image.src } : null })),
+  }));
+  shopCache = { at: Date.now(), products };
+  return { ok: true, products, cached: false };
+}
+
 Deno.serve(async (req: Request) => {
   const url = new URL(req.url);
   if (req.method === 'POST') {
@@ -65,6 +91,11 @@ Deno.serve(async (req: Request) => {
     return out(200, f.body);
   }
   if (req.method !== 'GET') return out(405, { ok: false, error: 'GET or POST only' });
+
+  if (url.searchParams.get('catalog') === '1') {
+    try { return out(200, await catalog()); }
+    catch (e) { return out(200, { ok: false, error: 'The shop could not be read (' + String((e as Error).message || e) + ').', products: [] }); }
+  }
 
   if (url.searchParams.get('check') === '1') {
     const hasUrl = !!Deno.env.get('SUPABASE_URL');
