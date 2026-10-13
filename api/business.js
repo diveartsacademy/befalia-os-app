@@ -11,6 +11,10 @@
 //        { action: 'undo', click_id } or { action: 'undo', mark_id }
 //        { action: 'contact', src, row, invoice }   name, phone, address for the box
 //        { action: 'tick', src, invoice, slot, on }  "in the box" tick
+//        { action: 'note', src, invoice, slot, note } a note on one product
+//        { action: 'handoff', src, invoice, method }  pickup, send or none
+//                                                     once packed; pickup orders
+//                                                     leave this tab
 //        { action: 'ship', src, row, invoice } / { action: 'unship', id }
 //                                                     already shipped, whole order
 //      A mark moves those products to Ready to be shipped (Manual sheet via the
@@ -29,7 +33,7 @@
 //      Shopify product photos. Public, no key. Cached for 30 minutes.
 // The sorting rules live in api/_sd-business.js.
 import { requireKey } from './_auth.js';
-import { build, SRC } from './_sd-business.js';
+import { build, SRC, TC_SRC } from './_sd-business.js';
 import { logPacks, unlogPacks, witaDay, packCall } from './_todo-pack.js';
 
 const FEED_URL = process.env.BIZ_FEED_URL || 'https://gszjrsvvpajznwdrtjva.supabase.co/functions/v1/befalia-business';
@@ -70,7 +74,10 @@ async function feed() {
 
 const pack = packCall;
 
-const TABS = Object.values(SRC);
+const TABS = Object.values(SRC).concat(TC_SRC);
+/* A sheet order needs its row (the database re-checks it holds the invoice).
+   A TailCraft order has no sheet row: it is found by invoice, row 0. */
+const badRow = (src, row) => (src === TC_SRC ? row !== 0 : (!Number.isInteger(row) || row < 2));
 
 /* The body as an object, whatever shape Vercel hands over: already parsed,
    a string, a Buffer, or (when the content type was unusual) unread. */
@@ -95,7 +102,7 @@ async function post(req, res) {
   if (b.action === 'mark') {
     const slots = Array.isArray(b.slots) ? b.slots.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 12) : [];
     const row = Number(b.row);
-    if (!TABS.includes(b.src) || !Number.isInteger(row) || row < 2 || !String(b.invoice || '').trim() || !slots.length) {
+    if (!TABS.includes(b.src) || badRow(b.src, row) || !String(b.invoice || '').trim() || !slots.length) {
       return res.status(400).json({ ok: false, error: 'mark needs src, row, invoice and slots.' });
     }
     const r = await pack({ action: 'mark', src: b.src, row, invoice: String(b.invoice).trim(), slots });
@@ -117,7 +124,7 @@ async function post(req, res) {
      database re-checks that the row still holds this invoice. */
   if (b.action === 'contact') {
     const row = Number(b.row);
-    if (!TABS.includes(b.src) || !Number.isInteger(row) || row < 2 || !String(b.invoice || '').trim()) {
+    if (!TABS.includes(b.src) || badRow(b.src, row) || !String(b.invoice || '').trim()) {
       return res.status(400).json({ ok: false, error: 'contact needs src, row and invoice.' });
     }
     const r = await pack({ action: 'contact', src: b.src, row, invoice: String(b.invoice).trim() });
@@ -128,7 +135,7 @@ async function post(req, res) {
      DONE to the board and (Manual) the sheet. Undo with its id. */
   if (b.action === 'ship') {
     const row = Number(b.row);
-    if (!TABS.includes(b.src) || !Number.isInteger(row) || row < 2 || !String(b.invoice || '').trim()) {
+    if (!TABS.includes(b.src) || badRow(b.src, row) || !String(b.invoice || '').trim()) {
       return res.status(400).json({ ok: false, error: 'ship needs src, row and invoice.' });
     }
     const r = await pack({ action: 'ship', src: b.src, row, invoice: String(b.invoice).trim() });
@@ -140,6 +147,27 @@ async function post(req, res) {
     if (!Number.isInteger(id) || id < 1) return res.status(400).json({ ok: false, error: 'unship needs id.' });
     const r = await pack({ action: 'unship', id });
     if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not undone.' });
+    return res.status(200).json(r);
+  }
+  /* A note on one product line; an empty note clears it. */
+  if (b.action === 'note') {
+    const slot = Number(b.slot);
+    const note = typeof b.note === 'string' ? b.note : '';
+    if (!TABS.includes(b.src) || !Number.isInteger(slot) || slot < 1 || slot > 12 || !String(b.invoice || '').trim()) {
+      return res.status(400).json({ ok: false, error: 'note needs src, invoice and slot.' });
+    }
+    if (note.length > 1000) return res.status(400).json({ ok: false, error: 'A note can be at most 1000 characters.' });
+    const r = await pack({ action: 'note', src: b.src, invoice: String(b.invoice).trim(), slot, note });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not saved.' });
+    return res.status(200).json(r);
+  }
+  /* Pickup or send, chosen once the order is packed. 'none' clears it. */
+  if (b.action === 'handoff') {
+    if (!TABS.includes(b.src) || !String(b.invoice || '').trim() || !['pickup', 'send', 'none'].includes(b.method)) {
+      return res.status(400).json({ ok: false, error: 'handoff needs src, invoice and method pickup, send or none.' });
+    }
+    const r = await pack({ action: 'handoff', src: b.src, invoice: String(b.invoice).trim(), method: b.method });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not saved.' });
     return res.status(200).json(r);
   }
   /* "In the box" tick for one product line. */
@@ -182,8 +210,11 @@ export default async function handler(req, res) {
   if (!f.ok) return res.status(f.status).json({ ok: false, error: f.error });
   f.body.ticks = (ov && ov.ok && ov.ticks) || [];
   f.body.shipped = (ov && ov.ok && ov.shipped) || [];
+  f.body.notes = (ov && ov.ok && ov.notes) || [];
+  f.body.handoff = (ov && ov.ok && ov.handoff) || [];
 
-  const out = build(f.body, shop.products, new Date());
+  /* Pickup orders are shown only on the Sea Diva dashboard (Befa, 13 Oct). */
+  const out = build(f.body, shop.products, new Date(), { hidePickup: true });
   out.photosNote = shop.error || '';
   out.shopProducts = (shop.products || []).length;
   out.todo = todo;

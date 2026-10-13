@@ -22,8 +22,8 @@
   'use strict';
   var ROOT = 'biz-root';
   var S = { biz: 'seadiva', stage: 'all', ch: 'all', data: null, err: '', loading: false, at: null,
-            arm: '', busy: '', flash: {}, addr: {} };
-  var CH = { shopify: 'Shopify', shopee: 'Shopee', toko: 'Tokopedia/TikTok', manual: 'Manual' };
+            arm: '', busy: '', flash: {}, addr: {}, noteEdit: '', noteDraft: {}, noteBusy: '', notice: null, visible: [] };
+  var CH = { shopify: 'Shopify', shopee: 'Shopee', toko: 'Tokopedia/TikTok', manual: 'Manual', tailcraft: 'TailCraft' };
 
   var BUSINESSES = [
     ['seadiva', 'Sea Diva'],
@@ -37,13 +37,15 @@
     ['partly', 'Partly ready'],
     ['production', 'In production'],
     ['not_set', 'No status yet'],
-    ['packed', 'Packed, waiting to ship'],
+    ['packed', 'Packed, pickup or send?'],
+    ['to_send', 'To send'],
     ['paperwork', 'Only paperwork left'],
     ['close_in_shopify', 'Close in Shopify']
   ];
   var STAGE_NOTE = {
     ready: 'Every product left on this invoice is ready. Pack it, then tap Packed, ready to ship.',
-    packed: 'Packed. Waiting to be sent.',
+    packed: 'Packed. Does the customer pick it up, or do we send it?',
+    to_send: 'Packed, going out by courier. Write the name, phone and address below on the box.',
     partly: 'Some products are ready, the rest are still being made or bought.',
     production: 'Still being designed, made or bought.',
     not_set: 'Paid, but no production status is written in the sheet yet.',
@@ -124,7 +126,16 @@
       '.biz-foot{font:12px var(--sans);color:var(--dim);margin-top:6px}' +
       '.biz-badge.shopee{background:rgba(255,120,60,.16);color:#ffb08a}' +
       '.biz-badge.toko{background:rgba(95,194,126,.16);color:#9fe8b6}' +
-      '.biz-card.st-packed{opacity:.86;border-style:dashed}' +
+      '.biz-badge.tailcraft{background:rgba(206,160,255,.16);color:#dcc2ff}' +
+      '.biz-card.st-packed{border-style:dashed}' +
+      '.biz-stage.to_send{color:#8fd3ff;border-color:rgba(143,211,255,.5)}' +
+      '.biz-hand{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}' +
+      '.biz-hand button{font:700 13px var(--sans);border-radius:10px;padding:10px 14px;cursor:pointer;border:1px solid rgba(143,211,255,.55);background:rgba(143,211,255,.12);color:#cfeaff}' +
+      '.biz-hand button.arm{background:#ffd27f;color:#04121f;border-color:#ffd27f}' +
+      '.biz-hand .now{font:600 12px var(--sans);color:#8fd3ff;align-self:center}' +
+      '.biz-hand .chg{font:600 11.5px var(--sans);padding:5px 9px;border-radius:7px;background:none;color:var(--aqua);border:1px solid var(--line)}' +
+      '.biz-notice{font:13px/1.45 var(--sans);border-radius:10px;padding:9px 11px;margin:10px 2px;background:rgba(143,211,255,.1);border:1px solid rgba(143,211,255,.4);color:#cfeaff}' +
+      '.biz-notice button{margin-left:8px}' +
       '.biz-stage.packed{color:#9fe8b6;border-color:rgba(126,224,160,.35)}' +
       '.biz-due{font:600 12px var(--sans);color:var(--muted)}' +
       '.biz-due.late{color:#ff8fa3}.biz-due.soon{color:#ffd27f}' +
@@ -158,6 +169,14 @@
       '.biz-shipped .r{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:5px 0;border-top:1px solid var(--line)}' +
       '.biz-shipped .r:first-of-type{border-top:0}' +
       '.biz-shipped .h{font:12px var(--sans);color:#ffd99a;flex-basis:100%}' +
+      '.biz-pnote2{margin-top:6px;padding:7px 9px;border-radius:8px;background:rgba(255,210,127,.12);border:1px solid rgba(255,210,127,.4);color:#ffe2a8;font:13px/1.4 var(--sans);white-space:pre-wrap;word-wrap:break-word}' +
+      '.biz-pnote2 .w{display:block;font:11px var(--sans);color:var(--dim);margin-top:3px;white-space:normal}' +
+      '.biz-notebtn{font:600 11.5px var(--sans);color:var(--aqua);background:none;border:0;padding:4px 0;cursor:pointer}' +
+      '.biz-noteed{margin-top:6px}' +
+      '.biz-noteed textarea{width:100%;box-sizing:border-box;min-height:64px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);font:13px/1.4 var(--sans);padding:7px 9px}' +
+      '.biz-noteed .b{display:flex;gap:8px;margin-top:6px}' +
+      '.biz-noteed button{font:600 12px var(--sans);border-radius:7px;padding:5px 10px;cursor:pointer;border:1px solid var(--line);background:none;color:var(--ink)}' +
+      '.biz-noteed button.save{background:#ffd27f;color:#04121f;border-color:#ffd27f}' +
       '.biz-empty{font:13.5px/1.5 var(--sans);color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:14px;margin-top:12px}' +
       '@media (max-width:420px){.biz-list{grid-template-columns:1fr}.biz-ph{flex-basis:64px;width:64px;height:64px}}';
     document.head.appendChild(s);
@@ -205,6 +224,20 @@
       pnote = p.how === 'product' ? '<span class="biz-pnote">check colour and size</span>' : '';
     }
     var detail = (l.detail || []).map(function (d) { return '<div class="d">' + esc(d) + '</div>'; }).join('');
+    /* A note on this product (e.g. size or colour changed after checkout). */
+    var nid = o.src + '|' + o.invoice + '|' + l.slot, noteHtml = '';
+    if (S.noteEdit === nid) {
+      var draft = Object.prototype.hasOwnProperty.call(S.noteDraft, nid) ? S.noteDraft[nid] : (l.note ? l.note.text : '');
+      noteHtml = '<div class="biz-noteed"><textarea data-note-input="' + esc(nid) + '" maxlength="1000" placeholder="e.g. Customer changed to size M after checkout">' + esc(draft) + '</textarea>' +
+        '<div class="b"><button class="save" data-note-save="' + esc(nid) + '"' + (S.noteBusy ? ' disabled' : '') + '>' + (S.noteBusy === nid ? 'Saving…' : 'Save note') + '</button>' +
+        '<button data-note-cancel="' + esc(nid) + '">Cancel</button></div></div>';
+    } else if (l.note) {
+      noteHtml = '<div class="biz-pnote2">' + esc(l.note.text) + '<span class="w">Note' + (l.note.by ? ' by ' + esc(l.note.by) : '') + (l.note.at ? ' · ' + esc(when(l.note.at)) : '') + '</span></div>' +
+        '<button class="biz-notebtn" data-note-edit="' + esc(nid) + '">Edit note</button>';
+    } else {
+      noteHtml = '<button class="biz-notebtn" data-note-edit="' + esc(nid) + '">+ Add note</button>';
+    }
+    detail += noteHtml;
     var pack = '';
     if (l.packed) {
       var sn = sheetNote(o, l);
@@ -289,9 +322,23 @@
        shows them. Two taps, undoable from the list at the top. */
     var sid = key;
     act = label + boxLine + act + '<button class="biz-ship' + (S.arm === 'ship:' + sid ? ' arm' : '') + '" data-ship="' + esc(sid) + '"' + (S.busy ? ' disabled' : '') + '>' +
-      (S.arm === 'ship:' + sid ? 'Tap again: already shipped' : 'Already shipped, mark DONE') + '</button>';
-    var after = '';
+      (S.arm === 'ship:' + sid ? 'Tap again: already shipped' : (o.stage === 'to_send' ? 'Courier has it, mark DONE' : 'Already shipped, mark DONE')) + '</button>';
+    /* Pickup or send, once every product is packed (Befa, 13 Oct 22:27). */
+    var hand = '';
     if (o.stage === 'packed') {
+      var pk = 'hand:' + key + '|pickup';
+      hand = '<div class="biz-hand"><button data-hand="' + esc(key + '|pickup') + '" class="' + (S.arm === pk ? 'arm' : '') + '"' + (S.busy ? ' disabled' : '') + '>' +
+        (S.arm === pk ? 'Tap again: leaves this tab, goes to Sea Diva' : 'Customer picks it up') + '</button>' +
+        '<button data-hand="' + esc(key + '|send') + '"' + (S.busy ? ' disabled' : '') + '>We send it</button></div>';
+    } else if (o.stage === 'to_send') {
+      hand = '<div class="biz-hand"><span class="now">Going by courier' + (o.handoff && o.handoff.by ? ', set by ' + esc(o.handoff.by) : '') + '.</span>' +
+        '<button class="chg" data-hand="' + esc(key + '|none') + '"' + (S.busy ? ' disabled' : '') + '>Change</button></div>';
+    }
+    act = hand + act;
+    var after = '';
+    if ((o.stage === 'packed' || o.stage === 'to_send') && o.channel === 'tailcraft') {
+      after = ' Once it is sent, tap Courier has it, mark DONE. That moves the TailCraft project to Shipped.';
+    } else if (o.stage === 'packed' || o.stage === 'to_send') {
       after = o.channel === 'shopify' ? ' Once it is sent, mark it fulfilled in Shopify and DONE in the sheet.'
         : (o.channel === 'manual' ? ' Once it is sent, tick Shipped and set DONE in the sheet.' : ' Once the courier has it, set DONE in the sheet.');
     }
@@ -334,12 +381,13 @@
     if (d.photosNote) warn += '<div class="biz-warn">' + esc(d.photosNote) + ' Orders are complete, only some photos are missing.</div>';
 
     var c = d.counts || {}, photoLine0 = '';
+    if (S.stage !== 'all' && !c[S.stage]) S.stage = 'all';
     var tiles = '<div class="biz-tiles">' + STAGES.map(function (s) {
       var n = s[0] === 'all' ? c.all : c[s[0]];
       if (s[0] !== 'all' && !n) return '';
       return '<button class="biz-tile' + (S.stage === s[0] ? ' on' : '') + '" data-stage="' + s[0] + '"><b>' + (n || 0) + '</b><span>' + esc(s[1]) + '</span></button>';
     }).join('') + '</div>';
-    var chans = '<div class="biz-sub">' + [['all', 'All shops'], ['shopify', 'Shopify'], ['shopee', 'Shopee'], ['toko', 'Tokopedia/TikTok'], ['manual', 'Manual']].map(function (x) {
+    var chans = '<div class="biz-sub">' + [['all', 'All shops'], ['shopify', 'Shopify'], ['shopee', 'Shopee'], ['toko', 'Tokopedia/TikTok'], ['manual', 'Manual'], ['tailcraft', 'TailCraft']].map(function (x) {
       var n = x[0] === 'all' ? c.all : c[x[0]];
       if (x[0] !== 'all' && !n) return '';
       return '<button class="biz-chip' + (S.ch === x[0] ? ' on' : '') + '" data-ch="' + x[0] + '">' + esc(x[1]) + '<i>' + (n || 0) + '</i></button>';
@@ -351,7 +399,7 @@
     var shipBox = '';
     if ((d.shipped || []).length) {
       shipBox = '<div class="biz-shipped"><h4>Marked already shipped, last 3 days</h4>' + d.shipped.map(function (k) {
-        return '<div class="r"><b>' + esc(k.invoice) + '</b> <span>' + esc(CH[{ 'MANUAL (IG & WA) - OL': 'manual', 'SHOPIFY-OL': 'shopify', 'SHOPEE - OL': 'shopee', 'TOKOPEDIA/TIKTOK shop -OL': 'toko' }[k.src]] || '') +
+        return '<div class="r"><b>' + esc(k.invoice) + '</b> <span>' + esc(CH[{ 'MANUAL (IG & WA) - OL': 'manual', 'SHOPIFY-OL': 'shopify', 'SHOPEE - OL': 'shopee', 'TOKOPEDIA/TIKTOK shop -OL': 'toko', 'TAILCRAFT': 'tailcraft' }[k.src]] || '') +
           (k.customer ? ' · ' + esc(k.customer) : '') + ' · ' + esc(when(k.at)) + '</span>' +
           '<button class="biz-undo" data-unship="' + esc(k.id) + '">Undo</button>' +
           (k.byHand ? '<span class="h">Set DONE by hand in the sheet for ' + k.byHand + (k.byHand === 1 ? ' product' : ' products') +
@@ -366,7 +414,13 @@
       'A photo marked "check colour and size" shows the right product, but maybe not the colour ordered. Custom pieces and items not on the shop have no photo.</div>' : '';
     if (c.markDone) photoLine += '<div class="biz-warn">' + c.markDone + (c.markDone === 1 ? ' line is' : ' lines are') +
       ' not a physical item but still open on a paid order (design fee, custom colour and similar). Your rule: mark these DONE in the sheet once the invoice is paid. They no longer hold an order out of Ready to pack.</div>';
-    return h + '<div class="biz-fresh">' + esc(fresh) + '</div>' + warn + tiles + chans + photoLine0 + photoLine + shipBox + body;
+    S.visible = list.filter(function (o) { return o.stage === 'to_send'; }).map(function (o) { return o.src + '|' + o.invoice; });
+    var notice = '';
+    if (S.notice) notice = '<div class="biz-notice">' + esc(S.notice.text) +
+      (S.notice.undo ? '<button class="biz-undo" data-hand="' + esc(S.notice.undo + '|none') + '">Undo</button>' : '') + '</div>';
+    if (c.pickupHidden) notice += '<div class="biz-fresh">' + c.pickupHidden + (c.pickupHidden === 1 ? ' packed order is' : ' packed orders are') +
+      ' waiting for the customer to pick up. They are on the Sea Diva dashboard only, Pack and ship, Waiting for pickup.</div>';
+    return h + '<div class="biz-fresh">' + esc(fresh) + '</div>' + warn + notice + tiles + chans + photoLine0 + photoLine + shipBox + body;
   }
 
   function render() {
@@ -375,6 +429,9 @@
     css();
     var name = (BUSINESSES.filter(function (b) { return b[0] === S.biz; })[0] || [0, ''])[1];
     root.innerHTML = nav() + (S.biz === 'seadiva' ? seadiva() : notYet(name));
+    /* To send cards open their box label by themselves. */
+    var need = S.biz === 'seadiva' ? S.visible.filter(function (k) { return !S.addr[k]; }) : [];
+    if (need.length) setTimeout(function () { need.forEach(function (k) { if (!S.addr[k]) doAddr(k); }); }, 0);
   }
 
   function load() {
@@ -473,11 +530,45 @@
       .catch(function (e) { S.addr[key] = { err: e.message || 'Could not read the address.' }; render(); });
   }
 
+  function doNote(id) {
+    if (S.noteBusy) return;
+    var parts = id.split('|'), o = find(parts[0], parts[1]);
+    if (!o) return;
+    var l = o.lines.filter(function (x) { return String(x.slot) === parts[2]; })[0];
+    var ta = document.querySelector('[data-note-input]');
+    var text = (Object.prototype.hasOwnProperty.call(S.noteDraft, id) ? S.noteDraft[id] : (ta ? ta.value : '')).trim();
+    S.noteBusy = id; render();
+    quiet({ action: 'note', src: parts[0], invoice: parts[1], slot: Number(parts[2]), note: text }).then(function () {
+      if (l) l.note = text ? { text: text, at: new Date().toISOString(), by: 'Befa' } : null;
+      delete S.noteDraft[id]; S.noteEdit = ''; S.noteBusy = ''; render();
+    }).catch(function (e) {
+      S.noteBusy = ''; S.flash[parts[0] + '|' + parts[1]] = { text: 'The note was not saved: ' + (e.message || 'error'), bad: true }; render();
+    });
+  }
+
+  /* Keep what is typed in a note while the list redraws around it. */
+  document.addEventListener('input', function (e) {
+    var t = e.target;
+    if (t && t.dataset && t.dataset.noteInput) S.noteDraft[t.dataset.noteInput] = t.value;
+  });
+
   function doShip(key) {
     var i = key.lastIndexOf('|'), o = find(key.slice(0, i), key.slice(i + 1));
     if (!o) return;
     post({ action: 'ship', src: o.src, row: o.row, invoice: o.invoice }, key).then(function () { load(); })
       .catch(function (e) { S.flash[key] = { text: 'Not marked: ' + (e.message || 'error'), bad: true }; render(); });
+  }
+  function doHand(id) {
+    var i = id.lastIndexOf('|'), method = id.slice(i + 1), key = id.slice(0, i);
+    var j = key.lastIndexOf('|'), src = key.slice(0, j), inv = key.slice(j + 1);
+    var o = find(src, inv);
+    post({ action: 'handoff', src: src, invoice: inv, method: method }, key).then(function () {
+      var who = (o && o.customer) ? ' (' + o.customer + ')' : '';
+      if (method === 'pickup') S.notice = { text: inv + who + ' is waiting for pickup. It is now only on the Sea Diva dashboard, Pack and ship, Waiting for pickup.', undo: key };
+      else if (method === 'send') S.notice = { text: inv + who + ' moved to To send. Its box label is open on the card.', undo: key };
+      else S.notice = null;
+      load();
+    }).catch(function (e) { S.flash[key] = { text: 'Not saved: ' + (e.message || 'error'), bad: true }; render(); });
   }
   function doUnship(id) {
     post({ action: 'unship', id: id }, 'unship').then(function () { load(); })
@@ -496,13 +587,25 @@
   document.addEventListener('click', function (e) {
     var root = document.getElementById(ROOT);
     if (!root || !root.contains(e.target)) return;
-    var b = e.target.closest('[data-biz],[data-stage],[data-ch],[data-act],[data-pack],[data-undo-mark],[data-undo-click],[data-tick],[data-addr],[data-addr-hide],[data-addr-copy],[data-ship],[data-unship]');
+    var b = e.target.closest('[data-biz],[data-stage],[data-ch],[data-act],[data-pack],[data-undo-mark],[data-undo-click],[data-tick],[data-addr],[data-addr-hide],[data-addr-copy],[data-ship],[data-unship],[data-note-edit],[data-note-save],[data-note-cancel],[data-hand]');
     if (!b) return;
+    if (b.dataset.noteEdit) { S.noteEdit = b.dataset.noteEdit; render(); var ta = document.querySelector('[data-note-input]'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } return; }
+    if (b.dataset.noteCancel) { delete S.noteDraft[b.dataset.noteCancel]; S.noteEdit = ''; render(); return; }
+    if (b.dataset.noteSave) { doNote(b.dataset.noteSave); return; }
     if (b.dataset.ship) {
       if (S.busy) return;
       var arm = 'ship:' + b.dataset.ship;
       if (S.arm !== arm) { S.arm = arm; render(); setTimeout(function () { if (S.arm === arm) { S.arm = ''; render(); } }, 5000); return; }
       doShip(b.dataset.ship); return;
+    }
+    if (b.dataset.hand) {
+      if (S.busy) return;
+      /* Pickup takes the order off this tab, so it needs a second tap. */
+      if (/\|pickup$/.test(b.dataset.hand) && S.arm !== 'hand:' + b.dataset.hand) {
+        var ha = 'hand:' + b.dataset.hand; S.arm = ha; render();
+        setTimeout(function () { if (S.arm === ha) { S.arm = ''; render(); } }, 5000); return;
+      }
+      doHand(b.dataset.hand); return;
     }
     if (b.dataset.unship) { if (!S.busy) doUnship(Number(b.dataset.unship)); return; }
     if (b.dataset.tick) { doTick(b.dataset.tick); return; }
@@ -534,7 +637,7 @@
     if (b.dataset.biz) { S.biz = b.dataset.biz; render(); if (S.biz === 'seadiva' && !S.data && !S.loading) load(); return; }
     if (b.dataset.stage) { S.stage = S.stage === b.dataset.stage ? 'all' : b.dataset.stage; render(); return; }
     if (b.dataset.ch) { S.ch = b.dataset.ch; render(); return; }
-    if (b.dataset.act === 'refresh') { S.flash = {}; load(); }
+    if (b.dataset.act === 'refresh') { S.flash = {}; S.notice = null; load(); }
   });
 
   /* The host page calls this when the Business tab opens. Loads once, then

@@ -17,7 +17,7 @@ import { TASKS_DB, buildProps } from './tasks.js';
 
 const NOTION = 'https://api.notion.com/v1';
 const VERSION = '2022-06-28';
-const LABEL = { 'MANUAL (IG & WA) - OL': 'Manual', 'SHOPIFY-OL': 'Shopify', 'SHOPEE - OL': 'Shopee', 'TOKOPEDIA/TIKTOK shop -OL': 'Tokopedia/TikTok' };
+const LABEL = { 'MANUAL (IG & WA) - OL': 'Manual', 'SHOPIFY-OL': 'Shopify', 'SHOPEE - OL': 'Shopee', 'TOKOPEDIA/TIKTOK shop -OL': 'Tokopedia/TikTok', 'TAILCRAFT': 'TailCraft' };
 
 const nid = (s) => String(s || '').replace(/-/g, '');
 const FEED_URL = process.env.BIZ_FEED_URL || 'https://gszjrsvvpajznwdrtjva.supabase.co/functions/v1/befalia-business';

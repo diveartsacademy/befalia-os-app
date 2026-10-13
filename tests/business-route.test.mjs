@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { feed, products } from './fixture-feed.mjs';
+import { feed as packFeed } from './fixture-pack.mjs';
 
 function res() {
   const r = { code: 0, body: null, headers: {} };
@@ -35,7 +36,7 @@ globalThis.fetch = async (url, init) => {
   }
   assert.equal(init.headers['x-feed-key'], 'feed-key-for-tests-0123456789abcdef');
   if (mode === 'refused') return { ok: false, status: 401, json: async () => ({ ok: false, error: 'unauthorised' }) };
-  return { ok: true, status: 200, json: async () => feed };
+  return { ok: true, status: 200, json: async () => (mode === 'packfeed' ? packFeed : feed) };
 };
 
 process.env.OS_KEY = 'os-key';
@@ -189,6 +190,18 @@ test('POST ship and unship go to the database with the order, and check input', 
   assert.equal(r.code, 400);
 });
 
+test('POST note saves one product note and refuses one that is too long', async () => {
+  calls.length = 0;
+  packAnswer = { note: { ok: true } };
+  let r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'note', src: 'SHOPIFY-OL', invoice: '#1065', slot: 2, note: 'Grey changed to pink' } }), r);
+  assert.equal(r.code, 200);
+  assert.deepEqual(calls[0].body, { action: 'note', src: 'SHOPIFY-OL', invoice: '#1065', slot: 2, note: 'Grey changed to pink' });
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'note', src: 'SHOPIFY-OL', invoice: '#1065', slot: 2, note: 'x'.repeat(1001) } }), r);
+  assert.equal(r.code, 400);
+});
+
 test('POST undo archives the To-Do task the database hands back', async () => {
   calls.length = 0;
   packAnswer = { undo: { ok: true, undone: 2, todo_pages: ['page-1'] } };
@@ -198,4 +211,43 @@ test('POST undo archives the To-Do task the database hands back', async () => {
   assert.equal(r.body.todo.archived, 1);
   assert.deepEqual(calls.map((c) => c.pack || (c.method + ' ' + c.notion)), ['undo', 'GET /pages/page1', 'PATCH /pages/page1', 'todo_archived']);
   delete process.env.NOTION_TOKEN;
+});
+
+test('POST handoff saves pickup, send or none and refuses anything else', async () => {
+  calls.length = 0;
+  packAnswer = { handoff: { ok: true, method: 'pickup' } };
+  let r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'handoff', src: 'SHOPIFY-OL', invoice: ' #1069 ', method: 'pickup' } }), r);
+  assert.equal(r.code, 200);
+  assert.deepEqual(calls[0].body, { action: 'handoff', src: 'SHOPIFY-OL', invoice: '#1069', method: 'pickup' });
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'handoff', src: 'SHOPIFY-OL', invoice: '#1069', method: 'drone' } }), r);
+  assert.equal(r.code, 400);
+});
+
+test('GET leaves pickup orders out of Befalia OS and counts them', async () => {
+  delete process.env.NOTION_TOKEN;
+  mode = 'packfeed';
+  packAnswer = { overlay: { ok: true, ticks: [], shipped: [], notes: [], handoff: [{ src: 'SHOPIFY-OL', invoice: '#1069', method: 'pickup', by: 'Befa' }] } };
+  const r = res(); await handler(req({ headers: { 'x-os-key': 'os-key' } }), r);
+  mode = 'ok';
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  assert.equal(r.body.orders.find((o) => o.invoice === '#1069'), undefined);
+  assert.equal(r.body.counts.pickupHidden, 1);
+});
+
+test('POST for a TailCraft order needs row 0, never a sheet row', async () => {
+  calls.length = 0;
+  packAnswer = { mark: { ok: true, marked: 1, click_id: 'c1', lines: [] }, contact: { ok: true, name: 'X' } };
+  delete process.env.NOTION_TOKEN;
+  let r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'contact', src: 'TAILCRAFT', row: 0, invoice: 'INV-TC-AUG26-1' } }), r);
+  assert.equal(r.code, 200);
+  assert.deepEqual(calls[0].body, { action: 'contact', src: 'TAILCRAFT', row: 0, invoice: 'INV-TC-AUG26-1' });
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'ship', src: 'TAILCRAFT', row: 79, invoice: 'INV-TC-AUG26-1' } }), r);
+  assert.equal(r.code, 400, 'a sheet row on a TailCraft order is refused');
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'mark', src: 'SHOPEE - OL', row: 0, invoice: 'X1', slots: [1] } }), r);
+  assert.equal(r.code, 400, 'row 0 on a sheet order is refused');
 });
