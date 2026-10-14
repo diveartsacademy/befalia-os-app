@@ -18,6 +18,12 @@
 //                                                     leave this tab
 //        { action: 'ship', src, row, invoice } / { action: 'unship', id }
 //                                                     already shipped, whole order
+//      My work, 14 Oct 2026:
+//        { action: 'work', src, row, invoice, slot, from, to }  Done on one product
+//                                                     line (WORK_FROM lists the moves)
+//        { action: 'tc_work', project, from, to }     a TailCraft design: done
+//                                                     (design_sent) or not going ahead
+//        { action: 'work_undo', id }                  undo either of those
 //      A mark moves those products to Ready to be shipped (Manual sheet via the
 //      bridge, Shopify/Shopee/Toko recorded and shown until the bridge learns
 //      those tabs), moves the board job to Shipping, and logs one done task on
@@ -34,7 +40,7 @@
 //      Shopify product photos. Public, no key. Cached for 30 minutes.
 // The sorting rules live in api/_sd-business.js.
 import { requireKey } from './_auth.js';
-import { build, SRC, TC_SRC } from './_sd-business.js';
+import { build, SRC, TC_SRC, WORK_FROM, TC_WORK_MOVES } from './_sd-business.js';
 import { logPacks, unlogPacks, witaDay, packCall } from './_todo-pack.js';
 
 const FEED_URL = process.env.BIZ_FEED_URL || 'https://gszjrsvvpajznwdrtjva.supabase.co/functions/v1/befalia-business';
@@ -180,6 +186,36 @@ async function post(req, res) {
     if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not saved.' });
     return res.status(200).json(r);
   }
+  /* My work (14 Oct 2026): Done on one product line. The move must be one of
+     WORK_FROM; the database checks the same list and what the line says now. */
+  if (b.action === 'work') {
+    const row = Number(b.row), slot = Number(b.slot);
+    const from = typeof b.from === 'string' ? b.from.trim() : '', to = typeof b.to === 'string' ? b.to.trim() : '';
+    if (!Object.values(SRC).includes(b.src) || !Number.isInteger(row) || row < 2 || !Number.isInteger(slot) || slot < 1 || slot > 12 ||
+        !String(b.invoice || '').trim()) {
+      return res.status(400).json({ ok: false, error: 'work needs src, row, invoice and slot.' });
+    }
+    if (!(WORK_FROM[from.toLowerCase()] || []).includes(to)) return res.status(400).json({ ok: false, error: 'That move is not one this button makes.' });
+    const r = await pack({ action: 'work', src: b.src, row, invoice: String(b.invoice).trim(), slot, from, to });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not saved.' });
+    return res.status(200).json(r);
+  }
+  if (b.action === 'tc_work') {
+    const project = String(b.project || '').trim();
+    if (!/^TC-\d{4}-\d{1,4}$/.test(project) || b.from !== 'design_making' || !TC_WORK_MOVES.some((m) => m[0] === b.to)) {
+      return res.status(400).json({ ok: false, error: 'tc_work needs a TailCraft project and a design move.' });
+    }
+    const r = await pack({ action: 'tc_work', project, from: b.from, to: b.to });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not saved.' });
+    return res.status(200).json(r);
+  }
+  if (b.action === 'work_undo') {
+    const id = Number(b.id);
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ ok: false, error: 'work_undo needs id.' });
+    const r = await pack({ action: 'work_undo', id });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not undone.' });
+    return res.status(200).json(r);
+  }
   /* "In the box" tick for one product line. */
   if (b.action === 'tick') {
     const slot = Number(b.slot);
@@ -222,6 +258,10 @@ export default async function handler(req, res) {
   f.body.shipped = (ov && ov.ok && ov.shipped) || [];
   f.body.notes = (ov && ov.ok && ov.notes) || [];
   f.body.handoff = (ov && ov.ok && ov.handoff) || [];
+  /* My work (14 Oct 2026): Done clicks and TailCraft designs. Left out when
+     the database has not got them yet, so the order list never depends on it. */
+  if (ov && ov.ok && Array.isArray(ov.work)) f.body.work = ov.work;
+  if (ov && ov.ok && Array.isArray(ov.tcwork)) f.body.tcwork = ov.tcwork;
 
   /* Pickup orders are shown only on the Sea Diva dashboard (Befa, 13 Oct). */
   const out = build(f.body, shop.products, new Date(), { hidePickup: true });

@@ -384,6 +384,138 @@ function markView(k) {
            written: !!k.written, writeError: k.writeError || '', todo: !!k.todo };
 }
 
+/* ---------------------------------------------------------------------
+   My work (14 Oct 2026)
+
+   Befa, 14 Oct 18:08 and 18:22: one list of every product line that waits on
+   her own hands (she designs, makes the fluke fillers and the crowns, and
+   orders from third parties), plus what waits on the craftspeople who are
+   still working (Timur Jaya prints, Pak Supri sews). TailCraft designs sit in
+   the same Designer list, "because it's basically the same company".
+
+   Her rulings on what Done moves a line to:
+     design done            -> Printing
+     fluke filler or crown  -> Ready to be shipped
+     third party bought     -> Ordered, and when it arrives -> Ready to be shipped
+
+   WORK_FROM is the closed list of moves. The database function
+   seadiva._work_move holds the same list and refuses anything else, so a
+   button can never offer a move the database would not make.
+--------------------------------------------------------------------- */
+export const WORK_FROM = {
+  'design needs to be made': ['Design in Progress', 'Printing'],
+  'design making': ['Design in Progress', 'Printing'],
+  'design in progress': ['Printing'],
+  'order from 3rd party': ['Ordered'],
+  'ordering from 3rdparty': ['Ordered'],
+  'ordered': ['Ready to be shipped'],
+  'fluke filler making': ['Ready to be shipped'],
+  'in the making': ['Ready to be shipped'],
+  'need to create': ['Ready to be shipped'],
+  'printing': ['Sewing / Building', 'Ready to be shipped'],
+  'sewing / building': ['Ready to be shipped']
+};
+/* [to, button label] per list. The design list offers Start only while the
+   design has not been started. */
+export const WORK_MOVES = {
+  design: [['Design in Progress', 'Start designing'], ['Printing', 'Design done, to printing']],
+  order: [['Ordered', 'Bought, now ordered']],
+  ordered: [['Ready to be shipped', 'Arrived, ready to pack']],
+  fluke: [['Ready to be shipped', 'Fluke filler done, ready to pack']],
+  crown: [['Ready to be shipped', 'Crown done, ready to pack']],
+  make: [['Ready to be shipped', 'Made, ready to pack']],
+  printing: [['Sewing / Building', 'Back from print, to sewing'], ['Ready to be shipped', 'Back from print, ready to pack']],
+  sewing: [['Ready to be shipped', 'Sewn, ready to pack']]
+};
+export const WORK_MINE = ['design', 'order', 'ordered', 'fluke', 'crown', 'make'];
+export const WORK_WAITING = ['printing', 'sewing'];
+export const TC_WORK_MOVES = [['design_sent', 'Design done, sent to customer'], ['lost', 'Not going ahead']];
+
+export function workBucket(l) {
+  if (!l || l.physical === false || l.packed) return null;
+  const st = low(l.status);
+  const text = (l.title || '') + ' ' + (l.detail || []).join(' ');
+  if (l.group === 'design_todo' || l.group === 'design_wip') return 'design';
+  if (l.group === 'third_todo') return 'order';
+  if (l.group === 'third_ordered') return 'ordered';
+  if (st === 'printing') return 'printing';
+  if (st === 'sewing / building') return 'sewing';
+  if (l.group === 'making') {
+    if (/\bcrowns?\b/i.test(text)) return 'crown';
+    if (st === 'fluke filler making' || /fluke\s*filler/i.test(text)) return 'fluke';
+    return 'make';
+  }
+  return null;
+}
+
+/* Done clicks laid over the sheet, oldest first. A click only counts while
+   the sheet still says what the click moved the line from; once the sheet
+   says anything else, the sheet wins. Clicks chain (Ordered, then Arrived). */
+function workIndex(list) {
+  const m = {};
+  (list || []).slice().sort((a, b) => (Number(a.id) || 0) - (Number(b.id) || 0)).forEach((k) => {
+    if (!k || !k.src || !k.invoice || !k.slot || !k.to) return;
+    (m[k.src + '|' + txt(k.invoice) + '|' + k.slot] = m[k.src + '|' + txt(k.invoice) + '|' + k.slot] || []).push(k);
+  });
+  return m;
+}
+function workView(k) {
+  return { id: k.id, from: k.from, to: k.to, at: k.at || null, by: k.by || '', via: k.via || '', write: k.write || '',
+           written: !!k.written, writeError: k.writeError || '', job: k.job || '' };
+}
+function applyWork(line, clicks) {
+  if (!clicks || !clicks.length) return;
+  let cur = line.status, last = null;
+  clicks.forEach((k) => { if (low(k.from) === low(cur)) { cur = k.to; last = k; } });
+  if (last) {
+    line.sheetStatus = line.status;
+    line.status = cur;
+    line.group = groupOf(cur);
+    line.work = workView(last);
+  }
+}
+
+function buildWork(orders, tcwork, now) {
+  const items = {};
+  WORK_MINE.concat(WORK_WAITING).forEach((k) => { items[k] = []; });
+  orders.forEach((o) => {
+    if (o.stage === 'old_no_status') return;
+    o.lines.forEach((l) => {
+      const b = workBucket(l);
+      if (!b) return;
+      const allowed = WORK_FROM[low(l.status)] || [];
+      let moves = WORK_MOVES[b].filter((m) => allowed.includes(m[0]));
+      if (!moves.length) return;
+      items[b].push({
+        key: o.src + '|' + o.invoice + '|' + l.slot, src: o.src, row: o.row, invoice: o.invoice, slot: l.slot,
+        channel: o.channel, customer: o.customer, days: o.days, date: o.date, unpaid: o.stage === 'unpaid',
+        title: l.title, detail: l.detail, qty: l.qty, status: l.status, sheetStatus: l.sheetStatus || '',
+        photo: l.photo, note: l.note, work: l.work || null,
+        moves: moves.map((m) => ({ to: m[0], label: m[1] }))
+      });
+    });
+  });
+  (tcwork || []).forEach((t) => {
+    if (!t || t.stage !== 'design_making' || !t.project) return;
+    const at = Date.parse(t.updated_at || t.created_at || '');
+    items.design.push({
+      key: 'TAILCRAFT|' + t.project + '|0', src: TC_SRC, row: 0, invoice: txt(t.project), project: txt(t.project), slot: 0,
+      channel: 'tailcraft', tc: true, customer: txt(t.customer), title: txt(t.design) || 'Custom TailCraft design',
+      detail: [t.country, t.next_action].map(txt).filter(Boolean), qty: null, status: t.stage_label || 'Custom Design Making',
+      days: isFinite(at) ? Math.floor((now.getTime() - at) / DAY) : null, lastFollowUp: t.last_follow_up || null,
+      photo: null, note: null, work: null, moves: TC_WORK_MOVES.map((m) => ({ to: m[0], label: m[1] }))
+    });
+  });
+  /* Oldest first: the longest wait is the most urgent. */
+  Object.keys(items).forEach((k) => items[k].sort((a, b) => (b.days == null ? -1 : b.days) - (a.days == null ? -1 : a.days)));
+  const counts = {};
+  Object.keys(items).forEach((k) => { counts[k] = items[k].length; });
+  counts.mine = WORK_MINE.reduce((n, k) => n + items[k].length, 0);
+  counts.waiting = WORK_WAITING.reduce((n, k) => n + items[k].length, 0);
+  counts.tcDesign = items.design.filter((x) => x.tc).length;
+  return { items, counts };
+}
+
 export function build(feed, products, now, opts) {
   now = now || new Date();
   opts = opts || {};
@@ -391,6 +523,7 @@ export function build(feed, products, now, opts) {
   const idx = photoIndex(feed && feed.photos, products);
   const marks = markIndex(feed && feed.marks);
   const ticks = tickIndex(feed && feed.ticks);
+  const work = workIndex(feed && feed.work);
   /* Product notes (13 Oct 2026, 22:24): e.g. the customer changed size or
      colour after checkout. One per product line, shared by both dashboards. */
   const notes = {};
@@ -433,6 +566,7 @@ export function build(feed, products, now, opts) {
   all.forEach((o) => {
     if (shippedBy[o.src + '|' + o.invoice]) { shippedHidden++; return; }
     o.lines.forEach((l) => {
+      applyWork(l, work[o.src + '|' + o.invoice + '|' + l.slot]);
       const k = marks[o.src + '|' + o.invoice + '|' + l.slot];
       if (k && l.group !== 'done') l.packed = markView(k);
       const t = ticks[o.src + '|' + o.invoice + '|' + l.slot];
@@ -486,6 +620,7 @@ export function build(feed, products, now, opts) {
       doneCount: o.lines.length - open.length, lineCount: o.lines.length,
       lines: show.map((l) => ({
         slot: l.slot, title: l.title, detail: l.detail, qty: l.qty, status: l.status || '', group: l.group,
+        sheetStatus: l.sheetStatus || '', work: l.work || null,
         markDone: o.pay !== 'unpaid' && l.group !== 'done' && nonPhysical(l.item),
         physical: !nonPhysical(l.item),
         canPack: stage !== 'unpaid' && l.group !== 'done' && l.group !== 'ignore' && !l.packed && !nonPhysical(l.item),
@@ -526,7 +661,19 @@ export function build(feed, products, now, opts) {
   const since = now.getTime() - 3 * DAY;
   const shipped = ((feed && feed.shipped) || []).filter((k) => Date.parse(k.at) >= since)
     .map((k) => ({ id: k.id, src: k.src, invoice: k.invoice, customer: k.customer || '', at: k.at, by: k.by || '', lines: k.lines || 0, byHand: k.byHand || 0 }));
-  return { ok: true, generatedAt: now.toISOString(), sources, counts, orders, shipped };
+  const workOut = buildWork(orders, feed && feed.tcwork, now);
+  /* The last day of Done clicks, newest first, so any of them can be undone
+     even after the line has left every list. */
+  const daySince = now.getTime() - DAY;
+  workOut.log = ((feed && feed.work) || []).filter((k) => Date.parse(k.at) >= daySince)
+    .sort((a, b) => (Number(b.id) || 0) - (Number(a.id) || 0))
+    .map((k) => Object.assign(workView(k), { src: k.src, invoice: k.invoice, slot: k.slot, item: k.item || '', customer: k.customer || '' }));
+  if (feed && Array.isArray(feed.tcwork)) sources.tcwork = { ok: true, error: '', loadedAt: null };
+  /* The Done buttons need the database part (seadiva.work_marks and
+     _work_move). Until the feed carries the click list, the page shows the
+     lists without buttons and says why. */
+  workOut.live = !!(feed && Array.isArray(feed.work));
+  return { ok: true, generatedAt: now.toISOString(), sources, counts, orders, shipped, work: workOut };
 }
 
 /* The calendar day in Bali for a timestamp, YYYY-MM-DD. */
