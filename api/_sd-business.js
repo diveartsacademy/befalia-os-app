@@ -432,7 +432,10 @@ export const WORK_WAITING = ['printing', 'sewing'];
 export const TC_WORK_MOVES = [['design_sent', 'Design done, sent to customer'], ['lost', 'Not going ahead']];
 
 export function workBucket(l) {
-  if (!l || l.physical === false || l.packed) return null;
+  /* Ticked "in the box" means it is made and in hand, whatever the sheet
+     still says (Befa, 14 Oct 22:42: SDTJun26-23 was in the box and still
+     listed as Design needs to be made). */
+  if (!l || l.physical === false || l.packed || l.inBox) return null;
   const st = low(l.status);
   const text = (l.title || '') + ' ' + (l.detail || []).join(' ');
   if (l.group === 'design_todo' || l.group === 'design_wip') return 'design';
