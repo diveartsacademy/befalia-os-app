@@ -376,6 +376,17 @@
   .td-cnt.note{background:#8fb6cc;margin-left:3px;}
   .td-modal{position:fixed;inset:0;z-index:200;background:rgba(2,8,14,.72);display:flex;align-items:flex-start;justify-content:center;padding:6vh 14px 20px;overflow:auto;}
   .td-sheet{width:100%;max-width:560px;animation:none;}
+  .td-mv-note{font-size:12.5px;color:var(--muted);margin:6px 0 10px;}
+  .td-mv-area{border-top:1px solid var(--line);padding:9px 0;}
+  .td-mv-a{display:block;width:100%;text-align:left;background:none;border:0;color:var(--c,var(--aqua));font:700 14px var(--sans);padding:4px 2px;cursor:pointer;}
+  .td-mv-a small{font-weight:500;color:var(--dim);font-size:11px;}
+  .td-mv-ts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 0 4px;}
+  .td-mv-t{border:1px solid var(--aqualine);background:rgba(46,230,255,.05);color:var(--ink);border-radius:999px;padding:6px 11px;font:600 12px var(--sans);cursor:pointer;}
+  .td-mv-t.new{color:var(--aqua2);border-style:dashed;}
+  .td-mv-a.here,.td-mv-t.here{opacity:.45;cursor:default;}
+  .td-mv-newbox{display:flex;gap:8px;margin:8px 0 0 4px;}
+  .td-mv-newbox[hidden]{display:none;}
+  .td-mv-newbox .fld{flex:1;min-width:0;}
   .td-form{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
   .td-form label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);font-weight:700;display:flex;flex-direction:column;gap:5px;}
   .td-form .full{grid-column:1/-1;}
@@ -1394,7 +1405,7 @@ function tdRowHTML(t,opt){
   else if(t.expenses&&t.expenses.costs&&t.expenses.costs.length)meta+='<span class="td-pill" title="Expense draft, not sent yet">💸 '+tdRp(t.expenses.total)+' draft</span>';
   if(t.notes)meta+='<span title="'+attr(t.notes)+'">📝 '+escapeHtml(t.notes.length>48?t.notes.slice(0,48)+'…':t.notes)+'</span>';
   const cls='td-row'+(t.done?' done':'')+(t._saving?' saving':'')+(t._err?' err':'')+(t.urgent&&!t.done?' urgent':'')+(opt.kid?' kid':'');
-  return '<li class="'+cls+'" data-id="'+t.id+'">'+(opt.noGrip?'':'<span class="td-grip" title="Drag onto a day, a title, or another task">⠿</span>')+'<button class="check" data-act="done" title="'+(t.done?'Untick':'Tick done')+'">'+(t.done?'✓':'')+'</button>'
+  return '<li class="'+cls+'" data-id="'+t.id+'">'+(opt.noGrip?'':'<span class="td-grip" title="Tap to move to another business or title. Drag onto a day, a title, or another task">⠿</span>')+'<button class="check" data-act="done" title="'+(t.done?'Untick':'Tick done')+'">'+(t.done?'✓':'')+'</button>'
     +'<div class="td-body"><div class="td-name" data-act="edit">'+escapeHtml(t.name||'(no name)')+'</div><div class="td-meta">'+meta+'</div></div>'
     +(t.done?'':'<button class="td-flag'+(t.status==='Doing'?' on':'')+'" data-act="doing" title="In progress ▶">▶️</button>')
     +'<button class="td-flag'+(t.priority?' on':'')+'" data-act="pri" title="Priority ⏰">⏰</button>'
@@ -1464,7 +1475,7 @@ function tdRenderList(){
       if(TD.renaming===key)html+='<div class="td-sec-h" data-drop-sec="'+attr(key)+'"><input class="td-inl-in" data-kind="rename" data-key="'+attr(key)+'" value="'+attr(s)+'" enterkeyhint="done"><button class="td-mini" data-act="rencancel">Cancel</button></div>';
       // Lines with no heading sit straight under the business, as in the note.
       else if(!s&&!flat){}
-      else html+='<div class="td-sec-h'+(closed?' closed':'')+'" data-sec="'+attr(key)+'" data-drop-sec="'+attr(key)+'"><span class="car">▼</span>'+escapeHtml(s||'No title')+' <span class="n">'+list.filter(t=>!t.done).length+'</span>'+(hot?'<span class="hot">· '+hot+' flagged</span>':'')+(!flat&&s&&list.length?'<button class="td-mini" data-act="rentitle" data-key="'+attr(key)+'" title="Rename this title">✎</button>':'')+'</div>';
+      else html+='<div class="td-sec-h'+(closed?' closed':'')+'" data-sec="'+attr(key)+'" data-drop-sec="'+attr(key)+'"><span class="car">▼</span>'+escapeHtml(s||'No title')+' <span class="n">'+list.filter(t=>!t.done).length+'</span>'+(hot?'<span class="hot">· '+hot+' flagged</span>':'')+(!flat&&s&&list.length?'<button class="td-mini" data-act="rentitle" data-key="'+attr(key)+'" title="Rename this title">✎</button><button class="td-mini" data-act="movetitle" data-key="'+attr(key)+'" title="Move this whole title, with every task and sub-task, to another business or title">⇄ Move</button>':'')+'</div>';
       if(closed)return;
       html+='<ul class="td-list">';
       const emit=(t,depth)=>{html+=tdRowHTML(t,{showParent:flat,kid:depth>0,nested:depth>0});if(!flat&&depth<4)tdKids(t.id).filter(k=>visIds[k.id]).sort(tdOrd).forEach(k=>emit(k,depth+1));};
@@ -1851,6 +1862,7 @@ function tdTitleAction(act){
   if(a==='newtitle'){const ar=act.getAttribute('data-for-area');TD.newTitleFor=TD.newTitleFor===ar?null:ar;TD.focusKey='title#'+ar;tdRenderList();return true;}
   if(a==='rentitle'){TD.renaming=act.getAttribute('data-key');TD.focusKey='rename#'+TD.renaming;tdRenderList();return true;}
   if(a==='rencancel'){TD.renaming=null;tdRenderList();return true;}
+  if(a==='movetitle'){tdMoveOpen({title:act.getAttribute('data-key')});return true;}
   if(a==='indent'){const k=act.getAttribute('data-key');TD.indent[k]=!TD.indent[k];TD.focusKey='add#'+k;tdRenderList();return true;}
   return false;
 }
@@ -1946,6 +1958,8 @@ function tdDragEnd(cancel){
   document.body.classList.remove('td-dragging');document.querySelectorAll('.dragsrc').forEach(r=>r.classList.remove('dragsrc'));
   if(d.over)d.over.el.classList.remove('td-drop-ok');
   if(d.started){TD_DRAG_JUST=Date.now();if(!cancel&&d.over)tdDrop(d.id,d.over);}
+  // A tap on ⠿ without dragging opens "Move to…" (15 Oct 2026): no long drag to a far title.
+  else if(!cancel){TD_DRAG_JUST=Date.now();tdMoveOpen({task:d.id});}
 }
 function tdShift(date,day){
   if(!date||!date.start)return {start:day};
@@ -1978,6 +1992,92 @@ async function tdDrop(id,tg){
   if(!ops.length)return;
   let ok=true;for(const o of ops){if(!(await tdPatch(o.id,o.patch)))ok=false;}
   if(ok)tdUndoToast(msg,async()=>{for(const o of ops.slice().reverse()){await tdPatch(o.id,o.undo);}showToast('Undone',true);});
+}
+/* ---------- "Move to…": tap instead of a long drag (15 Oct 2026) ----------
+   Befa: things that belong under DiveArts or Sea Diva sit far down the list and
+   are hard to drag there. A tap on a task's ⠿ (or on "⇄ Move" on a title) opens
+   a sheet of every business and its titles; one tap moves it. Dragging still works.
+   A task moves with all its sub-tasks (the same move as a drag, with Undo).
+   A title moves with every task and sub-task in it: tap a business to keep the
+   title's name there, or tap another title to merge into it. */
+let TD_MV=null;
+function tdMoveTitlesOf(a){
+  // Every title a business has: those with tasks, then the empty ones she added.
+  const seen={},out=[];
+  TD.tasks.filter(t=>(t.area||null)===(a||null)&&t.section&&!(t.type==='Event'&&t.section==='Classes')&&String(t.id).indexOf('tmp')!==0).sort(tdOrd)
+    .forEach(t=>{if(!seen[t.section]){seen[t.section]=1;out.push(t.section);}});
+  tdTitlesFor(a).forEach(x=>{if(!seen[x]){seen[x]=1;out.push(x);}});
+  return out;
+}
+function tdMoveTitleTasks(key){
+  const i=key.indexOf('|');const a=key.slice(0,i)||null,s=key.slice(i+1)||null;
+  const set={},out=[];
+  const add=t=>{if(!set[t.id]&&String(t.id).indexOf('tmp')!==0){set[t.id]=1;out.push(t);}};
+  TD.tasks.filter(t=>(t.area||null)===a&&(t.section||null)===s).forEach(t=>{add(t);tdDescendants(t.id).forEach(add);});
+  return out;
+}
+function tdMoveOpen(w){
+  tdMoveClose();
+  let head,here;
+  if(w.task){const t=TD.byId[w.task];if(!t)return;const n=tdDescendants(t.id).length;
+    head='Move "'+escapeHtml(t.name.length>60?t.name.slice(0,60)+'…':t.name)+'"'+(n?' and its '+n+' sub-task'+(n>1?'s':''):'');
+    here=t.parent?null:tdSecKey(t.area,t.section);}
+  else{const i=w.title.indexOf('|');const n=tdMoveTitleTasks(w.title).length;
+    head='Move the title "'+escapeHtml(w.title.slice(i+1))+'" with its '+n+' task'+(n===1?'':'s');here=w.title;}
+  TD_MV={task:w.task||null,title:w.title||null,newFor:null};
+  let h='<div class="card td-sheet" data-no-tools><h2><span class="ic">⇄</span>'+head+'<button class="link-btn" data-mv="close" style="margin-left:auto;font-size:20px">×</button></h2>';
+  h+='<div class="td-mv-note">'+(w.task?'Tap where it should go.':'Tap a business to keep the title\'s name there, or tap another title to merge into it.')+'</div>';
+  TD_AREAS.forEach(a=>{
+    const ak=tdSecKey(a.key,'');const isHere=here===ak;
+    h+='<div class="td-mv-area"><button class="td-mv-a'+(isHere?' here':'')+'" data-mv="go" data-mv-area="'+attr(a.key)+'" data-mv-sec=""'+(isHere?' disabled':'')+' style="--c:'+a.color+'">'+a.icon+' '+escapeHtml(a.key)+(w.task?' <small>no title</small>':' <small>keep the name</small>')+(isHere?' <small>· here now</small>':'')+'</button><div class="td-mv-ts">';
+    tdMoveTitlesOf(a.key).forEach(s=>{const k=tdSecKey(a.key,s);const isH=here===k;
+      h+='<button class="td-mv-t'+(isH?' here':'')+'" data-mv="go" data-mv-area="'+attr(a.key)+'" data-mv-sec="'+attr(s)+'"'+(isH?' disabled':'')+'>'+escapeHtml(s)+(isH?' · here now':'')+'</button>';});
+    h+='<button class="td-mv-t new" data-mv="new" data-mv-area="'+attr(a.key)+'">+ New title</button></div>';
+    h+='<div class="td-mv-newbox" data-mv-newbox="'+attr(a.key)+'" hidden><input class="fld" placeholder="New title in '+attr(a.key)+', then Enter" enterkeyhint="done"><button class="gold-btn" data-mv="newgo" data-mv-area="'+attr(a.key)+'">Move here</button></div></div>';
+  });
+  h+='<div class="td-actions"><button class="td-ghost" data-mv="close">Cancel</button></div></div>';
+  const m=document.createElement('div');m.className='td-modal';m.id='td-move';m.innerHTML=h;document.body.appendChild(m);
+  m.addEventListener('click',tdMoveClick);
+  m.addEventListener('keydown',e=>{if(e.key==='Escape'){tdMoveClose();}else if(e.key==='Enter'&&e.target.matches('.td-mv-newbox input')&&!e.isComposing){e.preventDefault();const box=e.target.closest('[data-mv-newbox]');tdMoveGo(box.getAttribute('data-mv-newbox'),e.target.value,true);}});
+}
+function tdMoveClose(){const m=document.getElementById('td-move');if(m)m.remove();TD_MV=null;}
+function tdMoveClick(e){
+  if(e.target.id==='td-move'){tdMoveClose();return;}   // tap outside the sheet
+  const b=e.target.closest('[data-mv]');if(!b||b.disabled)return;
+  const k=b.getAttribute('data-mv'),ar=b.getAttribute('data-mv-area');
+  if(k==='close'){tdMoveClose();return;}
+  if(k==='new'){const box=document.querySelector('#td-move [data-mv-newbox="'+CSS.escape(ar)+'"]');if(box){box.hidden=false;const i=box.querySelector('input');i.focus();}return;}
+  if(k==='newgo'){const box=b.closest('[data-mv-newbox]');tdMoveGo(ar,box.querySelector('input').value,true);return;}
+  if(k==='go')tdMoveGo(ar,b.getAttribute('data-mv-sec'),false);
+}
+async function tdMoveGo(ar,sec,isNew){
+  if(!TD_MV)return;const w=TD_MV;
+  sec=String(sec||'').replace(/,/g,' ').trim().slice(0,100);
+  if(isNew&&!sec){showToast('Type the new title first',false);return;}
+  tdMoveClose();
+  if(w.task){await tdDrop(w.task,sec?{sec:tdSecKey(ar,sec)}:{area:ar});return;}
+  await tdMoveTitle(w.title,ar,sec||null);
+}
+async function tdMoveTitle(key,ar,sec){
+  const i=key.indexOf('|');const fromA=key.slice(0,i)||null,fromS=key.slice(i+1)||null;
+  const toS=sec||fromS;   // a business tapped: the title keeps its name there
+  if((fromA||null)===(ar||null)&&(fromS||null)===(toS||null))return;
+  const list=tdMoveTitleTasks(key);if(!list.length)return;
+  const inSet={};list.forEach(t=>{inSet[t.id]=1;});
+  const tops=list.filter(t=>!t.parent||!inSet[t.parent]).sort(tdOrd);
+  let base=tdNextOrder(ar,toS,null);if(typeof base!=='number')base=10;
+  const ops=[];
+  list.forEach(t=>{
+    const patch={area:ar,section:toS},undo={area:t.area,section:t.section};
+    const ti=tops.indexOf(t);if(ti!==-1){patch.order=base+ti*10;undo.order=t.order==null?null:t.order;}
+    ops.push({id:t.id,patch:patch,undo:undo});
+  });
+  if(toS)tdDropTitle(ar,toS);
+  if(TD.closed[key]){delete TD.closed[key];LS.set('td_closed',TD.closed);}
+  let ok=0;for(const o of ops){if(await tdPatch(o.id,o.patch))ok++;}
+  const where=(toS||'No title')+' · '+ar;
+  if(ok===ops.length)tdUndoToast('Moved "'+(fromS||'No title')+'" ('+ops.length+' task'+(ops.length===1?'':'s')+') to '+where,async()=>{for(const o of ops.slice().reverse()){await tdPatch(o.id,o.undo);}showToast('Undone',true);});
+  else showToast('Moved '+ok+' of '+ops.length+'. Tap ↻ Refresh and try again for the rest.',false);
 }
 function tdUndoToast(msg,fn){
   let t=document.getElementById('td-undo');if(t)t.remove();
