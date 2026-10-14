@@ -644,6 +644,10 @@
     /* DiveArts Academy (14 Oct 2026): Befa's instructor desk, drawn by
        academy-panel.js into its own box so a Sea Diva refresh never touches it. */
     if (S.biz === 'academy' && typeof window.acadMount === 'function') {
+      /* Already showing: redraw only the chips, so a Sea Diva load finishing in
+         the background never wipes what Befa is typing on the desk. */
+      var ar = document.getElementById('acad-root'), nv = root.querySelector('.biz-nav');
+      if (ar && nv && root.contains(ar)) { nv.outerHTML = nav(); return; }
       root.innerHTML = nav() + '<div id="acad-root"></div>';
       window.acadMount();
       return;

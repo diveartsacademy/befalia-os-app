@@ -33,6 +33,7 @@
    Gate: the OS key (x-os-key). Env: DAA_API_KEY (the sheet service key, the
    same one /api/classlog uses), BIZ_FEED_KEY (the portal door).
    --------------------------------------------------------------------------- */
+import { createHash } from 'node:crypto';
 import { requireKey } from './_auth.js';
 import { academy, UUID_RE } from './_academy.js';
 
@@ -43,6 +44,7 @@ const DAA_FALLBACK_URL = 'https://script.google.com/macros/s/AKfycbwJ5s1d9I6-aEw
 const daaUrl = () => process.env.DAA_API_URL || DAA_FALLBACK_URL;
 export const STATUS_TO = { wait: 'course done, waiting for certificate', done: 'done (certificate issued-if required)' };
 const AGENCIES = ['PADI', 'MFI', 'AIDA', 'EFR', 'DiveArts'];
+export const REF_RE = /^[0-9a-f]{16}(-[0-9]{1,2})?$/;
 
 const str = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
 function bad(msg, status = 400) { const e = new Error(msg); e.status = status; return e; }
@@ -72,11 +74,30 @@ const enrolOut = (e) => ({
   agencies: agenciesFor(e.course),
 });
 
+/* One reference per course block (14 Oct 2026, after review): invoice, student
+   and course together. One invoice can hold two blocks (DAAMAY26-14 does: one
+   student, two courses), so the invoice alone is not enough to tell them apart,
+   and a sheet row number moves when rows are inserted. Identical blocks get
+   -2, -3 in sheet order. The certificate in the portal carries this reference. */
+export function refOf(e) {
+  const k = [e.invoice_no, e.student, e.course].map((x) => String(x || '').trim().toLowerCase().replace(/\s+/g, ' ')).join('|');
+  return createHash('sha1').update(k).digest('hex').slice(0, 16);
+}
+export function addRefs(lists) {
+  const all = [].concat(...lists).sort((a, b) => a.sheet_row - b.sheet_row);
+  const seen = {};
+  all.forEach((e) => { const r = refOf(e); seen[r] = (seen[r] || 0) + 1; e.ref = seen[r] > 1 ? r + '-' + seen[r] : r; });
+  const per = {};
+  all.forEach((e) => { per[e.invoice_no] = (per[e.invoice_no] || 0) + 1; });
+  all.forEach((e) => { e.blocks_on_invoice = per[e.invoice_no]; });
+}
+
 /* Befa's slice of the sheet service's bootstrap. Pure, so it can be tested. */
 export function cut(boot, today) {
   const mine = (x) => String(x && x.instructor_email || '').toLowerCase() === ME;
   const enrolments = (boot.enrolments || []).filter(mine).map(enrolOut);
   const certQueue = (boot.certQueue || []).filter(mine).map(enrolOut);
+  addRefs([enrolments, certQueue]);
   const upcoming = (boot.assignments || [])
     .filter((a) => mine(a) && String(a.date || '') >= today && !/cancel/i.test(String(a.status || '')))
     .map((a) => ({ date: str(a.date, 10), start: str(a.start, 5), end: str(a.end, 5), student: str(a.student_name, 120),
@@ -115,15 +136,18 @@ export async function read(fetchImpl = fetch) {
   const today = witaDate();
   const boot = await bootstrap(fetchImpl);
   const out = cut(boot, today);
-  const invoices = [...new Set(out.enrolments.concat(out.certQueue).map((e) => e.invoice_no).filter(Boolean))].slice(0, 80);
-  const names = [...new Set(out.certQueue.map((e) => e.student).filter(Boolean))].slice(0, 20);
-  const [certs, matches] = await Promise.all([
-    invoices.length ? academy({ action: 'certs', invoices }, fetchImpl) : Promise.resolve({ ok: true, certs: [] }),
-    names.length ? academy({ action: 'match', names }, fetchImpl) : Promise.resolve({ ok: true, matches: [] }),
+  const keys = out.enrolments.concat(out.certQueue).filter((e) => e.invoice_no).map((e) => e.invoice_no + ':' + e.ref).slice(0, 120);
+  const names = [...new Set(out.certQueue.map((e) => e.student).filter(Boolean))];
+  const chunks = [];
+  for (let i = 0; i < names.length; i += 20) chunks.push(names.slice(i, i + 20));
+  const [certs, ...matched] = await Promise.all([
+    keys.length ? academy({ action: 'certs', keys }, fetchImpl) : Promise.resolve({ ok: true, certs: [] }),
+    ...chunks.map((c) => academy({ action: 'match', names: c }, fetchImpl)),
   ]);
-  const portalError = !certs.ok ? certs.error : (!matches.ok ? matches.error : '');
+  const badMatch = matched.find((m) => !m.ok);
+  const portalError = !certs.ok ? certs.error : (badMatch ? badMatch.error : '');
   return { ok: true, at: new Date().toISOString(), today, ...out,
-           certs: certs.ok ? certs.certs || [] : [], matches: matches.ok ? matches.matches || [] : [],
+           certs: certs.ok ? certs.certs || [] : [], matches: badMatch ? [] : [].concat(...matched.map((m) => m.matches || [])),
            certQueueKnown: Array.isArray(boot.certQueue), portalError: portalError || '' };
 }
 
@@ -133,6 +157,7 @@ export async function write(b, fetchImpl = fetch) {
     if (!to) throw bad('Unknown status.');
     const row = Number(b.sheet_row);
     if (!(row > 5)) throw bad('Which row? Refresh and try again.');
+    if (!str(b.student, 120) || !str(b.invoice_no, 40)) throw bad('The student and invoice are needed so the sheet can check the row. Refresh and try again.');
     const j = await sheetWrite({ action: 'setEnrolStatus', instructor_email: ME, sheet_row: row,
       student: str(b.student, 120), invoice_no: str(b.invoice_no, 40), status: to }, fetchImpl);
     return { ok: true, sheet_row: j.sheet_row, from: j.from, to: j.to };
@@ -141,8 +166,9 @@ export async function write(b, fetchImpl = fetch) {
     if (['submit', 'unsubmit', 'issue'].indexOf(b.step) < 0) throw bad('Unknown step.');
     if (AGENCIES.indexOf(b.agency) < 0) throw bad('Unknown agency.');
     if (!UUID_RE.test(String(b.profile_id || ''))) throw bad('Pick the student in the portal first.');
-    const p = { action: 'cert_set', step: b.step, agency: b.agency, invoice_no: str(b.invoice_no, 40),
-                profile_id: String(b.profile_id), course_name: str(b.course_name, 200) };
+    if (!REF_RE.test(String(b.ref || ''))) throw bad('Which course? Refresh and try again.');
+    const p = { action: 'cert_set', step: b.step, agency: b.agency, invoice_no: str(b.invoice_no, 40), ref: String(b.ref),
+                profile_id: String(b.profile_id), course_name: str(b.course_name, 200), level: str(b.level, 120) };
     if (b.step === 'issue') {
       p.number = str(b.number, 60);
       p.issued_on = str(b.issued_on, 10);

@@ -25,8 +25,8 @@
 (function () {
   'use strict';
   var ROOT = 'acad-root';
-  var LS_LAST = 'acad_last_v1', LS_PICK = 'acad_picks_v1';
-  var A = { data: null, err: '', loading: false, busy: '', arm: '', flash: {}, gen: '', form: {}, picks: {}, search: {}, pending: false, notice: '' };
+  var LS_LAST = 'acad_last_v2', LS_PICK = 'acad_picks_v2';   /* v2: keyed by course block, not invoice */
+  var A = { data: null, err: '', loading: false, busy: '', arm: '', flash: {}, gen: '', form: {}, picks: {}, search: {}, forget: {}, pending: false, notice: '' };
   var ORDER = ['In Progress', 'Not Started yet', 'Not Passed', 'Status not set'];
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   var MONTH = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -98,38 +98,67 @@
   }
 
   /* ------------------------------------------------------------ helpers */
-  function certsFor(inv) { return ((A.data && A.data.certs) || []).filter(function (c) { return c.invoice_no === inv; }); }
-  function certOf(inv, ag) { return certsFor(inv).filter(function (c) { return c.agency === ag; })[0] || null; }
+  /* Every course block is identified by its ref (invoice, student and course,
+     made by the server), never by the invoice alone: one invoice can hold two
+     blocks, e.g. one student taking two courses (14 Oct 2026, after review). */
+  function certsFor(ref) { return ((A.data && A.data.certs) || []).filter(function (c) { return c.ref === ref; }); }
+  function certOf(ref, ag) { return certsFor(ref).filter(function (c) { return c.agency === ag; })[0] || null; }
   function matchesFor(name) {
     var m = ((A.data && A.data.matches) || []).filter(function (x) { return x.q === name; })[0];
     return (m && m.candidates) || [];
   }
-  /* The portal student for an enrolment: a certificate already made decides it,
-     then Befa's own pick, then one exact name match. Never a guess. */
+  /* The portal student for a course block: an ISSUED certificate fixes it for
+     good. Otherwise Befa's own pick, then the student of a certificate still in
+     progress, then one exact name match. Never a guess. */
   function pickFor(e) {
-    var made = certsFor(e.invoice_no)[0];
-    if (made) return { profile_id: made.profile_id, name: made.name, locked: true };
-    var p = A.picks[e.invoice_no];
+    var made = certsFor(e.ref), issued = made.filter(function (c) { return c.status === 'issued'; })[0];
+    if (issued) return { profile_id: issued.profile_id, name: issued.name || 'this student', locked: true };
+    var p = A.picks[e.ref];
     if (p) return p;
+    if (A.forget[e.ref]) return null;   /* Befa tapped Change: she picks again */
+    if (made[0]) return { profile_id: made[0].profile_id, name: made[0].name || 'this student' };
     var c = matchesFor(e.student), exact = c.filter(function (x) { return x.score >= 100; });
-    if (exact.length === 1) return { profile_id: exact[0].profile_id, name: exact[0].name, auto: true };
+    if (exact.length === 1) return { profile_id: exact[0].profile_id, name: exact[0].name || e.student, auto: true };
     return null;
   }
+  /* A clean course name from the sheet's course text, which often carries dates,
+     a second line or a list of what the package includes. Always editable. */
   function certTitle(course) {
-    var parts = String(course || '').split(' - ').map(function (x) { return x.trim(); }).filter(Boolean);
+    var raw = String(course || '').split('\n')[0];
+    raw = raw.replace(/\s*\([^)]*\d[^)]*\)/g, '').replace(/\s+PADI Instructor Guide\b.*$/i, '').replace(/\s+/g, ' ').replace(/[\s-]+$/, '').trim();
+    var parts = raw.split(' - ').map(function (x) { return x.trim(); }).filter(Boolean);
     var disc = (parts[0] || '').replace(/\s*Course$/i, '');
     var lastP = parts.length > 1 ? parts[parts.length - 1] : '';
-    if (!lastP || /^(Adult|Kids)$/i.test(lastP)) return disc || String(course || '');
-    if (disc && lastP.toLowerCase().indexOf(disc.toLowerCase()) < 0 && !/Mermaid|Dance/i.test(lastP)) {
+    var out;
+    if (!lastP || /^(Adult|Kids)$/i.test(lastP) || /^\d+x$/i.test(lastP)) out = parts[0] || raw;
+    else if (disc && lastP.toLowerCase().indexOf(disc.toLowerCase()) < 0 && !/Mermaid|Dance/i.test(lastP)) {
       var m = lastP.match(/^(PADI|MFI|AIDA|EFR)\s+(.*)$/i);
-      return m ? m[1] + ' ' + disc + ' ' + m[2] : disc + ' ' + lastP;
-    }
-    return lastP;
+      out = m ? m[1] + ' ' + disc + ' ' + m[2] : disc + ' ' + lastP;
+    } else out = lastP;
+    if (out.length > 70) out = out.slice(0, 70).replace(/\s+\S*$/, '');
+    return out;
   }
-  function daaNumber(inv) { return 'DAA-' + String(inv || '').replace(/^DAA[-\s]?/i, ''); }
+  /* DAA plus the invoice (approved by Befa 14 Oct 2026). When one invoice holds
+     more than one course block, -1, -2 in sheet order keep the numbers unique. */
+  function daaNumber(e) {
+    var base = 'DAA-' + String(e.invoice_no || '').replace(/^DAA[-\s]?/i, '');
+    if (!(e.blocks_on_invoice > 1)) return base;
+    var d = A.data || {}, same = (d.certQueue || []).concat(d.enrolments || [])
+      .filter(function (x) { return x.invoice_no === e.invoice_no; })
+      .sort(function (a, b) { return a.sheet_row - b.sheet_row; });
+    return base + '-' + (same.indexOf(e) + 1);
+  }
+  function levelOf(e) {
+    var f = A.form[e.ref + '|lvl'] || (A.form[e.ref + '|lvl'] = {});
+    if (f.level == null) {
+      var made = certsFor(e.ref).filter(function (c) { return c.level; })[0];
+      f.level = made ? made.level : certTitle(e.course);
+    }
+    return f.level;
+  }
   function allIssued(e) {
     var need = (e.agencies || []).concat(['DiveArts']);
-    return need.every(function (ag) { var c = certOf(e.invoice_no, ag); return c && c.status === 'issued'; });
+    return need.every(function (ag) { var c = certOf(e.ref, ag); return c && c.status === 'issued'; });
   }
   function fl(key) {
     var f = A.flash[key];
@@ -140,6 +169,7 @@
     return '<button class="ac-btn ' + (on ? 'arm' : (cls || '')) + '" data-a="arm" data-k="' + esc(key) + '"' + (A.busy ? ' disabled' : '') + '>' +
       esc(on ? armedLabel : label) + '</button>';
   }
+  function dis() { return A.busy ? ' disabled' : ''; }
 
   /* ------------------------------------------------------------- render */
   function tiles(d) {
@@ -153,49 +183,57 @@
   function addDays(iso, n) { var d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 
   function portalLine(e) {
-    var p = pickFor(e), inv = e.invoice_no;
+    var p = pickFor(e), ref = e.ref;
+    var h;
     if (p) {
-      return '<div class="ac-row ac-cand"><span class="ac-pill ok">Portal: ' + esc(p.name) + '</span>' +
+      h = '<div class="ac-row ac-cand"><span class="ac-pill ok">Portal: ' + esc(p.name) + '</span>' +
         (p.auto ? '<span class="ac-m">same name in the portal</span>' : '') +
-        (p.locked ? '' : '<button class="ac-btn ghost" data-a="unpick" data-inv="' + esc(inv) + '">Change</button>') + '</div>';
-    }
-    var c = (A.search[inv] && A.search[inv].list) || matchesFor(e.student);
-    var h = '<div class="ac-row ac-cand"><span class="ac-pill wait">Portal student?</span>';
-    if (c.length) {
-      h += c.map(function (x) {
-        return '<button class="ac-btn" data-a="pick" data-inv="' + esc(inv) + '" data-pid="' + esc(x.profile_id) + '" data-name="' + esc(x.name) + '">' +
-          esc(x.name) + (x.classes ? ' · ' + x.classes + ' classes' : '') + '</button>';
-      }).join('');
+        (p.locked ? '' : '<button class="ac-btn ghost" data-a="unpick" data-ref="' + esc(ref) + '"' + dis() + '>Change</button>') + '</div>';
     } else {
-      h += '<span class="ac-m">No one by this name in the student portal. The DAA certificate can still be made and downloaded, but it can only show in a portal that has this student.</span>';
+      var c = (A.search[ref] && A.search[ref].list) || matchesFor(e.student);
+      h = '<div class="ac-row ac-cand"><span class="ac-pill wait">Portal student?</span>';
+      if (c.length) {
+        h += c.map(function (x) {
+          return '<button class="ac-btn" data-a="pick" data-ref="' + esc(ref) + '" data-pid="' + esc(x.profile_id) + '" data-name="' + esc(x.name || '') + '">' +
+            esc(x.name || 'No name') + (x.classes ? ' · ' + x.classes + ' classes' : '') + '</button>';
+        }).join('');
+      } else {
+        h += '<span class="ac-m">No one by this name in the student portal. The DAA certificate can still be made and downloaded, but it can only show in a portal that has this student.</span>';
+      }
+      h += '</div><div class="ac-row"><input class="ac-in w" data-af="' + esc(ref) + '|q" placeholder="Search the portal by another name" value="' + esc((A.form[ref] || {}).q || '') + '"' + dis() + '>' +
+        '<button class="ac-btn ghost" data-a="search" data-ref="' + esc(ref) + '"' + dis() + '>Search</button></div>';
     }
-    h += '</div><div class="ac-row"><input class="ac-in w" data-af="' + esc(inv) + '|q" placeholder="Search the portal by another name" value="' + esc((A.form[inv] || {}).q || '') + '">' +
-      '<button class="ac-btn ghost" data-a="search" data-inv="' + esc(inv) + '"' + (A.busy ? ' disabled' : '') + '>Search</button></div>';
+    h += '<div class="ac-row"><label class="ac-m" style="flex:1 1 220px;display:flex;flex-direction:column;gap:3px">Course name shown in the portal' +
+      '<input class="ac-in" data-af="' + esc(ref) + '|lvl|level" value="' + esc(levelOf(e)) + '"' + dis() + '></label></div>';
     return h;
   }
 
   function agencyLine(e, ag, p) {
-    var inv = e.invoice_no, c = certOf(inv, ag), key = inv + '|' + ag, f = A.form[key] || {};
+    var ref = e.ref, c = certOf(ref, ag), key = ref + '|' + ag, f = A.form[key] || {};
     var h = '<div class="ac-cert"><div class="ac-row"><span class="lbl">' + esc(ag) + '</span>';
-    var dis = (A.busy || !p) ? ' disabled' : '';
+    var off = (A.busy || !p) ? ' disabled' : '';
     if (c && c.status === 'issued' && !f.edit) {
       h += '<span class="ac-pill ok">Issued · ' + esc(c.number) + ' · ' + esc(dmy(c.issued_on)) + '</span>' +
-        '<button class="ac-btn ghost" data-a="edit" data-k="' + esc(key) + '">Correct</button></div>';
+        '<button class="ac-btn ghost" data-a="edit" data-k="' + esc(key) + '"' + dis() + '>Correct</button></div>';
     } else if (c && (c.status === 'submitted_to_agency' || (c.status === 'issued' && f.edit))) {
       h += (c.status === 'issued' ? '<span class="ac-pill ok">Issued · ' + esc(c.number) + '</span>' : '<span class="ac-pill wait">Submitted ' + esc(dmy(c.submitted_on)) + '</span>') + '</div>' +
-        '<div class="ac-row"><input class="ac-in w" data-af="' + esc(key) + '|number" placeholder="' + esc(ag) + ' certificate number" value="' + esc(f.number != null ? f.number : (c.number || '')) + '">' +
-        '<input class="ac-in" type="date" data-af="' + esc(key) + '|date" max="' + esc(witaToday()) + '" value="' + esc(f.date || c.issued_on || witaToday()) + '">' +
-        '<button class="ac-btn go" data-a="issue" data-inv="' + esc(inv) + '" data-ag="' + esc(ag) + '"' + dis + '>Save as issued</button>' +
-        (c.status === 'submitted_to_agency' ? '<button class="ac-btn ghost" data-a="unsubmit" data-inv="' + esc(inv) + '" data-ag="' + esc(ag) + '"' + dis + '>Undo submitted</button>' : '') + '</div>' +
+        '<div class="ac-row"><input class="ac-in w" data-af="' + esc(key) + '|number" placeholder="' + esc(ag) + ' certificate number" value="' + esc(f.number != null ? f.number : (c.number || '')) + '"' + dis() + '>' +
+        '<input class="ac-in" type="date" data-af="' + esc(key) + '|date" max="' + esc(witaToday()) + '" value="' + esc(issueDate(c, f)) + '"' + dis() + '>' +
+        '<button class="ac-btn go" data-a="issue" data-ref="' + esc(ref) + '" data-ag="' + esc(ag) + '"' + off + '>Save as issued</button>' +
+        (c.status === 'submitted_to_agency' ? '<button class="ac-btn ghost" data-a="unsubmit" data-ref="' + esc(ref) + '" data-ag="' + esc(ag) + '"' + off + '>Undo submitted</button>' : '') +
+        (c.status === 'issued' ? '<button class="ac-btn ghost" data-a="noedit" data-k="' + esc(key) + '"' + dis() + '>Cancel</button>' : '') + '</div>' +
         '<div class="ac-m">Type the number exactly as ' + esc(ag) + ' sent it. The portal reads ISSUED only with a real number and date.</div>';
     } else {
-      h += '<span class="ac-pill">Not submitted</span><button class="ac-btn warm" data-a="submit" data-inv="' + esc(inv) + '" data-ag="' + esc(ag) + '"' + dis + '>Submitted to ' + esc(ag) + '</button></div>';
+      h += '<span class="ac-pill">Not submitted</span><button class="ac-btn warm" data-a="submit" data-ref="' + esc(ref) + '" data-ag="' + esc(ag) + '"' + off + '>Submitted to ' + esc(ag) + '</button></div>';
     }
     return h + fl(key) + '</div>';
   }
+  /* The date the box shows is the date that is sent: what Befa typed, else the
+     date already stored, else today. */
+  function issueDate(c, f) { return f.date || (c && c.issued_on) || witaToday(); }
 
   function daaLine(e, p) {
-    var inv = e.invoice_no, c = certOf(inv, 'DiveArts'), key = inv + '|DiveArts';
+    var ref = e.ref, c = certOf(ref, 'DiveArts'), key = ref + '|DiveArts';
     var h = '<div class="ac-cert"><div class="ac-row"><span class="lbl">DAA</span>';
     if (c && c.status === 'issued') {
       h += '<span class="ac-pill ok">Issued · ' + esc(c.number) + ' · ' + esc(dmy(c.issued_on)) + '</span>' +
@@ -203,57 +241,60 @@
     } else {
       h += '<span class="ac-pill">Not made</span>';
     }
-    h += '<button class="ac-btn ' + (c ? 'ghost' : 'go') + '" data-a="gen" data-inv="' + esc(inv) + '">' + (A.gen === inv ? 'Close' : (c ? 'Make again' : 'Make DAA certificate')) + '</button></div>';
-    if (A.gen === inv) h += genPanel(e, p);
+    h += '<button class="ac-btn ' + (c ? 'ghost' : 'go') + '" data-a="gen" data-ref="' + esc(ref) + '"' + dis() + '>' + (A.gen === ref ? 'Close' : (c ? 'Make again' : 'Make DAA certificate')) + '</button></div>';
+    if (A.gen === ref) h += genPanel(e, p);
     return h + fl(key) + '</div>';
   }
 
   function genDefaults(e) {
-    var f = A.form[e.invoice_no + '|gen'] || (A.form[e.invoice_no + '|gen'] = {});
+    var f = A.form[e.ref + '|gen'] || (A.form[e.ref + '|gen'] = {});
+    var made = certOf(e.ref, 'DiveArts');
     if (f.name == null) f.name = e.student;
-    if (f.course == null) f.course = certTitle(e.course);
-    if (f.date == null) f.date = witaToday();
+    if (f.course == null) f.course = levelOf(e);
+    if (f.date == null) f.date = (made && made.issued_on) || witaToday();
     if (f.city == null) f.city = 'Bali, Indonesia';
     if (f.padi == null) f.padi = (e.agencies || []).indexOf('PADI') >= 0;
-    if (f.number == null) f.number = daaNumber(e.invoice_no);
+    if (f.number == null) f.number = (made && made.number) || daaNumber(e);
     return f;
   }
   function genPanel(e, p) {
-    var inv = e.invoice_no, f = genDefaults(e), k = inv + '|gen';
+    var ref = e.ref, f = genDefaults(e), k = ref + '|gen';
     var inp = function (fld, label, type) {
-      return '<label>' + esc(label) + '<input class="ac-in" ' + (type ? 'type="' + type + '" ' : '') + 'data-af="' + esc(k) + '|' + fld + '" value="' + esc(f[fld]) + '"' + (type === 'date' ? ' max="' + witaToday() + '"' : '') + '></label>';
+      return '<label>' + esc(label) + '<input class="ac-in" ' + (type ? 'type="' + type + '" ' : '') + 'data-af="' + esc(k) + '|' + fld + '" value="' + esc(f[fld]) + '"' + (type === 'date' ? ' max="' + witaToday() + '"' : '') + dis() + '></label>';
     };
+    var first = p ? String(p.name || '').split(' ')[0] : '';
     return '<div class="ac-gen"><div class="ac-grid">' + inp('name', 'Name on the certificate') + inp('course', 'Course line') +
       inp('date', 'Date', 'date') + inp('city', 'Place') + inp('number', 'DAA certificate number') +
-      '<label>PADI logo<span class="ac-row" style="margin:0"><input type="checkbox" data-af="' + esc(k) + '|padi"' + (f.padi ? ' checked' : '') + '> top right corner</span></label></div>' +
+      '<label>PADI logo<span class="ac-row" style="margin:0"><input type="checkbox" data-af="' + esc(k) + '|padi"' + (f.padi ? ' checked' : '') + dis() + '> top right corner</span></label></div>' +
       '<canvas id="ac-canvas" width="1684" height="1191"></canvas>' +
-      '<div class="ac-row"><button class="ac-btn" data-a="download" data-inv="' + esc(inv) + '"' + (A.busy ? ' disabled' : '') + '>Download</button>' +
-      '<button class="ac-btn go" data-a="savedaa" data-inv="' + esc(inv) + '"' + ((A.busy || !p) ? ' disabled' : '') + '>Save to ' + esc(p ? p.name.split(' ')[0] : 'the') + '\'s portal</button></div>' +
+      '<div class="ac-row"><button class="ac-btn" data-a="download" data-ref="' + esc(ref) + '"' + dis() + '>Download</button>' +
+      '<button class="ac-btn go" data-a="savedaa" data-ref="' + esc(ref) + '"' + ((A.busy || !p) ? ' disabled' : '') + '>' +
+      (A.busy === ref + '|DiveArts' ? 'Saving…' : 'Save to ' + esc(first ? first + '\'s' : 'the') + ' portal') + '</button></div>' +
       (p ? '' : '<div class="ac-m">Pick the portal student above to save it to the portal. Download works without.</div>') +
       '<div class="ac-m">Check the name spelling before saving. Saving marks the DAA certificate issued with this number and date.</div></div>';
   }
 
   function cqCard(e) {
-    var p = pickFor(e), inv = e.invoice_no;
+    var p = pickFor(e), ref = e.ref;
     var h = '<div class="ac-card cq"><div class="ac-t">' + esc(e.student) + '</div>' +
-      '<div class="ac-m">' + esc(e.course) + ' · ' + esc(inv) + (e.plan ? ' · ' + e.done + ' of ' + e.plan + ' sessions' : '') + (e.last_seen ? ' · last class ' + esc(e.last_seen) : '') + '</div>' +
+      '<div class="ac-m">' + esc(e.course) + ' · ' + esc(e.invoice_no) + ' · row ' + esc(e.sheet_row) + (e.plan ? ' · ' + e.done + ' of ' + e.plan + ' sessions' : '') + (e.last_seen ? ' · last class ' + esc(e.last_seen) : '') + '</div>' +
       portalLine(e);
     (e.agencies || []).forEach(function (ag) { h += agencyLine(e, ag, p); });
     h += daaLine(e, p);
     if (allIssued(e)) {
-      h += '<div class="ac-row">' + armBtn('done|' + inv, 'Mark done in my sheet', 'Tap again: column A becomes done', 'go') + '</div>';
+      h += '<div class="ac-row">' + armBtn('done|' + ref, 'Mark done in my sheet', 'Tap again: row ' + e.sheet_row + ' becomes done', 'go') + '</div>';
     }
-    return h + fl(inv) + '</div>';
+    return h + fl(ref) + '</div>';
   }
 
   function openCard(e) {
     var pct = e.plan ? Math.min(100, Math.round(100 * e.done / e.plan)) : 0;
     return '<div class="ac-card"><div class="ac-t">' + esc(e.student) + '</div>' +
-      '<div class="ac-m">' + esc(e.course) + ' · ' + esc(e.invoice_no) + ' · ' + (e.plan ? e.done + ' of ' + e.plan + ' sessions' : e.done + ' sessions taught') +
+      '<div class="ac-m">' + esc(e.course) + ' · ' + esc(e.invoice_no) + ' · row ' + esc(e.sheet_row) + ' · ' + (e.plan ? e.done + ' of ' + e.plan + ' sessions' : e.done + ' sessions taught') +
       (e.last_seen ? ' · last class ' + esc(e.last_seen) : ' · no class yet') + '</div>' +
       (e.plan ? '<div class="ac-bar"><i style="width:' + pct + '%"></i></div>' : '') +
-      '<div class="ac-row">' + armBtn('wait|' + e.invoice_no, 'Course finished, waiting for certificate', 'Tap again to change the sheet', 'ghost') + '</div>' +
-      fl(e.invoice_no) + '</div>';
+      '<div class="ac-row">' + armBtn('wait|' + e.ref, 'Course finished, waiting for certificate', 'Tap again to change row ' + e.sheet_row + ' in your sheet', 'ghost') + '</div>' +
+      fl(e.ref) + '</div>';
   }
 
   function schedule(d) {
@@ -331,47 +372,49 @@
     });
   }
 
-  function findE(inv) {
+  function findE(ref) {
     var d = A.data || {};
-    return (d.certQueue || []).concat(d.enrolments || []).filter(function (e) { return e.invoice_no === inv; })[0];
+    return (d.certQueue || []).concat(d.enrolments || []).filter(function (e) { return e.ref === ref; })[0];
   }
   function putCert(c) {
     var list = A.data.certs || (A.data.certs = []);
-    var i = list.findIndex(function (x) { return x.invoice_no === c.invoice_no && x.agency === c.agency; });
+    var i = list.findIndex(function (x) { return x.ref === c.ref && x.agency === c.agency; });
     if (i >= 0) list[i] = c; else list.push(c);
     lsSet(LS_LAST, A.data);
   }
   function busy(key) { A.busy = key; A.flash[key] = null; render(); }
 
-  function doCert(inv, ag, step) {
-    var e = findE(inv), p = e && pickFor(e), key = inv + '|' + ag, f = A.form[key] || {};
-    if (!e || !p) return;
-    var body = { action: 'cert', step: step, invoice_no: inv, agency: ag, profile_id: p.profile_id, course_name: e.course };
+  function doCert(ref, ag, step) {
+    var e = findE(ref), p = e && pickFor(e), key = ref + '|' + ag, f = A.form[key] || {}, c = certOf(ref, ag);
+    if (!e || !p || A.busy) return;
+    var body = { action: 'cert', step: step, invoice_no: e.invoice_no, ref: ref, agency: ag, profile_id: p.profile_id,
+                 course_name: e.course, level: levelOf(e) };
     if (step === 'issue') {
-      body.number = String(f.number != null ? f.number : ((certOf(inv, ag) || {}).number || '')).trim();
-      body.issued_on = f.date || witaToday();
+      body.number = String(f.number != null ? f.number : ((c || {}).number || '')).trim();
+      body.issued_on = issueDate(c, f);
       if (!body.number) { A.flash[key] = { text: 'Type the certificate number first.', bad: true }; render(); return; }
     }
     busy(key);
     post(body).then(function (j) {
       putCert(j.cert); A.busy = ''; delete A.form[key];
       A.flash[key] = { text: step === 'submit' ? 'Marked submitted. ' + p.name + '\'s portal shows it as waiting for ' + ag + '.'
-        : step === 'unsubmit' ? 'Undone.' : 'Issued. It shows in ' + p.name + '\'s portal with number ' + j.cert.number + '.' };
+        : step === 'unsubmit' ? 'Undone. You can change the portal student now if it was wrong.'
+        : 'Issued. It shows in ' + p.name + '\'s portal with number ' + j.cert.number + ', dated ' + dmy(j.cert.issued_on) + '.' };
       render();
     }).catch(function (err) { A.busy = ''; A.flash[key] = { text: 'Not saved: ' + err.message, bad: true }; render(); });
   }
 
-  function doStatus(inv, to) {
-    var e = findE(inv);
-    if (!e) return;
-    busy(inv);
-    post({ action: 'status', sheet_row: e.sheet_row, student: e.student, invoice_no: inv, to: to }).then(function (j) {
+  function doStatus(ref, to) {
+    var e = findE(ref);
+    if (!e || A.busy) return;
+    busy(ref);
+    post({ action: 'status', sheet_row: e.sheet_row, student: e.student, invoice_no: e.invoice_no, to: to }).then(function (j) {
       A.busy = ''; A.arm = '';
       if (to === 'wait') {
         A.data.enrolments = A.data.enrolments.filter(function (x) { return x !== e; });
         e.status = j.to || 'course done, waiting for certificate';
         A.data.certQueue.unshift(e);
-        A.notice = e.student + ' moved to Finished, certificate to do. Your sheet now says "' + (j.to || '') + '".';
+        A.notice = e.student + ' (' + e.invoice_no + ', row ' + e.sheet_row + ') moved to Finished, certificate to do. Your sheet now says "' + (j.to || '') + '".';
         lsSet(LS_LAST, A.data);
         render();
         post({ action: 'match', names: [e.student] }).then(function (m) {
@@ -380,21 +423,21 @@
         }).catch(function () { /* the card offers search */ });
       } else {
         A.data.certQueue = A.data.certQueue.filter(function (x) { return x !== e; });
-        A.notice = e.student + ', ' + inv + ' is done. Your sheet now says "' + (j.to || '') + '".';
+        A.notice = e.student + ' (' + e.invoice_no + ', row ' + e.sheet_row + ') is done. Your sheet now says "' + (j.to || '') + '".';
         lsSet(LS_LAST, A.data); render();
       }
-    }).catch(function (err) { A.busy = ''; A.arm = ''; A.flash[inv] = { text: 'Your sheet was not changed: ' + err.message, bad: true }; render(); });
+    }).catch(function (err) { A.busy = ''; A.arm = ''; A.flash[ref] = { text: 'Your sheet was not changed: ' + err.message, bad: true }; render(); });
   }
 
-  function doSearch(inv) {
-    var q = ((A.form[inv] || {}).q || '').trim();
-    if (q.length < 2) return;
-    busy(inv);
+  function doSearch(ref) {
+    var q = ((A.form[ref] || {}).q || '').trim();
+    if (q.length < 2 || A.busy) return;
+    busy(ref);
     post({ action: 'match', names: [q] }).then(function (m) {
-      A.busy = ''; A.search[inv] = { list: ((m.matches || [])[0] || {}).candidates || [] };
-      if (!A.search[inv].list.length) A.flash[inv] = { text: 'No portal student found for "' + q + '".', bad: true };
+      A.busy = ''; A.search[ref] = { list: ((m.matches || [])[0] || {}).candidates || [] };
+      if (!A.search[ref].list.length) A.flash[ref] = { text: 'No portal student found for "' + q + '".', bad: true };
       render();
-    }).catch(function (err) { A.busy = ''; A.flash[inv] = { text: err.message, bad: true }; render(); });
+    }).catch(function (err) { A.busy = ''; A.flash[ref] = { text: err.message, bad: true }; render(); });
   }
 
   /* -------------------------------------------- the certificate drawing */
@@ -478,30 +521,37 @@
       r.readAsDataURL(blob);
     });
   }
-  function doDownload(inv) {
-    var e = findE(inv), f = genDefaults(e);
+  function doDownload(ref) {
+    var e = findE(ref);
+    if (!e) return;
+    var f = genDefaults(e);
     draw().then(function (cv) { return cv && toBlob(cv); }).then(function (blob) {
       if (!blob) return;
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'DAA certificate - ' + f.name.replace(/[^\w .-]+/g, '') + '.jpg';
+      a.download = 'DAA certificate - ' + String(f.name || '').replace(/[^\w .-]+/g, '') + '.jpg';
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
     });
   }
-  function doSaveDaa(inv) {
-    var e = findE(inv), p = e && pickFor(e), f = e && genDefaults(e), key = inv + '|DiveArts';
-    if (!p) return;
+  function doSaveDaa(ref) {
+    var e = findE(ref), p = e && pickFor(e), f = e && genDefaults(e), key = ref + '|DiveArts';
+    if (!p || A.busy) return;
     if (!String(f.number || '').trim()) { A.flash[key] = { text: 'Type the DAA certificate number first.', bad: true }; render(); return; }
+    if (!String(f.name || '').trim()) { A.flash[key] = { text: 'The name on the certificate is empty.', bad: true }; render(); return; }
     busy(key);
     draw().then(function (cv) {
       if (!cv) throw new Error('The certificate could not be drawn.');
       return toBlob(cv);
-    }).then(toB64).then(function (b64) {
+    }).then(function (blob) {
+      if (!blob) throw new Error('The certificate image could not be made.');
+      return toB64(blob);
+    }).then(function (b64) {
       return post({ action: 'cert_file', profile_id: p.profile_id, data_base64: b64 });
     }).then(function (up) {
-      return post({ action: 'cert', step: 'issue', invoice_no: inv, agency: 'DiveArts', profile_id: p.profile_id, course_name: e.course,
-                    number: String(f.number).trim(), issued_on: f.date, file_url: up.file_url });
+      return post({ action: 'cert', step: 'issue', invoice_no: e.invoice_no, ref: ref, agency: 'DiveArts', profile_id: p.profile_id,
+                    course_name: e.course, level: String(f.course || '').trim() || levelOf(e),
+                    number: String(f.number).trim(), issued_on: f.date || witaToday(), file_url: up.file_url });
     }).then(function (j) {
       putCert(j.cert); A.busy = ''; A.gen = '';
       A.flash[key] = { text: 'Saved. The DAA certificate shows in ' + p.name + '\'s portal, number ' + j.cert.number + '.' };
@@ -516,7 +566,8 @@
     var i = af.lastIndexOf('|'), key = af.slice(0, i), fld = af.slice(i + 1);
     var f = A.form[key] || (A.form[key] = {});
     f[fld] = t.type === 'checkbox' ? t.checked : t.value;
-    if (/\|gen$/.test(key)) draw();
+    /* While a certificate is being saved, the drawing being saved is left alone. */
+    if (/\|gen$/.test(key) && !A.busy) draw();
   });
   document.addEventListener('change', function (e) {
     var t = e.target;
@@ -533,16 +584,18 @@
     if (!root || !root.contains(e.target)) return;
     var b = e.target.closest('[data-a]');
     if (!b || b.disabled) return;
-    var a = b.getAttribute('data-a'), inv = b.getAttribute('data-inv'), ag = b.getAttribute('data-ag');
-    if (a === 'refresh') { A.notice = ''; A.flash = {}; load(); return; }
-    if (a === 'pick') { A.picks[inv] = { profile_id: b.getAttribute('data-pid'), name: b.getAttribute('data-name') }; lsSet(LS_PICK, A.picks); render(); return; }
-    if (a === 'unpick') { delete A.picks[inv]; lsSet(LS_PICK, A.picks); render(); return; }
-    if (a === 'search') { doSearch(inv); return; }
-    if (a === 'submit' || a === 'unsubmit' || a === 'issue') { doCert(inv, ag, a); return; }
+    var a = b.getAttribute('data-a'), ref = b.getAttribute('data-ref'), ag = b.getAttribute('data-ag');
+    if (a === 'refresh') { if (A.busy) return; A.notice = ''; A.flash = {}; load(); return; }
+    if (A.busy) return;
+    if (a === 'pick') { A.picks[ref] = { profile_id: b.getAttribute('data-pid'), name: b.getAttribute('data-name') || 'this student' }; delete A.forget[ref]; lsSet(LS_PICK, A.picks); render(); return; }
+    if (a === 'unpick') { delete A.picks[ref]; A.forget[ref] = true; lsSet(LS_PICK, A.picks); render(); return; }
+    if (a === 'search') { doSearch(ref); return; }
+    if (a === 'submit' || a === 'unsubmit' || a === 'issue') { doCert(ref, ag, a); return; }
     if (a === 'edit') { var f = A.form[b.getAttribute('data-k')] || (A.form[b.getAttribute('data-k')] = {}); f.edit = true; render(); return; }
-    if (a === 'gen') { A.gen = A.gen === inv ? '' : inv; render(); return; }
-    if (a === 'download') { doDownload(inv); return; }
-    if (a === 'savedaa') { doSaveDaa(inv); return; }
+    if (a === 'noedit') { delete A.form[b.getAttribute('data-k')]; render(); return; }
+    if (a === 'gen') { A.gen = A.gen === ref ? '' : ref; render(); return; }
+    if (a === 'download') { doDownload(ref); return; }
+    if (a === 'savedaa') { doSaveDaa(ref); return; }
     if (a === 'arm') {
       var k = b.getAttribute('data-k');
       if (A.arm !== k) {

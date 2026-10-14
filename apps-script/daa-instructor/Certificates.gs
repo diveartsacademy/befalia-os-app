@@ -71,6 +71,9 @@ WRITES_.setEnrolStatus = function(p, actor){
   if(!book) throw new Error('No instructor workbook for ' + S_(p.instructor_email) + '.');
   var row = Number(p.sheet_row);
   if(!(row > ENROL_HEAD_)) throw new Error('A sheet row is required.');
+  /* Both are needed for the row check below: a blank name and invoice would
+     match the empty B and G of a row in the middle of a block (14 Oct 2026). */
+  if(!S_(p.student) || !S_(p.invoice_no)) throw new Error('The student name and invoice are required. Nothing changed.');
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {

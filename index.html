@@ -1552,8 +1552,9 @@ function tdClToggle(id){
 }
 function tdRenderDay(){
   const el=document.getElementById('td-day');if(!el)return;
-  // Never redraw under the fingers: while something in the session form has focus, wait.
-  const ae=document.activeElement;if(ae&&el.contains(ae)&&ae.closest&&ae.closest('#tde-cl'))return;
+  // Never redraw under the fingers: while a field in the session form has focus, wait.
+  // A focused button (Save draft, Send) does not count, so the card header updates after it.
+  const ae=document.activeElement;if(ae&&el.contains(ae)&&ae.closest&&ae.closest('#tde-cl')&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
   const day=TD.sel||TD.today||tdWita();
   const old=document.getElementById('td-day-in');const keep=old?old.value:'';const hadFocus=old&&document.activeElement===old;
   const inArea=t=>TD.area==='All'||t.area===TD.area;

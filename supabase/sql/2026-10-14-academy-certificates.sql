@@ -18,18 +18,23 @@
 --   portal.befalia_certs(p_key, {action:'ping'})
 --       {ok:true} if the key is right. The edge function asks this before it
 --       stores an uploaded certificate image, so a wrong key stores nothing.
---   portal.befalia_certs(p_key, {action:'certs', invoices:[...]})
---       The certificates Befalia OS made for those invoices, one per agency.
---   portal.befalia_certs(p_key, {action:'cert_set', step, invoice_no, agency,
---       profile_id, course_name, number, issued_on, file_url})
+--   portal.befalia_certs(p_key, {action:'certs', keys:['<invoice>:<ref>', ...]})
+--       The certificates Befalia OS made for those course blocks, one per agency.
+--   portal.befalia_certs(p_key, {action:'cert_set', step, invoice_no, ref, agency,
+--       profile_id, course_name, level, number, issued_on, file_url})
 --       step 'submit'   PADI/MFI/AIDA/EFR: status submitted_to_agency, today.
 --       step 'unsubmit' back to not_yet_submitted, only if not issued.
 --       step 'issue'    a real number and a real date, not in the future.
 --                       verified_by is Befa's own portal profile, because the
 --                       only person holding the Befalia OS key is Befa.
 --                       DiveArts certificates may carry the stored image.
---       One row per invoice and agency (import_key 'bos:<invoice>:<agency>'),
---       so a second tap updates, never duplicates.
+--       One row per course block and agency (import_key
+--       'bos:<invoice>:<ref>:<agency>'), so a second tap updates, never
+--       duplicates. ref (14 Oct 2026, after review) is a hash of invoice, student
+--       and course made by Befalia OS: one invoice can hold two course blocks.
+--       level is the course name Befa sees, stored as agency_level so the
+--       portal shows it even when the sheet's course text matches no
+--       portal.course row (most do not: the sheet adds dates and extras).
 --
 -- The rule from the portal design still holds and is enforced by the table's
 -- own constraint: ISSUED needs a number, a date and a named verifier.
@@ -58,6 +63,8 @@ declare
   v_step   text := coalesce(p->>'step', '');
   v_inv    text := btrim(coalesce(p->>'invoice_no', ''));
   v_ag     text := btrim(coalesce(p->>'agency', ''));
+  v_ref    text := btrim(coalesce(p->>'ref', ''));
+  v_level  text := nullif(left(btrim(coalesce(p->>'level', '')), 120), '');
   v_key    text;
   v_pid    uuid;
   v_course uuid;
@@ -78,11 +85,12 @@ begin
   end if;
 
   if a = 'certs' then
-    if jsonb_typeof(p->'invoices') <> 'array' or jsonb_array_length(p->'invoices') > 80 then
-      return jsonb_build_object('ok', false, 'error', 'invoices must be a list of at most 80');
+    if coalesce(jsonb_typeof(p->'keys'), '') <> 'array' or jsonb_array_length(p->'keys') > 120 then
+      return jsonb_build_object('ok', false, 'error', 'keys must be a list of at most 120');
     end if;
     select coalesce(jsonb_agg(jsonb_build_object(
              'invoice_no', split_part(ce.import_key, ':', 2),
+             'ref', split_part(ce.import_key, ':', 3), 'level', ce.agency_level,
              'agency', ce.issuing_body, 'status', ce.status,
              'number', ce.certificate_number, 'submitted_on', ce.submitted_on,
              'issued_on', ce.issued_on, 'file_url', ce.file_url,
@@ -94,7 +102,7 @@ begin
       left join portal.course co on co.id = ce.course_id
      where ce.import_key in (
              select 'bos:' || btrim(i) || ':' || ag
-               from jsonb_array_elements_text(p->'invoices') i,
+               from jsonb_array_elements_text(p->'keys') i,
                     unnest(array['PADI','MFI','AIDA','EFR','DiveArts']) ag);
     return jsonb_build_object('ok', true, 'certs', r);
   end if;
@@ -106,6 +114,9 @@ begin
   -- What every step needs.
   if v_inv !~ '^[A-Za-z0-9][A-Za-z0-9/_-]{2,39}$' then
     return jsonb_build_object('ok', false, 'error', 'The invoice number is missing or not an invoice number.');
+  end if;
+  if v_ref !~ '^[0-9a-f]{16}(-[0-9]{1,2})?$' then
+    return jsonb_build_object('ok', false, 'error', 'Which course? Refresh and try again.');
   end if;
   if v_ag not in ('PADI', 'MFI', 'AIDA', 'EFR', 'DiveArts') then
     return jsonb_build_object('ok', false, 'error', 'Unknown agency "' || left(v_ag, 20) || '".');
@@ -125,7 +136,7 @@ begin
     return jsonb_build_object('ok', false, 'error', 'That student is not in the portal.');
   end if;
 
-  v_key := 'bos:' || v_inv || ':' || v_ag;
+  v_key := 'bos:' || v_inv || ':' || v_ref || ':' || v_ag;
   select * into c from portal.certificate where import_key = v_key for update;
 
   if found and c.profile_id <> v_pid and c.status = 'issued' then
@@ -143,11 +154,11 @@ begin
     if c.id is not null then
       update portal.certificate
          set status = 'submitted_to_agency', submitted_on = v_today, profile_id = v_pid,
-             course_id = coalesce(v_course, course_id), updated_at = now()
+             course_id = coalesce(v_course, course_id), agency_level = coalesce(v_level, agency_level), updated_at = now()
        where id = c.id;
     else
-      insert into portal.certificate (profile_id, course_id, issuing_body, status, submitted_on, import_key, note)
-      values (v_pid, v_course, v_ag::portal.agency, 'submitted_to_agency', v_today, v_key, 'Befalia OS, invoice ' || v_inv);
+      insert into portal.certificate (profile_id, course_id, issuing_body, agency_level, status, submitted_on, import_key, note)
+      values (v_pid, v_course, v_ag::portal.agency, v_level, 'submitted_to_agency', v_today, v_key, 'Befalia OS, invoice ' || v_inv);
     end if;
 
   elsif v_step = 'unsubmit' then
@@ -185,19 +196,19 @@ begin
     if c.id is not null then
       update portal.certificate
          set status = 'issued', certificate_number = v_num, issued_on = v_date, verified_by = v_befa,
-             profile_id = v_pid, course_id = coalesce(v_course, course_id),
+             profile_id = v_pid, course_id = coalesce(v_course, course_id), agency_level = coalesce(v_level, agency_level),
              file_url = coalesce(v_file, file_url), updated_at = now()
        where id = c.id;
     else
-      insert into portal.certificate (profile_id, course_id, issuing_body, certificate_number, status,
+      insert into portal.certificate (profile_id, course_id, issuing_body, agency_level, certificate_number, status,
                                       issued_on, verified_by, file_url, import_key, note)
-      values (v_pid, v_course, v_ag::portal.agency, v_num, 'issued', v_date, v_befa, v_file, v_key,
+      values (v_pid, v_course, v_ag::portal.agency, v_level, v_num, 'issued', v_date, v_befa, v_file, v_key,
               'Befalia OS, invoice ' || v_inv);
     end if;
     perform portal.award_certificate_badges();
   end if;
 
-  select jsonb_build_object('invoice_no', v_inv, 'agency', ce.issuing_body, 'status', ce.status,
+  select jsonb_build_object('invoice_no', v_inv, 'ref', v_ref, 'level', ce.agency_level, 'agency', ce.issuing_body, 'status', ce.status,
            'number', ce.certificate_number, 'submitted_on', ce.submitted_on, 'issued_on', ce.issued_on,
            'file_url', ce.file_url, 'profile_id', ce.profile_id, 'name', pr.display_name)
     into r
