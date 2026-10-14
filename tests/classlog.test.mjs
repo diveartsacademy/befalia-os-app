@@ -95,7 +95,7 @@ await t('send: links reach OS_ATTENDANCE and the portal queue; the sheet address
     students: [{ name: 'Claire', video: V1, profile_id: PID1 }, { name: 'Naomi', profile_id: PID2 }] } });
   assert.equal(r.s, 200, JSON.stringify(r.j));
   const detail = calls.find((c) => c.body && c.body.action === 'saveSessionDetail');
-  assert.ok(calls.find((c) => c.body && c.body.action === 'saveSession').u.startsWith('https://script.google.com/macros/s/AKfycbwmt6'));
+  assert.ok(calls.find((c) => c.body && c.body.action === 'saveSession').u.startsWith('https://script.google.com/macros/s/AKfycbwJ5s1d9I6-'));
   assert.deepEqual(detail.body.attendance.map((a) => a.video_url), [V1, VS]);
   const vid = calls.find((c) => c.body && c.body.action === 'video');
   assert.equal(vid.body.rows.length, 2); assert.equal(vid.body.rows[0].class_date, '2026-10-13'); assert.equal(vid.body.rows[0].class_label, 'Claire + Naomi · Pool 2/4');

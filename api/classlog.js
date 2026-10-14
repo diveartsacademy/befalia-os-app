@@ -49,7 +49,11 @@ import { academy, DRIVE_RE, UUID_RE } from './_academy.js';
 
 // Two calls to Apps Script can take most of a minute when Google is slow.
 export const config = { maxDuration: 60 };
-const DAA_FALLBACK_URL = 'https://script.google.com/macros/s/AKfycbwmt6QDCt_SHS3FQqtRTrJX2Mr_gehMA1YtJaAvlg46MeJG_VtVM7GGYk4m4TKvOgg1/exec';
+/* The one active deployment of "DAA Instructor - scripts" ("Instructor API v2",
+   Version 23 since 14 Oct 2026). Checked in the Manage deployments dialog: the
+   address ending ...VtVM7GGYk4m4TKvOgg1 belongs to STUDENT ID NO (the Academy
+   order script), which has no saveSession, setVideo or bootstrap. */
+const DAA_FALLBACK_URL = 'https://script.google.com/macros/s/AKfycbwJ5s1d9I6-aEwufZq3HIL6ps4JURIAhqdytcm9vQzdTjmPOD6KfcCwVRxoBJqzxvVvrw/exec';
 const daaUrl = () => process.env.DAA_API_URL || DAA_FALLBACK_URL;
 
 const NOTION = 'https://api.notion.com/v1';
