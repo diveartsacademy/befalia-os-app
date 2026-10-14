@@ -27,8 +27,34 @@
 // The sheet service address and key live in Vercel env (DAA_API_URL,
 // DAA_API_KEY), the same values the DiveArts OS has on Cloudflare. They never
 // reach a browser. Without them, draft still works and send says what is missing.
+//
+// 14 Oct 2026, the session form on the To-Do (asked by Befa):
+//   - a Google Drive link for the whole session (log.video) and one per student
+//     (students[].video). Each student's link, or else the session link, goes
+//     into OS_ATTENDANCE as that student's video (the same column the DiveArts OS
+//     instructor page fills), and is queued in the student portal so the hourly
+//     Class video sender emails it. Students are matched to the portal by name;
+//     Befa confirms the match on the form (students[].profile_id).
+//   - videos usually come after the class, so action 'videos' adds or changes
+//     links on a class already in the books. It writes the links only: setVideo
+//     on each attendance row (id <session>-A<n>, in the order the class was sent)
+//     and the portal queue. Costs stay as sent.
+//   - action 'match' finds portal students for a list of names.
+//   - the sheet service address falls back to the one DiveArts OS uses, so only
+//     DAA_API_KEY (Script Property DAA_API_KEY of "DAA Instructor - scripts") has
+//     to be set in Vercel.
 import { requireKey } from './_auth.js';
 import { TASKS_DB, mapPage, witaDate } from './tasks.js';
+import { academy, DRIVE_RE, UUID_RE } from './_academy.js';
+
+// Two calls to Apps Script can take most of a minute when Google is slow.
+export const config = { maxDuration: 60 };
+/* The one active deployment of "DAA Instructor - scripts" ("Instructor API v2",
+   Version 23 since 14 Oct 2026). Checked in the Manage deployments dialog: the
+   address ending ...VtVM7GGYk4m4TKvOgg1 belongs to STUDENT ID NO (the Academy
+   order script), which has no saveSession, setVideo or bootstrap. */
+const DAA_FALLBACK_URL = 'https://script.google.com/macros/s/AKfycbwJ5s1d9I6-aEwufZq3HIL6ps4JURIAhqdytcm9vQzdTjmPOD6KfcCwVRxoBJqzxvVvrw/exec';
+const daaUrl = () => process.env.DAA_API_URL || DAA_FALLBACK_URL;
 
 const NOTION = 'https://api.notion.com/v1';
 const VERSION = '2022-06-28';
@@ -56,6 +82,8 @@ export function normalizeLog(raw) {
   const type = TYPES.includes(l.type) ? l.type : 'pool';
   const students = (Array.isArray(l.students) ? l.students : []).map((s) => ({
     name: str(s && s.name, 80), invoice: str(s && s.invoice, 40), course: str(s && s.course, 150),
+    video: driveLink(s && s.video, 'The video link for ' + str(s && s.name, 80)),
+    profile_id: UUID_RE.test(String(s && s.profile_id || '')) ? String(s.profile_id).toLowerCase() : '',
   })).filter((s) => s.name);
   if (students.length > 12) throw bad('At most 12 students in one class');
   const costs = (Array.isArray(l.costs) ? l.costs : []).map((c) => {
@@ -70,9 +98,29 @@ export function normalizeLog(raw) {
   for (const c of costs) if (c.amount > MAX_LINE) throw bad('One line is over Rp20.000.000. Check the number.');
   return {
     v: 1, venue: str(l.venue, 100), city: str(l.city, 40), type, students, costs,
+    video: driveLink(l.video, 'The session video link'),
+    lang: l.lang === 'en' ? 'en' : 'id',
     note: str(l.note, 300),
     total: costs.reduce((t, c) => t + c.amount, 0),
   };
+}
+
+// A Google Drive or Docs link, or ''. Anything else is refused by name.
+export function driveLink(v, what) {
+  const u = String(v == null ? '' : v).trim();
+  if (!u) return '';
+  if (!DRIVE_RE.test(u) || u.length > 500) throw bad(what + ' is not a Google Drive link. Copy it from Drive with Share, Copy link.');
+  return u;
+}
+
+// What goes to the student portal for one class: one row per matched student
+// who has a link (their own, or the session one).
+export function videoRows(log, day, label) {
+  return (log.students || []).map((s) => {
+    const url = s.video || log.video;
+    if (!url || !s.profile_id) return null;
+    return { profile_id: s.profile_id, drive_url: url, kind: s.video ? 'personal' : 'session', lang: log.lang || 'id', class_date: day, class_label: label };
+  }).filter(Boolean);
 }
 
 export function parseLog(text) {
@@ -98,7 +146,7 @@ async function assertClass(id, H) {
 }
 
 async function sheet(body) {
-  const r = await fetch(process.env.DAA_API_URL, {
+  const r = await fetch(daaUrl(), {
     method: 'POST', redirect: 'follow',
     headers: { 'content-type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({ ...body, key: process.env.DAA_API_KEY, actor: ACTOR }),
@@ -120,7 +168,7 @@ function cityOf(t, log) {
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     // Says only whether sending is switched on. No values.
-    res.status(200).json({ ok: true, sendReady: !!(process.env.DAA_API_URL && process.env.DAA_API_KEY), notion: !!process.env.NOTION_TOKEN });
+    res.status(200).json({ ok: true, sendReady: !!process.env.DAA_API_KEY, portalReady: !!process.env.BIZ_FEED_KEY, notion: !!process.env.NOTION_TOKEN });
     return;
   }
   if (req.method !== 'POST') { res.status(405).json({ error: 'POST only' }); return; }
@@ -133,10 +181,52 @@ export default async function handler(req, res) {
   body = body || {};
   const today = witaDate();
   try {
+    if (body.action === 'match') {
+      const names = (Array.isArray(body.names) ? body.names : []).map((n) => str(n, 80)).filter(Boolean).slice(0, 12);
+      if (!names.length) { res.status(200).json({ ok: true, matches: [] }); return; }
+      const j = await academy({ action: 'match', names });
+      if (!j.ok) throw bad(j.error || 'The student portal did not answer', 502);
+      res.status(200).json({ ok: true, matches: j.matches || [] });
+      return;
+    }
     if (!body.id) throw bad('Which class? The request has no id');
     const { t } = await assertClass(body.id, H);
-    if (t.sessionId) throw bad('This class was already sent to the DiveArts books as ' + t.sessionId + '. Correct it in the sheet.', 409);
     const prev = t.expenses || {};
+    const day0 = t.date && t.date.start ? (String(t.date.start).length > 10 ? witaDate(new Date(t.date.start)) : String(t.date.start).slice(0, 10)) : '';
+    const label = str(String(t.name || '').replace(/^Teach:\s*/, ''), 150);
+
+    if (body.action === 'videos') {
+      if (!t.sessionId) throw bad('Send the class to the books first. Its links go with it.');
+      if (day0 > today) throw bad('This class is on ' + day0 + '. Add its videos on or after that day.');
+      const sid = t.sessionId;
+      const sent = prev.students || [];
+      const inc = normalizeLog({ ...prev, video: body.log && body.log.video, lang: body.log && body.log.lang,
+        students: sent.map((s, i) => {
+          const b = ((body.log && body.log.students) || [])[i] || {};
+          if (b.name && str(b.name, 80) !== s.name) throw bad('The students changed since this class was sent. Refresh and try again.', 409);
+          return { ...s, video: b.video, profile_id: b.profile_id };
+        }) });
+      if (!inc.video && !inc.students.some((s) => s.video)) throw bad('Paste a Drive link for the session or for a student first.');
+      if (!process.env.DAA_API_KEY) throw bad('Sending is not switched on yet: DAA_API_KEY needs to be added in Vercel. Nothing was changed.', 503);
+      // The sheet first: each student's own link, or the session one, on their attendance row.
+      const sheetRes = await Promise.all(inc.students.map((s, i) => {
+        const url = s.video || inc.video;
+        const before = (sent[i] && (sent[i].video || prev.video)) || '';
+        if (!url || url === before) return Promise.resolve({ name: s.name, sheet: url ? 'unchanged' : 'no link' });
+        return sheet({ action: 'setVideo', attendance_id: sid + '-A' + (i + 1), video_url: url })
+          .then(() => ({ name: s.name, sheet: 'saved' }))
+          .catch((e) => ({ name: s.name, sheet: 'not saved: ' + e.message }));
+      }));
+      const rows = videoRows(inc, day0, label);
+      const portal = rows.length ? await academy({ action: 'video', rows }) : { ok: true, queued: 0, already: 0, no_email: 0, refused: [] };
+      const videos = { at: new Date().toISOString(), sheet: sheetRes, portal: portal.ok ? { queued: portal.queued, already: portal.already, no_email: portal.no_email, refused: portal.refused } : { error: portal.error } };
+      const stored = { ...prev, video: inc.video, lang: inc.lang, students: inc.students, videos };
+      const pg = await notion('/pages/' + nid(body.id), H, { method: 'PATCH', body: { properties: { 'Expenses': { rich_text: rt(JSON.stringify(stored)) } } } });
+      res.status(200).json({ today, task: mapPage(pg), videos });
+      return;
+    }
+
+    if (t.sessionId) throw bad('This class was already sent to the DiveArts books as ' + t.sessionId + '. Correct it in the sheet.', 409);
 
     if (body.action === 'draft') {
       const log = normalizeLog(body.log);
@@ -153,8 +243,8 @@ export default async function handler(req, res) {
       const day = t.date && t.date.start ? (String(t.date.start).length > 10 ? witaDate(new Date(t.date.start)) : String(t.date.start).slice(0, 10)) : '';
       if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw bad('This class has no date');
       if (day > today) throw bad('This class is on ' + day + '. Send its expenses on or after that day. You can save a draft now.');
-      if (!process.env.DAA_API_URL || !process.env.DAA_API_KEY) {
-        throw bad('Sending is not switched on yet: DAA_API_URL and DAA_API_KEY need to be added in Vercel (same values as the DiveArts OS on Cloudflare). Your draft is safe.', 503);
+      if (!process.env.DAA_API_KEY) {
+        throw bad('Sending is not switched on yet: DAA_API_KEY needs to be added in Vercel (the Script Property DAA_API_KEY of "DAA Instructor - scripts"). Your draft is safe.', 503);
       }
       // Save the draft first so nothing typed is lost if the sheet is slow.
       const draft = { ...log, pendingSessionId: prev.pendingSessionId || '', savedAt: new Date().toISOString() };
@@ -171,7 +261,7 @@ export default async function handler(req, res) {
       try {
         s2 = await sheet({ action: 'saveSessionDetail', session_id: sid,
           costs: log.costs.map((c) => ({ component: c.component, description: c.description || c.component.replace(/_/g, ' '), amount_idr: c.amount })),
-          attendance: log.students.map((s) => ({ student_name: s.name, invoice_no: s.invoice, course: s.course, units: 1 })) });
+          attendance: log.students.map((s) => ({ student_name: s.name, invoice_no: s.invoice, course: s.course, units: 1, video_url: s.video || log.video || '' })) });
       } catch (e) {
         // The day exists in OS_SESSIONS without its lines. Remember its id so
         // the next Send fills that same session instead of making a second one.
@@ -179,13 +269,21 @@ export default async function handler(req, res) {
         await notion('/pages/' + nid(body.id), H, { method: 'PATCH', body: { properties: { 'Expenses': { rich_text: rt(JSON.stringify(keep)) } } } });
         throw bad('The day was created as ' + sid + ' but its cost lines did not save: ' + e.message + ' Press Send again to finish it.', 502);
       }
+      // The links go to the portal queue too. A portal problem never undoes the books.
+      const rows = videoRows(log, day, label);
+      let videos = null;
+      if (rows.length) {
+        const pj = await academy({ action: 'video', rows });
+        videos = { at: new Date().toISOString(), portal: pj.ok ? { queued: pj.queued, already: pj.already, no_email: pj.no_email, refused: pj.refused } : { error: pj.error } };
+      }
       const sent = { ...log, sessionId: sid, sentAt: new Date().toISOString(), total: Number(s2.day_total_idr) || log.total,
+        ...(videos ? { videos } : {}),
         result: { expensesRow: s2.expenses_row || 0, expensesError: s2.expenses_error || '', studentBlock: s2.student_block || '', studentBlockError: s2.student_block_error || '' } };
       const pg = await notion('/pages/' + nid(body.id), H, { method: 'PATCH', body: { properties: {
         'Expenses': { rich_text: rt(JSON.stringify(sent)) },
         'Session ID': { rich_text: rt(sid) },
       } } });
-      res.status(200).json({ today, task: mapPage(pg), result: sent.result, sessionId: sid });
+      res.status(200).json({ today, task: mapPage(pg), result: sent.result, sessionId: sid, videos });
       return;
     }
     throw bad('unknown action');

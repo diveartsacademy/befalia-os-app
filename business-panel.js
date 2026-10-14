@@ -482,6 +482,13 @@
     if (!root) return;
     css();
     var name = (BUSINESSES.filter(function (b) { return b[0] === S.biz; })[0] || [0, ''])[1];
+    /* DiveArts Academy (14 Oct 2026): Befa's instructor desk, drawn by
+       academy-panel.js into its own box so a Sea Diva refresh never touches it. */
+    if (S.biz === 'academy' && typeof window.acadMount === 'function') {
+      root.innerHTML = nav() + '<div id="acad-root"></div>';
+      window.acadMount();
+      return;
+    }
     root.innerHTML = nav() + (S.biz === 'seadiva' ? seadiva() : notYet(name));
     /* To send cards open their box label by themselves. */
     var need = S.biz === 'seadiva' ? S.visible.filter(function (k) { return !S.addr[k]; }) : [];

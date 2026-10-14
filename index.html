@@ -273,7 +273,9 @@
   .td-stat.warn b{color:#ff9db0;}
   .td-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,1fr);gap:16px;margin-top:16px;align-items:start;}
   .td-side{position:sticky;top:64px;}
-  @media(max-width:980px){.td-layout{grid-template-columns:1fr;}.td-side{position:static;}}
+  @media(max-width:980px){.td-layout{display:flex;flex-direction:column;align-items:stretch;}.td-side{position:static;order:-1;}}
+  .td-min{margin-left:auto;}
+  .td-head.min .td-headbody{display:none;}
   .td-layout .card,.td-side .card{margin:0 0 16px;}
   .td-layout .card:hover,.td-head.card:hover,.td-modal .card:hover{transform:none;}
   .td-chips{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 8px;}
@@ -400,6 +402,15 @@
   .cl-sent li{display:flex;gap:8px;font-size:13px;padding:3px 0;}
   .cl-sent li b{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:600;}
   @media (max-width:520px){.cl-line{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 30px;}.cl-line .cl-desc{grid-column:1/3;grid-row:2;}}
+  .cl-vid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:6px;margin-top:4px;}
+  .cl-vid .fld{min-width:0;height:36px;padding:0 9px;font-size:12.5px;}
+  .cl-vname{font-size:12.5px;font-weight:700;margin-top:10px;color:var(--ink);}
+  @media (max-width:520px){.cl-vid{grid-template-columns:1fr;}}
+  .cl-card{border:1px solid var(--aqualine);border-radius:14px;margin-top:8px;overflow:hidden;background:rgba(46,230,255,.03);}
+  .cl-card-h{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:0;color:var(--ink);font-family:var(--sans);font-size:13.5px;font-weight:700;padding:11px 12px;cursor:pointer;min-height:44px;}
+  .cl-card-h .st{margin-left:auto;font-size:11.5px;font-weight:600;color:var(--dim);white-space:nowrap;}
+  .cl-card-h .st.ok{color:#9be8b4;}.cl-card-h .st.warn{color:#ffd28a;}
+  .cl-card .cl-box{margin:0;border:0;border-top:1px solid var(--aqualine);border-radius:0;}
   .td-banner{margin-top:12px;font-size:12.5px;color:var(--aquasoft);background:rgba(46,230,255,.07);border:1px solid var(--aqualine);border-radius:12px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
   .td-banner.bad{color:#ffc6d2;border-color:rgba(255,140,160,.45);background:rgba(255,100,130,.08);}
 </style>
@@ -418,12 +429,11 @@
 
   <div class="tabpane active" id="tab-command">
     <div id="affirm-bubble"></div>
-    <div id="pack-slot-home"></div>
     <div class="grid" id="command"></div>
   </div>
   <div class="tabpane" id="tab-todo">
-    <div id="pack-slot-todo"></div>
     <div id="todo-root"></div>
+    <div id="pack-slot-todo"></div>
   </div>
   <div class="tabpane" id="tab-goals">
     <div id="goals-root"></div>
@@ -451,7 +461,7 @@
   </div>
   <div class="tabpane" id="tab-business">
     <div class="section-label">Business</div>
-    <div class="blurb" style="margin:8px 4px 0;font-style:italic">How each business is moving. Sea Diva first: every paid order that is not finished yet, with the photo of each product, so you can help pack and ship. Read only, nothing here changes the sheet.</div>
+    <div class="blurb" style="margin:8px 4px 0;font-style:italic">How each business is moving. Sea Diva: every paid order that is not finished yet, with the photo of each product, so you can pack and ship. DiveArts Academy: your own students, classes and certificates. Each button that changes a sheet or the student portal says so on the button.</div>
     <div id="biz-root"></div>
   </div>
   <div class="tabpane" id="tab-finance">
@@ -682,9 +692,7 @@ function buildCommand(){
   const iv=document.createElement('div');iv.className='card sensitive';iv.id='iv-card';
   iv.innerHTML='<h2><span class="ic">🤝</span>Getting to know you<button class="link-btn" id="iv-open" style="margin-left:auto">Answers →</button></h2><div data-body id="iv-body" class="loading">Loading…</div>';
   wrap.appendChild(iv);document.getElementById('iv-open').onclick=()=>window.open('https://app.notion.com/p/'+MY_PERSONALITY_ID,'_blank');loadInterview();
-  const theo=document.createElement('div');theo.className='card sensitive';
-  theo.innerHTML='<h2><span class="ic">🤍</span>Theo<a class="link-btn" href="https://app.notion.com/p/'+THEO_CHAT_ID+'" target="_blank" rel="noopener" style="margin-left:auto">Full thread →</a></h2><div class="blurb">Your private partner — warm, honest, entirely yours. He replies live.</div><div class="ag-thread" id="theo-thread" style="display:block;border:0;padding:0"></div>';
-  wrap.appendChild(theo);openChiefChat('Theo',THEO_CHAT_ID,document.getElementById('theo-thread'));
+  /* Theo's chat card was taken off Home on 14 Oct 2026 at Befa's request. */
   const bd=document.createElement('div');bd.className='card';bd.id='td-home';bd.setAttribute('data-no-tools','');
   bd.innerHTML='<h2><span class="ic">✅</span>To-Do today<span class="badge" id="td-home-count">…</span></h2><div class="blurb">Urgent, priority, in progress, and anything due today or overdue. Tick it here or open the full list and calendar.</div><ul class="td-list" id="td-home-list"></ul><div class="foot"><a href="#" id="td-home-open">Open To-Do →</a></div>';
   wrap.appendChild(bd);bd.addEventListener('click',e=>{if(e.target.closest('#td-home-open')){e.preventDefault();showTab('tab-todo');return;}tdHandleClick(e);});
@@ -1522,8 +1530,30 @@ function tdRenderCal(){
   html+='</div><div class="caption">'+(TD.view==='history'?'✓ is tasks ticked here. 📝 is lines from your 2026 Apple Note. Tap a day to see them.':'Dated tasks and blocked schedule. Tap a day to see it and add to it. Times are WITA.')+'</div>';
   el.innerHTML=html;
 }
+/* The session form for each class on the selected day, right after the
+   schedule (asked by Befa 14 Oct 2026). One open at a time; the first class
+   that is due and not yet in the books opens by itself. */
+function tdClState(t){
+  const e=t.expenses||{};const day=t.date&&t.date.start?tdDayOf(t.date.start):'';
+  if(t.sessionId)return e.videos?['✓ in books · videos sent','ok']:['✓ in books · no video yet','ok'];
+  if(day>(TD.today||tdWita()))return ['on '+tdPretty(day),''];
+  if(e.costs&&e.costs.length)return ['draft, not sent','warn'];
+  return ['to fill in','warn'];
+}
+function tdClCardsHTML(day,sched){
+  const cls=sched.filter(tdIsClass);if(!cls.length){if(TD.clOpen&&!(TD.byId[TD.clOpen]))TD.clOpen=null;return '';}
+  if(TD.clAuto!==day){TD.clAuto=day;if(!TD.clOpen||!cls.some(t=>t.id===TD.clOpen)){const due=cls.find(t=>!t.sessionId&&tdDayOf(t.date.start)<=(TD.today||tdWita()));TD.clOpen=due?due.id:null;}}
+  return '<div class="td-sub">Class sessions · expenses and videos</div>'+cls.map(t=>{const st=tdClState(t);const open=TD.clOpen===t.id&&!TD_EDIT;
+    return '<div class="cl-card"><button class="cl-card-h" data-act="clopen" data-id="'+attr(t.id)+'"><span>'+(open?'▾':'▸')+' 📝 '+escapeHtml(String(t.name||'Class').replace(/^Teach:\s*/,''))+'</span><span class="st '+st[1]+'">'+escapeHtml(st[0])+'</span></button>'+(open?'<div class="cl-box" id="tde-cl"></div>':'')+'</div>';}).join('');
+}
+function tdClToggle(id){
+  if(CL&&CL.dirty&&!(TD.byId[CL.id]||{}).sessionId)tdClDraft(CL.id,true);
+  TD.clOpen=TD.clOpen===id?null:id;CL=null;tdRenderDay();
+}
 function tdRenderDay(){
   const el=document.getElementById('td-day');if(!el)return;
+  // Never redraw under the fingers: while something in the session form has focus, wait.
+  const ae=document.activeElement;if(ae&&el.contains(ae)&&ae.closest&&ae.closest('#tde-cl'))return;
   const day=TD.sel||TD.today||tdWita();
   const old=document.getElementById('td-day-in');const keep=old?old.value:'';const hadFocus=old&&document.activeElement===old;
   const inArea=t=>TD.area==='All'||t.area===TD.area;
@@ -1531,11 +1561,13 @@ function tdRenderDay(){
   const did=TD.tasks.filter(t=>inArea(t)&&t.done&&t.completedOn===day);
   let html='<div class="td-day-h">'+(day===TD.today?'Today · ':'')+tdPretty(day,{weekday:'long',year:'numeric'})+'</div>';
   html+='<div class="td-sub">Scheduled</div>'+(sched.length?'<ul class="td-list">'+sched.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>':'<div class="td-empty">Nothing dated for this day.</div>');
+  html+=tdClCardsHTML(day,sched);
   html+='<div class="todo-add" style="margin-top:10px"><input class="fld" id="td-day-in" placeholder="Add to '+tdPretty(day)+'… (add a time like 14:30 at the end)"><button class="gold-btn" data-act="dayadd">+</button></div>';
   html+='<div class="td-sub">Done this day · '+did.length+'</div>'+(did.length?'<ul class="td-list">'+did.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>':'<div class="td-empty">'+(day>(TD.today||'')?'Not yet.':'Nothing ticked on this day.')+'</div>');
   if(TD.area==='All')html+=tdNoteHTML(day);
   el.innerHTML=html;
   const nin=document.getElementById('td-day-in');if(nin){nin.value=keep;if(hadFocus)nin.focus();}
+  if(TD.clOpen&&!TD_EDIT&&document.getElementById('tde-cl')){const t=TD.byId[TD.clOpen];if(t){if(CL&&CL.id===t.id)tdClRender();else tdClOpen(t);}}
 }
 function tdRenderHome(){
   const ul=document.getElementById('td-home-list');if(!ul)return;const badge=document.getElementById('td-home-count');
@@ -1573,7 +1605,9 @@ function tdDateVal(day,time){return time?day+'T'+time+':00+08:00':day;}
 /* ---------- editor ---------- */
 let TD_EDIT=null;
 function tdOpenEditor(id){
-  const t=TD.byId[id];if(!t||String(id).indexOf('tmp')===0)return;tdCloseEditor();TD_EDIT=id;
+  const t=TD.byId[id];if(!t||String(id).indexOf('tmp')===0)return;
+  if(TD.clOpen&&CL){if(CL.dirty&&!(TD.byId[CL.id]||{}).sessionId)tdClDraft(CL.id,true);CL=null;}
+  tdCloseEditor();TD_EDIT=id;const dayEl=document.getElementById('td-day');if(dayEl&&dayEl.querySelector('#tde-cl'))dayEl.querySelector('#tde-cl').remove();
   const sd=t.date&&t.date.start?tdDayOf(t.date.start):'';const st=t.date&&t.date.start?tdTimeOf(t.date.start):'';const ed=t.date&&t.date.end?tdDayOf(t.date.end):'';
   const w=document.createElement('div');w.className='td-modal';w.id='td-modal';
   w.innerHTML='<div class="card td-sheet" data-no-tools><h2><span class="ic">✏️</span>Edit task<button class="link-btn" data-act="close" style="margin-left:auto;font-size:20px">×</button></h2>'
@@ -1608,7 +1642,7 @@ function tdOpenEditor(id){
   document.getElementById('tde-subin').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();w.querySelector('[data-act="subadd"]').click();}});
   if(!tdIsClass(t))setTimeout(()=>{try{document.getElementById('tde-name').focus();}catch(e){}},30);
 }
-function tdCloseEditor(){const m=document.getElementById('td-modal');if(m)m.remove();TD_EDIT=null;CL=null;}
+function tdCloseEditor(){const m=document.getElementById('td-modal');const was=!!m;if(m)m.remove();TD_EDIT=null;CL=null;if(was&&TD.clOpen)tdRenderDay();}
 
 /* ---------- class expenses (tap a class you teach) ----------
    Draft = saved on the Notion row only. Send = written once into the DiveArts
@@ -1635,7 +1669,7 @@ function tdClGuess(t){
     students=names.map((n,i)=>({name:n,invoice:names.length===inv.length?inv[i]:'',course:''}));
   }
   const city=/DiveArts Bali/i.test(notes)?'Bali':/DiveArts Jakarta/i.test(notes)?'Jakarta':'';
-  return {venue:venue,city:city,type:type,students:students,costs:[{component:'pool_ticket',description:'',amount:''}],note:''};
+  return {venue:venue,city:city,type:type,students:students.map(x=>Object.assign({video:'',profile_id:''},x)),costs:[{component:'pool_ticket',description:'',amount:''}],note:'',video:'',lang:'id'};
 }
 async function clApi(action,payload){
   const r=await fetch('/api/classlog',{method:'POST',headers:osHeaders(),body:JSON.stringify(Object.assign({action:action},payload||{}))});
@@ -1648,11 +1682,63 @@ async function clApi(action,payload){
 async function tdClReady(){if(CL_READY!==null)return CL_READY;try{const r=await fetch('/api/classlog');const j=await r.json();CL_READY=!!j.sendReady;}catch(e){CL_READY=false;}return CL_READY;}
 function tdClOpen(t){
   const e=t.expenses;
-  const log=e?{venue:e.venue||'',city:e.city||'',type:e.type||'pool',students:(e.students||[]).map(x=>Object.assign({},x)),costs:(e.costs||[]).map(x=>Object.assign({},x)),note:e.note||''}:tdClGuess(t);
-  if(!log.costs.length)log.costs.push({component:'pool_ticket',description:'',amount:''});
-  CL={id:t.id,log:log,dirty:false,busy:false,msg:'',bad:false,arm:false,pending:e&&e.pendingSessionId||''};
+  const log=e?{venue:e.venue||'',city:e.city||'',type:e.type||'pool',students:(e.students||[]).map(x=>Object.assign({video:'',profile_id:''},x)),costs:(e.costs||[]).map(x=>Object.assign({},x)),note:e.note||'',video:e.video||'',lang:e.lang||'id'}:tdClGuess(t);
+  if(!log.costs.length&&!t.sessionId)log.costs.push({component:'pool_ticket',description:'',amount:''});
+  CL={id:t.id,log:log,dirty:false,busy:false,msg:'',bad:false,arm:false,pending:e&&e.pendingSessionId||'',match:{}};
   tdClRender();
   tdClReady().then(()=>{if(CL&&CL.id===t.id)tdClRender();});
+  tdClMatch(t.id);
+}
+/* 14 Oct 2026: the class video links. One link for the whole session and/or one
+   per student. Each student is matched to their student portal profile so the
+   link is emailed to them by the hourly Class video sender. A best match is
+   picked only when the name is an exact match; anything else waits for Befa. */
+async function tdClMatch(id){
+  if(!CL||CL.id!==id)return;
+  const names=CL.log.students.map(s=>String(s.name||'').trim()).filter(Boolean);
+  if(!names.length)return;
+  try{
+    const j=await clApi('match',{names:names});if(!CL||CL.id!==id)return;
+    (j.matches||[]).forEach(m=>{CL.match[m.q]=m.candidates||[];});
+    CL.log.students.forEach(s=>{const c=CL.match[String(s.name||'').trim()]||[];if(!s.profile_id&&c.length&&c[0].score===100&&!(c[1]&&c[1].score===100)){s.profile_id=c[0].profile_id;s._auto=true;}});
+    CL.matchErr='';
+  }catch(e){if(CL&&CL.id===id)CL.matchErr=String(e.message||e);}
+  if(CL&&CL.id===id&&!(document.activeElement&&document.activeElement.closest&&document.activeElement.closest('#tde-cl')))tdClRender();
+}
+function tdClPickHTML(s,i){
+  const c=CL.match[String(s.name||'').trim()];
+  if(!c)return '<select class="fld" data-cl="s.profile_id" data-i="'+i+'"><option value="">'+(CL.matchErr?'Portal not reachable':'Looking in the portal…')+'</option></select>';
+  const opts=['<option value="">Not linked, no email</option>'].concat(c.map(x=>'<option value="'+attr(x.profile_id)+'"'+(x.profile_id===s.profile_id?' selected':'')+'>'+escapeHtml(x.name)+(x.has_email?' · has email':' · no email yet')+'</option>'));
+  if(s.profile_id&&!c.some(x=>x.profile_id===s.profile_id))opts.push('<option value="'+attr(s.profile_id)+'" selected>Linked earlier</option>');
+  return '<select class="fld" data-cl="s.profile_id" data-i="'+i+'" title="Who this is in the student portal">'+opts.join('')+'</select>';
+}
+function tdClVideoHTML(){
+  const L=CL.log;
+  let h='<div class="td-sub">Class video (Google Drive)</div>'
+    +'<input class="fld" data-cl="video" value="'+attr(L.video||'')+'" placeholder="One link for the whole session (optional)" style="width:100%;height:38px;font-size:13px">'
+    +'<div class="cl-note">Or a link per student below. A student\'s own link wins over the session link. It goes on their row in the books and is emailed to them.</div>';
+  L.students.forEach((s,i)=>{if(!String(s.name||'').trim())return;
+    h+='<div class="cl-vname">'+escapeHtml(s.name)+'</div><div class="cl-vid">'+tdClPickHTML(s,i)
+      +'<input class="fld" data-cl="s.video" data-i="'+i+'" value="'+attr(s.video||'')+'" placeholder="'+(L.video?'Uses the session link':'Drive link for '+attr(s.name))+'"></div>';});
+  h+='<div class="cl-grid" style="grid-template-columns:1fr"><label>Email language<select class="fld" data-cl="lang"><option value="id"'+(L.lang!=='en'?' selected':'')+'>Bahasa Indonesia</option><option value="en"'+(L.lang==='en'?' selected':'')+'>English</option></select></label></div>';
+  return h;
+}
+function tdClVideoState(t){
+  const e=t.expenses||{},v=e.videos;if(!v)return '';
+  const p=v.portal||{};
+  if(p.error)return '<div class="cl-note warn">Videos: the portal did not take them: '+escapeHtml(p.error)+'</div>';
+  const parts=[];if(p.queued)parts.push(p.queued+' queued to email');if(p.already)parts.push(p.already+' already sent before');if(p.no_email)parts.push(p.no_email+' waiting for an email address (add it on the Class video page)');
+  const sheetBad=(v.sheet||[]).filter(x=>/^not saved/.test(x.sheet));
+  return '<div class="cl-note ok">Videos '+escapeHtml(tdPretty(String(v.at).slice(0,10)))+': '+escapeHtml(parts.join(', ')||'saved')+'.</div>'
+    +(sheetBad.length?'<div class="cl-note warn">Not on the books row: '+escapeHtml(sheetBad.map(x=>x.name+' ('+x.sheet+')').join(', '))+'</div>':'')
+    +((p.refused||[]).length?'<div class="cl-note warn">Refused by the portal: '+escapeHtml(p.refused.map(x=>x.why).join(', '))+'</div>':'');
+}
+async function tdClVideos(id){
+  if(!CL||CL.id!==id)return;const L=CL.log;
+  CL.busy=true;CL.msg='Saving the links. Google can take up to a minute.';CL.bad=false;tdClRender();
+  try{const j=await clApi('videos',{id:id,log:{video:L.video,lang:L.lang,students:L.students.map(s=>({name:s.name,video:s.video,profile_id:s.profile_id}))}});
+    tdClApply(j.task);if(CL&&CL.id===id){CL.busy=false;CL.dirty=false;CL.msg='';tdClRender();}showToast('Class videos saved',true);}
+  catch(e){if(CL&&CL.id===id){CL.busy=false;CL.msg=String(e.message||e);CL.bad=true;tdClRender();}}
 }
 function tdClTotal(){return CL?CL.log.costs.reduce((s,c)=>s+tdClDigits(c.amount),0):0;}
 function tdClRender(){
@@ -1665,6 +1751,13 @@ function tdClRender(){
       +'<div class="cl-note ok">In the DiveArts books as '+escapeHtml(t.sessionId)+(e.sentAt?' · sent '+escapeHtml(tdPretty(String(e.sentAt).slice(0,10))):'')+'.'+(res.expensesRow?' 1. SESSION EXPENSES row '+res.expensesRow+'.':'')+'</div>'
       +(res.expensesError?'<div class="cl-note warn">Not written to 1. SESSION EXPENSES: '+escapeHtml(res.expensesError)+'</div>':'')
       +'<div class="cl-note">To correct a sent class, change it in the sheet. The books copy a day only once, so a second send from here would not reach them.</div>';
+    const dayS=t.date&&t.date.start?tdDayOf(t.date.start):'';
+    if((e.students||[]).length&&!(dayS&&dayS>(TD.today||tdWita()))){
+      box.innerHTML+=tdClVideoHTML()+tdClVideoState(t)
+        +'<div class="td-actions" style="margin-top:12px"><button class="gold-btn" data-clact="videos"'+(CL.busy?' disabled':'')+'>'+(CL.busy?'Working…':'Save and send videos')+'</button></div>'
+        +(CL.msg?'<div class="cl-note '+(CL.bad?'warn':'ok')+'">'+escapeHtml(CL.msg)+'</div>':'');
+      tdClBind(box);
+    }
     return;
   }
   const L=CL.log;const opt=(arr,v)=>arr.map(o=>'<option value="'+attr(o[0])+'"'+(o[0]===v?' selected':'')+'>'+escapeHtml(o[1])+'</option>').join('');
@@ -1681,34 +1774,37 @@ function tdClRender(){
   h+='<div class="td-sub">Students in this class</div>';
   L.students.forEach((s,i)=>{h+='<div class="cl-stu"><input class="fld" data-cl="s.name" data-i="'+i+'" value="'+attr(s.name)+'" placeholder="Name"><input class="fld" data-cl="s.invoice" data-i="'+i+'" value="'+attr(s.invoice||'')+'" placeholder="Invoice"><button class="cl-x" data-clx="s" data-i="'+i+'" title="Remove">×</button></div>';});
   h+='<button class="cl-add" data-cladd="s" type="button">+ Student</button>';
+  h+=tdClVideoHTML();
   h+='<div class="td-actions" style="margin-top:12px"><button class="td-ghost" data-clact="draft"'+(CL.busy?' disabled':'')+'>Save draft</button>'
     +'<button class="gold-btn'+(CL.arm?' arm':'')+'" data-clact="send"'+(CL.busy||future?' disabled':'')+'>'+(CL.busy?'Working…':CL.arm?'Tap again to send':'Send to DiveArts books')+'</button></div>';
   if(CL.msg)h+='<div class="cl-note '+(CL.bad?'warn':'ok')+'">'+escapeHtml(CL.msg)+'</div>';
   else if(future)h+='<div class="cl-note">This class is on '+escapeHtml(tdPretty(day))+'. Save a draft now, send it on the day or after.</div>';
-  else if(CL_READY===false)h+='<div class="cl-note warn">Sending is not switched on yet. DAA_API_URL and DAA_API_KEY need adding in Vercel. Drafts save fine.</div>';
+  else if(CL_READY===false)h+='<div class="cl-note warn">Sending is not switched on yet. DAA_API_KEY needs adding in Vercel. Drafts save fine.</div>';
   else h+='<div class="cl-note">Send writes this class once into OS_SESSIONS, OS_SESSION_COSTS and your 1. SESSION EXPENSES tab'+(CL.pending?' (finishing '+escapeHtml(CL.pending)+')':'')+'.</div>';
   box.innerHTML=h;
   tdClBind(box);
 }
 function tdClBind(box){
   box.oninput=e=>{const el=e.target;const k=el.getAttribute('data-cl');if(!k||!CL)return;const i=Number(el.getAttribute('data-i'));
-    if(k==='venue'||k==='type')CL.log[k]=el.value;
+    if(k==='venue'||k==='type'||k==='video'||k==='lang')CL.log[k]=el.value.trim?el.value.trim():el.value;
     else{const p=k.split('.');const list=p[0]==='c'?CL.log.costs:CL.log.students;if(list[i])list[i][p[1]]=el.value;}
     CL.dirty=true;CL.arm=false;const tot=document.getElementById('cl-tot');if(tot)tot.textContent=tdRp(tdClTotal());};
   box.onchange=box.oninput;
-  box.addEventListener('focusout',e=>{const el=e.target;if(el.getAttribute&&el.getAttribute('data-cl')==='c.amount'&&el.value)el.value=tdClDigits(el.value).toLocaleString('id-ID');});
+  box.onfocusout=e=>{const el=e.target;if(el.getAttribute&&el.getAttribute('data-cl')==='c.amount'&&el.value)el.value=tdClDigits(el.value).toLocaleString('id-ID');
+    if(el.getAttribute&&el.getAttribute('data-cl')==='s.name'&&CL&&el.value.trim()&&!CL.match[el.value.trim()])setTimeout(()=>tdClMatch(CL&&CL.id),0);};
   box.onclick=async e=>{
     const add=e.target.closest('[data-cladd]'),x=e.target.closest('[data-clx]'),act=e.target.closest('[data-clact]');
-    if(add){e.preventDefault();if(add.getAttribute('data-cladd')==='c')CL.log.costs.push({component:'other',description:'',amount:''});else CL.log.students.push({name:'',invoice:'',course:''});CL.dirty=true;tdClRender();return;}
+    if(add){e.preventDefault();if(add.getAttribute('data-cladd')==='c')CL.log.costs.push({component:'other',description:'',amount:''});else CL.log.students.push({name:'',invoice:'',course:'',video:'',profile_id:''});CL.dirty=true;tdClRender();return;}
     if(x){e.preventDefault();const list=x.getAttribute('data-clx')==='c'?CL.log.costs:CL.log.students;list.splice(Number(x.getAttribute('data-i')),1);CL.dirty=true;tdClRender();return;}
     if(!act)return;e.preventDefault();
     if(act.getAttribute('data-clact')==='draft'){tdClDraft(CL.id,false);return;}
+    if(act.getAttribute('data-clact')==='videos'){tdClVideos(CL.id);return;}
     if(!tdClTotal()){CL.msg='Add at least one cost with an amount first.';CL.bad=true;tdClRender();return;}
     if(!CL.arm){CL.arm=true;CL.msg='';tdClRender();setTimeout(()=>{if(CL&&CL.arm){CL.arm=false;tdClRender();}},5000);return;}
     tdClSend(CL.id);
   };
 }
-function tdClPayload(){const L=CL.log;return {venue:L.venue,city:L.city,type:L.type,note:L.note,students:L.students.filter(s=>String(s.name||'').trim()),costs:L.costs.map(c=>({component:c.component,description:c.description,amount:tdClDigits(c.amount)})).filter(c=>c.description||c.amount)};}
+function tdClPayload(){const L=CL.log;return {venue:L.venue,city:L.city,type:L.type,note:L.note,video:L.video||'',lang:L.lang||'id',students:L.students.filter(s=>String(s.name||'').trim()).map(s=>({name:s.name,invoice:s.invoice||'',course:s.course||'',video:s.video||'',profile_id:s.profile_id||''})),costs:L.costs.map(c=>({component:c.component,description:c.description,amount:tdClDigits(c.amount)})).filter(c=>c.description||c.amount)};}
 function tdClApply(task){const t=TD.byId[task.id];if(t){Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,task);}tdRenderAll();}
 async function tdClDraft(id,quiet){
   if(!CL||CL.id!==id)return;const payload=tdClPayload();CL.busy=true;if(!quiet)tdClRender();
@@ -1719,7 +1815,7 @@ async function tdClDraft(id,quiet){
 async function tdClSend(id){
   if(!CL||CL.id!==id)return;const payload=tdClPayload();CL.busy=true;CL.arm=false;CL.msg='Sending to the DiveArts books. Google can take up to a minute.';CL.bad=false;tdClRender();
   try{const j=await clApi('send',{id:id,log:payload});tdClApply(j.task);
-    const r=j.result||{};showToast(r.expensesError?'Saved as '+j.sessionId+' but NOT in 1. SESSION EXPENSES: '+r.expensesError:'In the books as '+j.sessionId+(r.expensesRow?', row '+r.expensesRow:''),!r.expensesError);
+    const r=j.result||{};const vq=j.videos&&j.videos.portal&&j.videos.portal.queued;showToast(r.expensesError?'Saved as '+j.sessionId+' but NOT in 1. SESSION EXPENSES: '+r.expensesError:'In the books as '+j.sessionId+(r.expensesRow?', row '+r.expensesRow:'')+(vq?' · '+vq+' video email'+(vq>1?'s':'')+' queued':''),!r.expensesError);
     if(CL&&CL.id===id){CL.busy=false;tdClRender();}}
   catch(e){if(CL&&CL.id===id){CL.busy=false;CL.msg=String(e.message||e);CL.bad=true;tdClRender();}}
 }
@@ -1915,6 +2011,8 @@ function tdRowAction(a,id){
 }
 function tdHandleClick(e){
   if(TD_DRAG_JUST&&Date.now()-TD_DRAG_JUST<350)return;
+  if(e.target.closest('#td-day #tde-cl'))return;   // the session form handles its own clicks
+  const clo=e.target.closest('[data-act="clopen"]');if(clo){e.preventDefault();tdClToggle(clo.getAttribute('data-id'));return;}
   if(e.target.closest('.td-inl-in'))return;
   const act=e.target.closest('[data-act]');
   if(act&&tdTitleAction(act))return;
@@ -2166,21 +2264,26 @@ function tdCaptureFromJournal(text){return tdCreate({name:text,area:'Personal'})
 function buildTodo(){
   const root=document.getElementById('todo-root');if(!root)return;
   const lastArea=LS.get('td_lastArea','Personal');
-  root.innerHTML='<div class="card td-head" data-no-tools>'
+  const headMin=LS.get('td_head_min',false);
+  root.innerHTML='<div class="card td-head'+(headMin?' min':'')+'" id="td-head" data-no-tools>'
    +'<div class="td-headrow"><h2><span class="ic">✅</span>To-Do</h2><div class="td-seg" id="td-seg"><button data-view="list">List</button><button data-view="history">History</button></div>'
-   +'<span class="td-sync" id="td-sync"></span><button class="ctool" id="td-refresh" title="Reload from Notion">↻ Refresh</button><a class="ctool" href="'+TD_NOTION_URL+'" target="_blank" rel="noopener">Notion ↗</a></div>'
-   +'<div class="td-add"><input class="fld" id="td-new-name" placeholder="New task… then Enter">'
+   +'<span class="td-sync" id="td-sync"></span><button class="ctool" id="td-refresh" title="Reload from Notion">↻ Refresh</button><a class="ctool" href="'+TD_NOTION_URL+'" target="_blank" rel="noopener">Notion ↗</a><button class="ctool td-min" id="td-min" type="button" aria-expanded="true">▴ Minimize</button></div>'
+   +'<div class="td-headbody"><div class="td-add"><input class="fld" id="td-new-name" placeholder="New task… then Enter">'
    +'<select class="fld" id="td-new-area" title="Business"><option value="">No area</option>'+TD_AREAS.map(a=>'<option'+(lastArea===a.key?' selected':'')+'>'+a.key+'</option>').join('')+'</select>'
    +'<input class="fld" id="td-new-sec" list="td-sec-list" placeholder="Section">'
    +'<input class="fld" type="date" id="td-new-date" title="Date, only if it is tied to a day">'
    +'<input class="fld" type="time" id="td-new-time" title="Time WITA, optional">'
    +'<span class="td-addbtns"><button class="td-tog" id="td-new-pri" type="button" title="Priority">⏰</button><button class="td-tog" id="td-new-urg" type="button" title="Urgent">🚨</button><button class="gold-btn" id="td-new-go">Add</button></span></div>'
-   +'<datalist id="td-sec-list"></datalist><div class="td-stats" id="td-stats"></div><div id="td-migrate"></div></div>'
+   +'<datalist id="td-sec-list"></datalist><div class="td-stats" id="td-stats"></div><div id="td-migrate"></div></div></div>'
    +'<div class="td-layout"><div class="card" id="td-main" data-no-tools><div class="todo-add" style="margin:0"><input class="fld" id="td-q" placeholder="Search tasks…"></div><div class="td-chips" id="td-chips"></div><div id="td-list"></div></div>'
    +'<div class="td-side"><div class="card" id="td-cal" data-no-tools></div><div class="card" id="td-day" data-no-tools></div></div></div>';
   root.addEventListener('click',tdHandleClick);
   document.getElementById('td-seg').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;TD.view=b.getAttribute('data-view');LS.set('td_view',TD.view);TD.sel=null;tdRenderAll();});
   document.getElementById('td-refresh').onclick=()=>tdLoad(false);
+  // The add-a-task form folds away to its header line and stays folded on this device.
+  const tdMinSet=m=>{const h=document.getElementById('td-head'),b=document.getElementById('td-min');if(!h||!b)return;h.classList.toggle('min',m);b.textContent=m?'▾ New task':'▴ Minimize';b.setAttribute('aria-expanded',m?'false':'true');LS.set('td_head_min',m);};
+  tdMinSet(headMin);
+  document.getElementById('td-min').onclick=()=>tdMinSet(!document.getElementById('td-head').classList.contains('min'));
   document.getElementById('td-new-go').onclick=tdQuickAdd;
   document.getElementById('td-new-name').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();tdQuickAdd();}});
   document.getElementById('td-new-pri').onclick=e=>{TD.newPri=!TD.newPri;e.currentTarget.classList.toggle('on',TD.newPri);};
@@ -2220,8 +2323,9 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
   watchCards();
 })();
 </script>
-<script>window.PACKING_CONFIG = { api: '/api/packing', slots: ['pack-slot-home', 'pack-slot-todo'], theme: 'dark', headers: function () { return (typeof osHeaders === 'function') ? osHeaders() : {}; } };</script>
+<script>window.PACKING_CONFIG = { api: '/api/packing', slots: ['pack-slot-todo'], theme: 'dark', headers: function () { return (typeof osHeaders === 'function') ? osHeaders() : {}; } };</script>
 <script src="/packing-panel.js"></script>
+<script src="/academy-panel.js"></script>
 <script src="/business-panel.js"></script>
 </body>
 </html>
