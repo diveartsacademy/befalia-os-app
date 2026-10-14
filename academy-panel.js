@@ -25,7 +25,7 @@
 (function () {
   'use strict';
   var ROOT = 'acad-root';
-  var LS_LAST = 'acad_last_v2', LS_PICK = 'acad_picks_v2';   /* v2: keyed by course block, not invoice */
+  var LS_LAST = 'acad_last_v3', LS_PICK = 'acad_picks_v2';   /* last v3: courses carry their package parts */
   var A = { data: null, err: '', loading: false, busy: '', arm: '', flash: {}, gen: '', form: {}, picks: {}, search: {}, forget: {}, pending: false, notice: '' };
   var ORDER = ['In Progress', 'Not Started yet', 'Not Passed', 'Status not set'];
   var MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -93,6 +93,8 @@
       '.ac-bar{height:5px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:6px;max-width:220px}' +
       '.ac-bar i{display:block;height:100%;background:var(--aqua2)}' +
       '.ac-cand{font:12.5px var(--sans)}' +
+      '.ac-part{border-top:1px solid var(--line);margin-top:10px;padding-top:4px}' +
+      '.ac-ph{font:600 13.5px var(--sans);color:var(--aquasoft);margin-top:6px}' +
       '@media (max-width:520px){.ac-grid{grid-template-columns:1fr}}';
     document.head.appendChild(s);
   }
@@ -100,9 +102,24 @@
   /* ------------------------------------------------------------ helpers */
   /* Every course block is identified by its ref (invoice, student and course,
      made by the server), never by the invoice alone: one invoice can hold two
-     blocks, e.g. one student taking two courses (14 Oct 2026, after review). */
+     blocks, e.g. one student taking two courses (14 Oct 2026, after review).
+     A package block (Zero to Hero, MI + EFR) holds several courses, its parts;
+     each part has its own ref, <block ref>.<part key>, and its own certificates
+     (Befa, 14 Oct 2026: "they get every course a certificate"). */
+  function partsOf(e) { return (e.parts && e.parts.length) ? e.parts : [{ key: '', title: '', agencies: e.agencies || [] }]; }
+  function partRef(e, pt) { return e.ref + (pt.key ? '.' + pt.key : ''); }
+  function allBlocks() { var d = A.data || {}; return (d.certQueue || []).concat(d.enrolments || []); }
+  function findP(pref) {
+    var all = allBlocks();
+    for (var i = 0; i < all.length; i++) {
+      var ps = partsOf(all[i]);
+      for (var j = 0; j < ps.length; j++) if (partRef(all[i], ps[j]) === pref) return { e: all[i], pt: ps[j], ref: pref, i: j, n: ps.length };
+    }
+    return null;
+  }
   function certsFor(ref) { return ((A.data && A.data.certs) || []).filter(function (c) { return c.ref === ref; }); }
   function certOf(ref, ag) { return certsFor(ref).filter(function (c) { return c.agency === ag; })[0] || null; }
+  function blockCerts(e) { return ((A.data && A.data.certs) || []).filter(function (c) { return c.ref === e.ref || String(c.ref || '').indexOf(e.ref + '.') === 0; }); }
   function matchesFor(name) {
     var m = ((A.data && A.data.matches) || []).filter(function (x) { return x.q === name; })[0];
     return (m && m.candidates) || [];
@@ -111,7 +128,7 @@
      good. Otherwise Befa's own pick, then the student of a certificate still in
      progress, then one exact name match. Never a guess. */
   function pickFor(e) {
-    var made = certsFor(e.ref), issued = made.filter(function (c) { return c.status === 'issued'; })[0];
+    var made = blockCerts(e), issued = made.filter(function (c) { return c.status === 'issued'; })[0];
     if (issued) return { profile_id: issued.profile_id, name: issued.name || 'this student', locked: true };
     var p = A.picks[e.ref];
     if (p) return p;
@@ -139,26 +156,31 @@
     return out;
   }
   /* DAA plus the invoice (approved by Befa 14 Oct 2026). When one invoice holds
-     more than one course block, -1, -2 in sheet order keep the numbers unique. */
-  function daaNumber(e) {
+     more than one course block, -1, -2 in sheet order keep the numbers unique.
+     A course inside a package adds its short code: DAA-AUG26-4-UWD, -AUWD, -UWDI. */
+  function daaNumber(e, pt) {
     var base = 'DAA-' + String(e.invoice_no || '').replace(/^DAA[-\s]?/i, '');
-    if (!(e.blocks_on_invoice > 1)) return base;
-    var d = A.data || {}, same = (d.certQueue || []).concat(d.enrolments || [])
-      .filter(function (x) { return x.invoice_no === e.invoice_no; })
-      .sort(function (a, b) { return a.sheet_row - b.sheet_row; });
-    return base + '-' + (same.indexOf(e) + 1);
+    if (e.blocks_on_invoice > 1) {
+      var same = allBlocks().filter(function (x) { return x.invoice_no === e.invoice_no; })
+        .sort(function (a, b) { return a.sheet_row - b.sheet_row; });
+      base += '-' + (same.indexOf(e) + 1);
+    }
+    return pt && pt.key ? base + '-' + pt.key.toUpperCase() : base;
   }
-  function levelOf(e) {
-    var f = A.form[e.ref + '|lvl'] || (A.form[e.ref + '|lvl'] = {});
+  function levelOf(e, pt) {
+    var pref = partRef(e, pt || partsOf(e)[0]);
+    var f = A.form[pref + '|lvl'] || (A.form[pref + '|lvl'] = {});
     if (f.level == null) {
-      var made = certsFor(e.ref).filter(function (c) { return c.level; })[0];
-      f.level = made ? made.level : certTitle(e.course);
+      var made = certsFor(pref).filter(function (c) { return c.level; })[0];
+      f.level = made ? made.level : ((pt && pt.title) || certTitle(e.course));
     }
     return f.level;
   }
   function allIssued(e) {
-    var need = (e.agencies || []).concat(['DiveArts']);
-    return need.every(function (ag) { var c = certOf(e.ref, ag); return c && c.status === 'issued'; });
+    return partsOf(e).every(function (pt) {
+      var pref = partRef(e, pt);
+      return (pt.agencies || []).concat(['DiveArts']).every(function (ag) { var c = certOf(pref, ag); return c && c.status === 'issued'; });
+    });
   }
   function fl(key) {
     var f = A.flash[key];
@@ -198,18 +220,16 @@
             esc(x.name || 'No name') + (x.classes ? ' · ' + x.classes + ' classes' : '') + '</button>';
         }).join('');
       } else {
-        h += '<span class="ac-m">No one by this name in the student portal. The DAA certificate can still be made and downloaded, but it can only show in a portal that has this student.</span>';
+        h += '<span class="ac-m">No one by this name in the student portal. The DAA certificate can still be made, downloaded and sent on WhatsApp, but it can only show in a portal that has this student.</span>';
       }
       h += '</div><div class="ac-row"><input class="ac-in w" data-af="' + esc(ref) + '|q" placeholder="Search the portal by another name" value="' + esc((A.form[ref] || {}).q || '') + '"' + dis() + '>' +
         '<button class="ac-btn ghost" data-a="search" data-ref="' + esc(ref) + '"' + dis() + '>Search</button></div>';
     }
-    h += '<div class="ac-row"><label class="ac-m" style="flex:1 1 220px;display:flex;flex-direction:column;gap:3px">Course name shown in the portal' +
-      '<input class="ac-in" data-af="' + esc(ref) + '|lvl|level" value="' + esc(levelOf(e)) + '"' + dis() + '></label></div>';
     return h;
   }
 
-  function agencyLine(e, ag, p) {
-    var ref = e.ref, c = certOf(ref, ag), key = ref + '|' + ag, f = A.form[key] || {};
+  function agencyLine(e, pt, ag, p) {
+    var ref = partRef(e, pt), c = certOf(ref, ag), key = ref + '|' + ag, f = A.form[key] || {};
     var h = '<div class="ac-cert"><div class="ac-row"><span class="lbl">' + esc(ag) + '</span>';
     var off = (A.busy || !p) ? ' disabled' : '';
     if (c && c.status === 'issued' && !f.edit) {
@@ -232,8 +252,8 @@
      date already stored, else today. */
   function issueDate(c, f) { return f.date || (c && c.issued_on) || witaToday(); }
 
-  function daaLine(e, p) {
-    var ref = e.ref, c = certOf(ref, 'DiveArts'), key = ref + '|DiveArts';
+  function daaLine(e, pt, p) {
+    var ref = partRef(e, pt), c = certOf(ref, 'DiveArts'), key = ref + '|DiveArts';
     var h = '<div class="ac-cert"><div class="ac-row"><span class="lbl">DAA</span>';
     if (c && c.status === 'issued') {
       h += '<span class="ac-pill ok">Issued · ' + esc(c.number) + ' · ' + esc(dmy(c.issued_on)) + '</span>' +
@@ -242,23 +262,25 @@
       h += '<span class="ac-pill">Not made</span>';
     }
     h += '<button class="ac-btn ' + (c ? 'ghost' : 'go') + '" data-a="gen" data-ref="' + esc(ref) + '"' + dis() + '>' + (A.gen === ref ? 'Close' : (c ? 'Make again' : 'Make DAA certificate')) + '</button></div>';
-    if (A.gen === ref) h += genPanel(e, p);
+    if (c && c.status === 'issued' && c.file_url && A.gen !== ref) h += waRow(e, pt, ref, c);
+    if (A.gen === ref) h += genPanel(e, pt, p);
     return h + fl(key) + '</div>';
   }
 
-  function genDefaults(e) {
-    var f = A.form[e.ref + '|gen'] || (A.form[e.ref + '|gen'] = {});
-    var made = certOf(e.ref, 'DiveArts');
+  function genDefaults(e, pt) {
+    var ref = partRef(e, pt);
+    var f = A.form[ref + '|gen'] || (A.form[ref + '|gen'] = {});
+    var made = certOf(ref, 'DiveArts');
     if (f.name == null) f.name = e.student;
-    if (f.course == null) f.course = levelOf(e);
+    if (f.course == null) f.course = levelOf(e, pt);
     if (f.date == null) f.date = (made && made.issued_on) || witaToday();
     if (f.city == null) f.city = 'Bali, Indonesia';
-    if (f.padi == null) f.padi = (e.agencies || []).indexOf('PADI') >= 0;
-    if (f.number == null) f.number = (made && made.number) || daaNumber(e);
+    if (f.padi == null) f.padi = (pt.agencies || []).indexOf('PADI') >= 0;
+    if (f.number == null) f.number = (made && made.number) || daaNumber(e, pt);
     return f;
   }
-  function genPanel(e, p) {
-    var ref = e.ref, f = genDefaults(e), k = ref + '|gen';
+  function genPanel(e, pt, p) {
+    var ref = partRef(e, pt), f = genDefaults(e, pt), k = ref + '|gen';
     var inp = function (fld, label, type) {
       return '<label>' + esc(label) + '<input class="ac-in" ' + (type ? 'type="' + type + '" ' : '') + 'data-af="' + esc(k) + '|' + fld + '" value="' + esc(f[fld]) + '"' + (type === 'date' ? ' max="' + witaToday() + '"' : '') + dis() + '></label>';
     };
@@ -267,20 +289,67 @@
       inp('date', 'Date', 'date') + inp('city', 'Place') + inp('number', 'DAA certificate number') +
       '<label>PADI logo<span class="ac-row" style="margin:0"><input type="checkbox" data-af="' + esc(k) + '|padi"' + (f.padi ? ' checked' : '') + dis() + '> top right corner</span></label></div>' +
       '<canvas id="ac-canvas" width="1684" height="1191"></canvas>' +
-      '<div class="ac-row"><button class="ac-btn" data-a="download" data-ref="' + esc(ref) + '"' + dis() + '>Download</button>' +
+      '<div class="ac-row"><button class="ac-btn" data-a="download" data-ref="' + esc(ref) + '"' + dis() + '>Download PDF</button>' +
+      '<button class="ac-btn" data-a="sharepdf" data-ref="' + esc(ref) + '"' + dis() + '>Send PDF on WhatsApp</button>' +
       '<button class="ac-btn go" data-a="savedaa" data-ref="' + esc(ref) + '"' + ((A.busy || !p) ? ' disabled' : '') + '>' +
       (A.busy === ref + '|DiveArts' ? 'Saving…' : 'Save to ' + esc(first ? first + '\'s' : 'the') + ' portal') + '</button></div>' +
-      (p ? '' : '<div class="ac-m">Pick the portal student above to save it to the portal. Download works without.</div>') +
-      '<div class="ac-m">Check the name spelling before saving. Saving marks the DAA certificate issued with this number and date.</div></div>';
+      (p ? '' : '<div class="ac-m">Pick the portal student above to save it to the portal. Download and WhatsApp work without.</div>') +
+      '<div class="ac-m">Check the name spelling before saving. Saving marks the DAA certificate issued with this number and date. Nothing is sent to the student by itself: WhatsApp opens for you to send.</div></div>';
+  }
+
+  /* WhatsApp, after the certificate is saved: the PDF link in a ready message to
+     the student's own number, which Befa reads and sends herself. Never sent by
+     the system (the customer-message freeze of 8 Sep 2026 still stands). */
+  function waText(e, pt, link, lang) {
+    var first = String(e.student || '').trim().split(/\s+/)[0] || '';
+    var course = levelOf(e, pt);
+    return lang === 'en'
+      ? 'Hi ' + first + ', congratulations on completing ' + course + ' at DiveArts Academy. Here is your DiveArts Academy certificate' + (link ? ': ' + link : '.') + ' Thank you for training with us.'
+      : 'Halo ' + first + ', selamat telah menyelesaikan ' + course + ' di DiveArts Academy. Berikut sertifikat DiveArts Academy kamu' + (link ? ': ' + link : '.') + ' Terima kasih sudah berlatih bersama kami.';
+  }
+  /* Bahasa for an Indonesian number, English otherwise, until Befa switches it. */
+  function waLang(e, ref) {
+    var f = A.form[ref + '|wa'] || {};
+    return f.lang || (/^62/.test(waDigits(e.whatsapp)) ? 'id' : 'en');
+  }
+  /* The number as wa.me wants it: country code and digits only. Takes the first
+     number when a cell holds two. A number the sheet stored without its leading
+     0 (81234...) or written 62 0812... is read as Indonesian. Anything that does
+     not look like a phone number gives '' and the button lets Befa pick the chat. */
+  function waDigits(num) {
+    var first = String(num || '').split(/[\/,;|]|\bor\b|\batau\b/i)[0];
+    var plus = /^\s*\+/.test(first), d = first.replace(/\D/g, '');
+    if (!plus) {
+      if (/^0\d{8,13}$/.test(d)) d = '62' + d.slice(1);
+      else if (/^8\d{8,12}$/.test(d)) d = '62' + d;
+    }
+    if (/^620\d{8,13}$/.test(d)) d = '62' + d.slice(3);
+    return /^\d{8,15}$/.test(d) ? d : '';
+  }
+  function waRow(e, pt, ref, c) {
+    var lang = waLang(e, ref), num = waDigits(e.whatsapp);
+    var href = 'https://wa.me/' + (num.length >= 8 ? num : '') + '?text=' + encodeURIComponent(waText(e, pt, c.file_url, lang));
+    return '<div class="ac-row">' +
+      (num.length >= 8
+        ? '<a class="ac-btn warm" href="' + esc(href) + '" target="_blank" rel="noopener">WhatsApp ' + esc(String(e.student || '').split(' ')[0]) + ' (' + esc(e.whatsapp) + ')</a>'
+        : '<a class="ac-btn warm" href="' + esc(href) + '" target="_blank" rel="noopener">WhatsApp, pick the chat</a><span class="ac-m">' + (e.whatsapp ? 'The WhatsApp number in the sheet (' + esc(e.whatsapp) + ') does not look like a phone number.' : 'No WhatsApp number in the sheet for this student.') + '</span>') +
+      '<button class="ac-btn ghost" data-a="walang" data-k="' + esc(ref) + '"' + dis() + '>' + (lang === 'en' ? 'English · switch to Bahasa' : 'Bahasa · switch to English') + '</button></div>';
   }
 
   function cqCard(e) {
-    var p = pickFor(e), ref = e.ref;
+    var p = pickFor(e), ref = e.ref, parts = partsOf(e), pkg = parts.length > 1;
     var h = '<div class="ac-card cq"><div class="ac-t">' + esc(e.student) + '</div>' +
       '<div class="ac-m">' + esc(e.course) + ' · ' + esc(e.invoice_no) + ' · row ' + esc(e.sheet_row) + (e.plan ? ' · ' + e.done + ' of ' + e.plan + ' sessions' : '') + (e.last_seen ? ' · last class ' + esc(e.last_seen) : '') + '</div>' +
       portalLine(e);
-    (e.agencies || []).forEach(function (ag) { h += agencyLine(e, ag, p); });
-    h += daaLine(e, p);
+    if (pkg) h += '<div class="ac-note" style="margin-top:8px">A package: ' + parts.length + ' courses, each with its own certificates.</div>';
+    parts.forEach(function (pt, i) {
+      var pref = partRef(e, pt);
+      h += '<div class="ac-part">' + (pkg ? '<div class="ac-ph">' + (i + 1) + ' of ' + parts.length + ' · ' + esc(pt.title) + '</div>' : '') +
+        '<div class="ac-row"><label class="ac-m" style="flex:1 1 220px;display:flex;flex-direction:column;gap:3px">Course name shown in the portal' +
+        '<input class="ac-in" data-af="' + esc(pref) + '|lvl|level" value="' + esc(levelOf(e, pt)) + '"' + dis() + '></label></div>';
+      (pt.agencies || []).forEach(function (ag) { h += agencyLine(e, pt, ag, p); });
+      h += daaLine(e, pt, p) + '</div>';
+    });
     if (allIssued(e)) {
       h += '<div class="ac-row">' + armBtn('done|' + ref, 'Mark done in my sheet', 'Tap again: row ' + e.sheet_row + ' becomes done', 'go') + '</div>';
     }
@@ -342,7 +411,7 @@
 
     h += '<div class="ac-sec">Coming up</div>' + schedule(d);
     root.innerHTML = h;
-    if (A.gen) draw();
+    if (A.gen) draw().then(function (cv) { if (cv && !A.busy) preparePdf(); });
   }
 
   /* --------------------------------------------------------- the loader */
@@ -385,10 +454,10 @@
   function busy(key) { A.busy = key; A.flash[key] = null; render(); }
 
   function doCert(ref, ag, step) {
-    var e = findE(ref), p = e && pickFor(e), key = ref + '|' + ag, f = A.form[key] || {}, c = certOf(ref, ag);
+    var P = findP(ref), e = P && P.e, p = e && pickFor(e), key = ref + '|' + ag, f = A.form[key] || {}, c = certOf(ref, ag);
     if (!e || !p || A.busy) return;
     var body = { action: 'cert', step: step, invoice_no: e.invoice_no, ref: ref, agency: ag, profile_id: p.profile_id,
-                 course_name: e.course, level: levelOf(e) };
+                 course_name: P.pt.key ? '' : e.course, level: levelOf(e, P.pt) };
     if (step === 'issue') {
       body.number = String(f.number != null ? f.number : ((c || {}).number || '')).trim();
       body.issued_on = issueDate(c, f);
@@ -483,9 +552,9 @@
   function longDate(iso) { var p = String(iso || '').split('-'); return p.length === 3 ? (+p[2]) + ' ' + MON[+p[1] - 1] + ' ' + p[0] : ''; }
   var drawSeq = 0;
   function draw() {
-    var e = findE(A.gen), cv = document.getElementById('ac-canvas');
-    if (!e || !cv) return Promise.resolve(null);
-    var f = genDefaults(e), seq = ++drawSeq;
+    var P = findP(A.gen), cv = document.getElementById('ac-canvas');
+    if (!P || !cv) return Promise.resolve(null);
+    var f = genDefaults(P.e, P.pt), seq = ++drawSeq;
     return Promise.all([loadFonts(), bg(!!f.padi)]).then(function (r) {
       if (seq !== drawSeq) return null;
       var cv2 = document.getElementById('ac-canvas');
@@ -521,40 +590,109 @@
       r.readAsDataURL(blob);
     });
   }
+  /* One page, A4 landscape, the certificate JPEG filling it (the design is
+     1684 x 1191, the A4 ratio). Written by hand: no library to load. */
+  function pdfFromJpeg(jpg, w, h, title) {
+    var enc = new TextEncoder(), chunks = [], len = 0, offs = [];
+    var put = function (x) { var b = typeof x === 'string' ? enc.encode(x) : x; chunks.push(b); len += b.length; };
+    var obj = function (n, body) { offs[n] = len; put(n + ' 0 obj\n' + body + '\nendobj\n'); };
+    var W = 841.89, H = 595.28, cs = 'q ' + W + ' 0 0 ' + H + ' 0 0 cm /Im0 Do Q';
+    var t = String(title || '').replace(/[^\x20-\x7e]/g, '').replace(/([\\()])/g, '\\$1');
+    put('%PDF-1.4\n%âãÏÓ\n');
+    obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+    obj(2, '<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
+    obj(3, '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + W + ' ' + H + '] /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>');
+    offs[4] = len;
+    put('4 0 obj\n<< /Type /XObject /Subtype /Image /Width ' + w + ' /Height ' + h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpg.length + ' >>\nstream\n');
+    put(jpg); put('\nendstream\nendobj\n');
+    obj(5, '<< /Length ' + cs.length + ' >>\nstream\n' + cs + '\nendstream');
+    obj(6, '<< /Title (' + t + ') /Producer (Befalia OS) >>');
+    var x = len, pad = function (n) { return ('0000000000' + n).slice(-10); };
+    var xr = 'xref\n0 7\n0000000000 65535 f \n';
+    for (var i = 1; i <= 6; i++) xr += pad(offs[i]) + ' 00000 n \n';
+    put(xr + 'trailer\n<< /Size 7 /Root 1 0 R /Info 6 0 R >>\nstartxref\n' + x + '\n%%EOF\n');
+    var out = new Uint8Array(len), o = 0;
+    chunks.forEach(function (c) { out.set(c, o); o += c.length; });
+    return out;
+  }
+  /* No dash in the name: the student sees it in WhatsApp. */
+  function pdfName(f) { return 'DAA Certificate ' + String(f.name || '').replace(/[^\w .]+/g, '').replace(/\s+/g, ' ').trim() + '.pdf'; }
+  /* The drawing as a PDF Blob. */
+  function makePdf(f) {
+    return draw().then(function (cv) {
+      if (!cv) throw new Error('The certificate could not be drawn.');
+      return toBlob(cv).then(function (blob) {
+        if (!blob) throw new Error('The certificate image could not be made.');
+        return blob.arrayBuffer().then(function (buf) {
+          return new Blob([pdfFromJpeg(new Uint8Array(buf), cv.width, cv.height, 'DAA certificate ' + f.name + ' ' + f.number)], { type: 'application/pdf' });
+        });
+      });
+    });
+  }
   function doDownload(ref) {
-    var e = findE(ref);
-    if (!e) return;
-    var f = genDefaults(e);
-    draw().then(function (cv) { return cv && toBlob(cv); }).then(function (blob) {
-      if (!blob) return;
+    var P = findP(ref);
+    if (!P) return;
+    var f = genDefaults(P.e, P.pt);
+    makePdf(f).then(function (pdf) {
       var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = 'DAA certificate - ' + String(f.name || '').replace(/[^\w .-]+/g, '') + '.jpg';
+      a.href = URL.createObjectURL(pdf);
+      a.download = pdfName(f);
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+    }).catch(function (err) { A.flash[ref + '|DiveArts'] = { text: err.message, bad: true }; render(); });
+  }
+  /* The phone's share sheet with the PDF attached: Befa picks WhatsApp and the
+     student's chat, and sends it herself. */
+  /* The PDF is built as soon as the drawing settles, so the tap on Send opens
+     the share sheet at once: iPhone Safari refuses a share that starts after a
+     long wait. The ready PDF is tied to exactly what is on the form. */
+  var PDF = { ref: '', sig: '', blob: null, seq: 0 };
+  function pdfSig(f) { return JSON.stringify([f.name, f.course, f.date, f.city, f.number, !!f.padi]); }
+  function preparePdf() {
+    var P = findP(A.gen);
+    if (!P) return;
+    var f = genDefaults(P.e, P.pt), sig = pdfSig(f), ref = A.gen, seq = ++PDF.seq;
+    if (PDF.ref === ref && PDF.sig === sig && PDF.blob) return;
+    PDF.blob = null;
+    makePdf(f).then(function (blob) {
+      if (seq !== PDF.seq) return;
+      PDF.ref = ref; PDF.sig = sig; PDF.blob = blob;
+    }).catch(function () { /* draw() already shows why */ });
+  }
+  function doSharePdf(ref) {
+    var P = findP(ref), key = ref + '|DiveArts';
+    if (!P) return;
+    var f = genDefaults(P.e, P.pt);
+    if (!(PDF.ref === ref && PDF.sig === pdfSig(f) && PDF.blob)) {
+      A.flash[key] = { text: 'The PDF is still being made. Tap Send PDF on WhatsApp again in a second.', bad: true };
+      render(); preparePdf(); return;
+    }
+    var file = new File([PDF.blob], pdfName(f), { type: 'application/pdf' });
+    var text = waText(P.e, P.pt, '', waLang(P.e, ref));
+    if (!(navigator.canShare && navigator.canShare({ files: [file] }))) {
+      A.flash[key] = { text: 'This browser cannot attach a file to WhatsApp. Download the PDF and attach it in WhatsApp, or save it to the portal and use the WhatsApp button with the link.', bad: true };
+      render(); return;
+    }
+    navigator.share({ files: [file], text: text }).catch(function (err) {
+      if (err && err.name === 'AbortError') return;   /* she closed the sheet */
+      A.flash[key] = { text: 'Not shared: ' + (err && err.message || 'the phone refused'), bad: true }; render();
     });
   }
   function doSaveDaa(ref) {
-    var e = findE(ref), p = e && pickFor(e), f = e && genDefaults(e), key = ref + '|DiveArts';
+    var P = findP(ref), e = P && P.e, p = e && pickFor(e), f = e && genDefaults(e, P.pt), key = ref + '|DiveArts';
     if (!p || A.busy) return;
     if (!String(f.number || '').trim()) { A.flash[key] = { text: 'Type the DAA certificate number first.', bad: true }; render(); return; }
     if (!String(f.name || '').trim()) { A.flash[key] = { text: 'The name on the certificate is empty.', bad: true }; render(); return; }
     busy(key);
-    draw().then(function (cv) {
-      if (!cv) throw new Error('The certificate could not be drawn.');
-      return toBlob(cv);
-    }).then(function (blob) {
-      if (!blob) throw new Error('The certificate image could not be made.');
-      return toB64(blob);
-    }).then(function (b64) {
+    makePdf(f).then(toB64).then(function (b64) {
       return post({ action: 'cert_file', profile_id: p.profile_id, data_base64: b64 });
     }).then(function (up) {
       return post({ action: 'cert', step: 'issue', invoice_no: e.invoice_no, ref: ref, agency: 'DiveArts', profile_id: p.profile_id,
-                    course_name: e.course, level: String(f.course || '').trim() || levelOf(e),
+                    course_name: P.pt.key ? '' : e.course, level: String(f.course || '').trim() || levelOf(e, P.pt),
                     number: String(f.number).trim(), issued_on: f.date || witaToday(), file_url: up.file_url });
     }).then(function (j) {
       putCert(j.cert); A.busy = ''; A.gen = '';
-      A.flash[key] = { text: 'Saved. The DAA certificate shows in ' + p.name + '\'s portal, number ' + j.cert.number + '.' };
+      A.flash[key] = { text: 'Saved as PDF. The DAA certificate shows in ' + p.name + '\'s portal, number ' + j.cert.number + '. Use the WhatsApp button to send it.' };
       render();
     }).catch(function (err) { A.busy = ''; A.flash[key] = { text: 'Not saved: ' + err.message, bad: true }; render(); });
   }
@@ -567,7 +705,7 @@
     var f = A.form[key] || (A.form[key] = {});
     f[fld] = t.type === 'checkbox' ? t.checked : t.value;
     /* While a certificate is being saved, the drawing being saved is left alone. */
-    if (/\|gen$/.test(key) && !A.busy) draw();
+    if (/\|gen$/.test(key) && !A.busy) draw().then(function (cv) { if (cv) preparePdf(); });
   });
   document.addEventListener('change', function (e) {
     var t = e.target;
@@ -596,6 +734,8 @@
     if (a === 'gen') { A.gen = A.gen === ref ? '' : ref; render(); return; }
     if (a === 'download') { doDownload(ref); return; }
     if (a === 'savedaa') { doSaveDaa(ref); return; }
+    if (a === 'sharepdf') { doSharePdf(ref); return; }
+    if (a === 'walang') { var wk = b.getAttribute('data-k'), wP = findP(wk), cur = wP ? waLang(wP.e, wk) : 'id'; (A.form[wk + '|wa'] = A.form[wk + '|wa'] || {}).lang = cur === 'en' ? 'id' : 'en'; render(); return; }
     if (a === 'arm') {
       var k = b.getAttribute('data-k');
       if (A.arm !== k) {
@@ -615,5 +755,5 @@
     render();
     if (!loadedOnce) { loadedOnce = true; load(); }
   };
-  window.__acadTest = { certTitle: certTitle, daaNumber: daaNumber, pickFor: pickFor, state: A };
+  window.__acadTest = { certTitle: certTitle, daaNumber: daaNumber, pickFor: pickFor, waText: waText, waDigits: waDigits, pdfFromJpeg: pdfFromJpeg, findP: findP, state: A };
 })();

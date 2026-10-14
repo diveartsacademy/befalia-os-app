@@ -13,7 +13,7 @@ function sheetRows() {
   const blank = () => Array(20).fill('');
   const rows = [blank(), blank(), blank(), blank(), HEAD.slice()];
   const block = (status, name, inv, course, dates) => {
-    dates.forEach((d, i) => { const r = blank(); if (i === 0) { r[0] = status; r[1] = name; r[4] = name.toLowerCase() + '@x.id'; r[6] = inv; r[7] = course; } r[15] = d; rows.push(r); });
+    dates.forEach((d, i) => { const r = blank(); if (i === 0) { r[0] = status; r[1] = name; r[4] = name.toLowerCase() + '@x.id'; r[3] = '+62 81' + name.length; r[6] = inv; r[7] = course; } r[15] = d; rows.push(r); });
   };
   block('In Progress', 'Claire', 'DAAJUN26-3', 'Mermaid Kids', ['2026-09-01', '2026-09-08', '3']);
   block('Course done, waiting for certificate', 'Teneille Douglas', 'DAAJUL26-9', 'Mermaid Course - Adult - Beginner - PADI Mermaid', ['2026-09-02', '2026-09-03', '2026-09-04']);
@@ -65,6 +65,7 @@ t('certQueue lists only "course done, waiting for certificate", with its block c
   assert.equal(q.length, 1);
   assert.equal(q[0].student, 'Teneille Douglas'); assert.equal(q[0].sheet_row, 9); assert.equal(q[0].done, 3); assert.equal(q[0].plan, 3);
   assert.equal(q[0].last_seen, '2026-09-04'); assert.equal(q[0].email, 'teneille douglas@x.id');
+  assert.equal(q[0].whatsapp, '+62 8116', 'the WhatsApp number (column D) comes with a finished course');
 });
 
 t('setEnrolStatus writes column A of that one row, spelled as the dropdown spells it', () => {

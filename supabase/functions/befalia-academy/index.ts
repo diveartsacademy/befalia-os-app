@@ -14,9 +14,10 @@
 //                           video (queue class video emails),
 //                           certs, cert_set (certificates, 14 Oct 2026)
 //                  cert_file is handled here: the key is checked by the
-//                  database first (action ping), then one JPEG or PNG of at
-//                  most 3 MB is stored in the public "certificates" bucket at
-//                  <profile uuid>/<random uuid>.jpg and its public address is
+//                  database first (action ping), then one PDF (from 14 Oct
+//                  2026, Befa's choice), JPEG or PNG of at most 3 MB is stored
+//                  in the public "certificates" bucket at
+//                  <profile uuid>/<random uuid>.pdf and its public address is
 //                  returned. Nothing is stored for a wrong key.
 //
 // Deployed with verify_jwt off because the caller has no Supabase login; the
@@ -59,16 +60,19 @@ async function certFile(key: string, p: any) {
     bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   } catch (_e) { return out(400, { ok: false, error: 'The image did not arrive whole.' }); }
-  if (bytes.length < 1000 || bytes.length > 3145728) return out(400, { ok: false, error: 'The image must be between 1 KB and 3 MB.' });
+  if (bytes.length < 1000 || bytes.length > 3145728) return out(400, { ok: false, error: 'The file must be between 1 KB and 3 MB.' });
   const jpg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
   const png = bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47;
-  if (!jpg && !png) return out(400, { ok: false, error: 'Only a JPEG or PNG image is stored.' });
+  const pdf = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46 && bytes[4] === 0x2d;   // %PDF-
+  if (!jpg && !png && !pdf) return out(400, { ok: false, error: 'Only a PDF, JPEG or PNG certificate is stored.' });
+  const ext = pdf ? '.pdf' : jpg ? '.jpg' : '.png';
+  const type = pdf ? 'application/pdf' : jpg ? 'image/jpeg' : 'image/png';
   const base = Deno.env.get('SUPABASE_URL') || '';
   const sr = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
-  const path = pid.toLowerCase() + '/' + crypto.randomUUID() + (jpg ? '.jpg' : '.png');
+  const path = pid.toLowerCase() + '/' + crypto.randomUUID() + ext;
   const r = await fetch(base + '/storage/v1/object/certificates/' + path, {
     method: 'POST',
-    headers: { apikey: sr, authorization: 'Bearer ' + sr, 'content-type': jpg ? 'image/jpeg' : 'image/png', 'x-upsert': 'false' },
+    headers: { apikey: sr, authorization: 'Bearer ' + sr, 'content-type': type, 'x-upsert': 'false' },
     body: bytes,
   });
   if (!r.ok) return out(502, { ok: false, error: 'The image could not be stored (HTTP ' + r.status + ').' });
