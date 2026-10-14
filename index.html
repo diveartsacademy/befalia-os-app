@@ -273,7 +273,9 @@
   .td-stat.warn b{color:#ff9db0;}
   .td-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,1fr);gap:16px;margin-top:16px;align-items:start;}
   .td-side{position:sticky;top:64px;}
-  @media(max-width:980px){.td-layout{grid-template-columns:1fr;}.td-side{position:static;}}
+  @media(max-width:980px){.td-layout{display:flex;flex-direction:column;align-items:stretch;}.td-side{position:static;order:-1;}}
+  .td-min{margin-left:auto;}
+  .td-head.min .td-headbody{display:none;}
   .td-layout .card,.td-side .card{margin:0 0 16px;}
   .td-layout .card:hover,.td-head.card:hover,.td-modal .card:hover{transform:none;}
   .td-chips{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 8px;}
@@ -418,12 +420,11 @@
 
   <div class="tabpane active" id="tab-command">
     <div id="affirm-bubble"></div>
-    <div id="pack-slot-home"></div>
     <div class="grid" id="command"></div>
   </div>
   <div class="tabpane" id="tab-todo">
-    <div id="pack-slot-todo"></div>
     <div id="todo-root"></div>
+    <div id="pack-slot-todo"></div>
   </div>
   <div class="tabpane" id="tab-goals">
     <div id="goals-root"></div>
@@ -682,9 +683,7 @@ function buildCommand(){
   const iv=document.createElement('div');iv.className='card sensitive';iv.id='iv-card';
   iv.innerHTML='<h2><span class="ic">🤝</span>Getting to know you<button class="link-btn" id="iv-open" style="margin-left:auto">Answers →</button></h2><div data-body id="iv-body" class="loading">Loading…</div>';
   wrap.appendChild(iv);document.getElementById('iv-open').onclick=()=>window.open('https://app.notion.com/p/'+MY_PERSONALITY_ID,'_blank');loadInterview();
-  const theo=document.createElement('div');theo.className='card sensitive';
-  theo.innerHTML='<h2><span class="ic">🤍</span>Theo<a class="link-btn" href="https://app.notion.com/p/'+THEO_CHAT_ID+'" target="_blank" rel="noopener" style="margin-left:auto">Full thread →</a></h2><div class="blurb">Your private partner — warm, honest, entirely yours. He replies live.</div><div class="ag-thread" id="theo-thread" style="display:block;border:0;padding:0"></div>';
-  wrap.appendChild(theo);openChiefChat('Theo',THEO_CHAT_ID,document.getElementById('theo-thread'));
+  /* Theo's chat card was taken off Home on 14 Oct 2026 at Befa's request. */
   const bd=document.createElement('div');bd.className='card';bd.id='td-home';bd.setAttribute('data-no-tools','');
   bd.innerHTML='<h2><span class="ic">✅</span>To-Do today<span class="badge" id="td-home-count">…</span></h2><div class="blurb">Urgent, priority, in progress, and anything due today or overdue. Tick it here or open the full list and calendar.</div><ul class="td-list" id="td-home-list"></ul><div class="foot"><a href="#" id="td-home-open">Open To-Do →</a></div>';
   wrap.appendChild(bd);bd.addEventListener('click',e=>{if(e.target.closest('#td-home-open')){e.preventDefault();showTab('tab-todo');return;}tdHandleClick(e);});
@@ -2166,21 +2165,26 @@ function tdCaptureFromJournal(text){return tdCreate({name:text,area:'Personal'})
 function buildTodo(){
   const root=document.getElementById('todo-root');if(!root)return;
   const lastArea=LS.get('td_lastArea','Personal');
-  root.innerHTML='<div class="card td-head" data-no-tools>'
+  const headMin=LS.get('td_head_min',false);
+  root.innerHTML='<div class="card td-head'+(headMin?' min':'')+'" id="td-head" data-no-tools>'
    +'<div class="td-headrow"><h2><span class="ic">✅</span>To-Do</h2><div class="td-seg" id="td-seg"><button data-view="list">List</button><button data-view="history">History</button></div>'
-   +'<span class="td-sync" id="td-sync"></span><button class="ctool" id="td-refresh" title="Reload from Notion">↻ Refresh</button><a class="ctool" href="'+TD_NOTION_URL+'" target="_blank" rel="noopener">Notion ↗</a></div>'
-   +'<div class="td-add"><input class="fld" id="td-new-name" placeholder="New task… then Enter">'
+   +'<span class="td-sync" id="td-sync"></span><button class="ctool" id="td-refresh" title="Reload from Notion">↻ Refresh</button><a class="ctool" href="'+TD_NOTION_URL+'" target="_blank" rel="noopener">Notion ↗</a><button class="ctool td-min" id="td-min" type="button" aria-expanded="true">▴ Minimize</button></div>'
+   +'<div class="td-headbody"><div class="td-add"><input class="fld" id="td-new-name" placeholder="New task… then Enter">'
    +'<select class="fld" id="td-new-area" title="Business"><option value="">No area</option>'+TD_AREAS.map(a=>'<option'+(lastArea===a.key?' selected':'')+'>'+a.key+'</option>').join('')+'</select>'
    +'<input class="fld" id="td-new-sec" list="td-sec-list" placeholder="Section">'
    +'<input class="fld" type="date" id="td-new-date" title="Date, only if it is tied to a day">'
    +'<input class="fld" type="time" id="td-new-time" title="Time WITA, optional">'
    +'<span class="td-addbtns"><button class="td-tog" id="td-new-pri" type="button" title="Priority">⏰</button><button class="td-tog" id="td-new-urg" type="button" title="Urgent">🚨</button><button class="gold-btn" id="td-new-go">Add</button></span></div>'
-   +'<datalist id="td-sec-list"></datalist><div class="td-stats" id="td-stats"></div><div id="td-migrate"></div></div>'
+   +'<datalist id="td-sec-list"></datalist><div class="td-stats" id="td-stats"></div><div id="td-migrate"></div></div></div>'
    +'<div class="td-layout"><div class="card" id="td-main" data-no-tools><div class="todo-add" style="margin:0"><input class="fld" id="td-q" placeholder="Search tasks…"></div><div class="td-chips" id="td-chips"></div><div id="td-list"></div></div>'
    +'<div class="td-side"><div class="card" id="td-cal" data-no-tools></div><div class="card" id="td-day" data-no-tools></div></div></div>';
   root.addEventListener('click',tdHandleClick);
   document.getElementById('td-seg').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;TD.view=b.getAttribute('data-view');LS.set('td_view',TD.view);TD.sel=null;tdRenderAll();});
   document.getElementById('td-refresh').onclick=()=>tdLoad(false);
+  // The add-a-task form folds away to its header line and stays folded on this device.
+  const tdMinSet=m=>{const h=document.getElementById('td-head'),b=document.getElementById('td-min');if(!h||!b)return;h.classList.toggle('min',m);b.textContent=m?'▾ New task':'▴ Minimize';b.setAttribute('aria-expanded',m?'false':'true');LS.set('td_head_min',m);};
+  tdMinSet(headMin);
+  document.getElementById('td-min').onclick=()=>tdMinSet(!document.getElementById('td-head').classList.contains('min'));
   document.getElementById('td-new-go').onclick=tdQuickAdd;
   document.getElementById('td-new-name').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();tdQuickAdd();}});
   document.getElementById('td-new-pri').onclick=e=>{TD.newPri=!TD.newPri;e.currentTarget.classList.toggle('on',TD.newPri);};
@@ -2220,7 +2224,7 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
   watchCards();
 })();
 </script>
-<script>window.PACKING_CONFIG = { api: '/api/packing', slots: ['pack-slot-home', 'pack-slot-todo'], theme: 'dark', headers: function () { return (typeof osHeaders === 'function') ? osHeaders() : {}; } };</script>
+<script>window.PACKING_CONFIG = { api: '/api/packing', slots: ['pack-slot-todo'], theme: 'dark', headers: function () { return (typeof osHeaders === 'function') ? osHeaders() : {}; } };</script>
 <script src="/packing-panel.js"></script>
 <script src="/business-panel.js"></script>
 </body>
