@@ -461,7 +461,7 @@
   </div>
   <div class="tabpane" id="tab-business">
     <div class="section-label">Business</div>
-    <div class="blurb" style="margin:8px 4px 0;font-style:italic">How each business is moving. Sea Diva first: every paid order that is not finished yet, with the photo of each product, so you can help pack and ship. Read only, nothing here changes the sheet.</div>
+    <div class="blurb" style="margin:8px 4px 0;font-style:italic">How each business is moving. Sea Diva: every paid order that is not finished yet, with the photo of each product, so you can pack and ship. DiveArts Academy: your own students, classes and certificates. Each button that changes a sheet or the student portal says so on the button.</div>
     <div id="biz-root"></div>
   </div>
   <div class="tabpane" id="tab-finance">
@@ -2325,6 +2325,7 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
 </script>
 <script>window.PACKING_CONFIG = { api: '/api/packing', slots: ['pack-slot-todo'], theme: 'dark', headers: function () { return (typeof osHeaders === 'function') ? osHeaders() : {}; } };</script>
 <script src="/packing-panel.js"></script>
+<script src="/academy-panel.js"></script>
 <script src="/business-panel.js"></script>
 </body>
 </html>
