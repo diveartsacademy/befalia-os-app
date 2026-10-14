@@ -50,6 +50,7 @@ function certQueue_(){
         status:     S_(vals[a][0]),
         student:    S_(vals[a][1]),
         student_id: S_(vals[a][2]),
+        whatsapp:   S_(vals[a][3]),   /* for sending the certificate (14 Oct 2026) */
         email:      S_(vals[a][4]),
         invoice_no: S_(vals[a][6]),
         course:     S_(vals[a][7]),

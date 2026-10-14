@@ -8,7 +8,7 @@ process.env.BIZ_FEED_KEY = 'f'.repeat(40);
 process.env.DAA_API_KEY = 'daa';
 delete process.env.DAA_API_URL;
 
-const { default: handler, cut, agenciesFor, witaDate, ME, refOf } = await import('../api/academy.js');
+const { default: handler, cut, agenciesFor, witaDate, ME, refOf, partsFor, REF_RE } = await import('../api/academy.js');
 
 const PID = '11111111-1111-4111-8111-111111111111';
 const today = witaDate();
@@ -76,14 +76,16 @@ await t('agencies are read from the course name, never guessed', () => {
   assert.deepEqual(agenciesFor('Mermaid Course - Adult - '), []);
 });
 
-await t('cut keeps only Befa\'s rows, upcoming from today, no cancelled, sorted, no phone numbers', () => {
+await t('cut keeps only Befa\'s rows, upcoming from today, no cancelled, sorted, phone only on finished courses', () => {
   const c = cut(BOOT, today);
   assert.equal(c.enrolments.length, 2);
   assert.ok(c.enrolments.every((e) => e.student !== 'Rie Student'));
   assert.equal(c.certQueue.length, 1);
   assert.deepEqual(c.certQueue[0].agencies, ['MFI']);
   assert.deepEqual(c.upcoming.map((u) => u.student), ['Early', 'Claire Moon']);
-  assert.ok(!JSON.stringify(c).includes('+62'), 'phone numbers are not sent to the page');
+  assert.ok(!JSON.stringify(c.upcoming).includes('+62'), 'the schedule carries no phone number');
+  assert.equal(c.certQueue[0].whatsapp, '+62 1', 'a finished course carries the number for sending the certificate');
+  assert.equal(c.enrolments[0].whatsapp, '+62 1', 'so does one in progress, for when it moves to Finished');
   assert.equal(c.enrolments[0].has_email, true);
 });
 
@@ -204,6 +206,34 @@ await t('no DAA_API_KEY: the page is told plainly, nothing is called', async () 
   assert.equal(w.s, 503);
   assert.equal(calls.length, 0);
   process.env.DAA_API_KEY = 'daa';
+});
+
+await t('packages split into their courses, each with its own certificates (Befa, 14 Oct 2026)', () => {
+  const uwd = partsFor('Underwater Dance Course - Adult - PADI Instructor (Zero to Hero) PADI Instructor Guide PADI Underwater Dance Instructor Application Fee');
+  assert.deepEqual(uwd.map((p) => p.title), ['PADI Underwater Dance Specialty', 'PADI Advanced Underwater Dance Specialty', 'PADI Underwater Dance Distinctive Specialty Instructor']);
+  assert.ok(uwd.every((p) => p.agencies.join() === 'PADI'));
+  const mi = partsFor('Mermaid Course - Adult - PADI Mermaid Instructor Zero to Hero PADI Instructor Guide PADI Mermaid Instructor Application Fee');
+  assert.deepEqual(mi.map((p) => p.key + ':' + p.agencies.join()), ['mer:PADI', 'amer:PADI', 'efr:EFR', 'mi:PADI']);
+  assert.deepEqual(partsFor('Mermaid Course - Adult - PADI Mermaid Instructor + EFR (Bundle)').map((p) => p.key), ['mi', 'efr']);
+  assert.deepEqual(partsFor('PADI Mermaid Instructor Course + EFR Course\nRedeem PADI Mermaid Instructor e-learning').map((p) => p.key), ['mi', 'efr']);
+  for (const single of ['Underwater Dance Course - Adult - PADI Instructor', 'Mermaid Course - Adult - Beginner - PADI Mermaid', 'Mermaid Course - Kids - MFI J2 (Mermaid Pioneers)']) {
+    const p = partsFor(single); assert.equal(p.length, 1); assert.equal(p[0].key, '', single + ' stays one course');
+  }
+  partsFor('Mermaid Course - Adult - PADI Mermaid Instructor + EFR (Bundle)')[0].agencies.push('X');
+  assert.deepEqual(partsFor('Mermaid Course - Adult - PADI Mermaid Instructor + EFR (Bundle)')[0].agencies, ['PADI'], 'the package list is never changed by a caller');
+  assert.ok(REF_RE.test('0123456789abcdef.uwdi') && REF_RE.test('0123456789abcdef-2.mer') && !REF_RE.test('0123456789abcdef.UWD!'));
+});
+
+await t('GET asks the portal for every course in a package', async () => {
+  const save = BOOT.certQueue;
+  BOOT.certQueue = [enrol({ status: 'course done, waiting for certificate', student: 'Ching Chien', invoice_no: 'DAAAUG26-4', sheet_row: 172, course: 'Underwater Dance Course - Adult - PADI Instructor (Zero to Hero) PADI Instructor Guide' })];
+  const r = await run('GET');
+  BOOT.certQueue = save;
+  const keys = calls.find((c) => c.body && c.body.action === 'certs').body.keys.filter((k) => k.startsWith('DAAAUG26-4:'));
+  assert.deepEqual(keys.map((k) => k.split('.')[1]), ['uwd', 'auwd', 'uwdi']);
+  const all = calls.find((c) => c.body && c.body.action === 'certs').body.keys;
+  assert.ok(all[0].startsWith('DAAAUG26-4:'), 'finished courses are asked for first');
+  assert.equal(r.j.certQueue[0].parts.length, 3);
 });
 
 console.log(`\n${n} passed`);

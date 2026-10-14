@@ -44,7 +44,34 @@ const DAA_FALLBACK_URL = 'https://script.google.com/macros/s/AKfycbwJ5s1d9I6-aEw
 const daaUrl = () => process.env.DAA_API_URL || DAA_FALLBACK_URL;
 export const STATUS_TO = { wait: 'course done, waiting for certificate', done: 'done (certificate issued-if required)' };
 const AGENCIES = ['PADI', 'MFI', 'AIDA', 'EFR', 'DiveArts'];
-export const REF_RE = /^[0-9a-f]{16}(-[0-9]{1,2})?$/;
+export const REF_RE = /^[0-9a-f]{16}(-[0-9]{1,2})?(\.[a-z0-9]{1,8})?$/;
+
+/* Packages (14 Oct 2026, Befa): a package is several courses, and every course
+   in it gets its own certificate, both the DAA one and the agency one. Names
+   follow PADI standards naming for Underwater Dance (her choice). The course
+   text in her sheet decides which package it is; anything else is one course.
+   Order is the order the student takes them. */
+export const PACKAGES = [
+  { test: (c) => /underwater dance/i.test(c) && /zero\s*to\s*hero/i.test(c),
+    parts: [{ key: 'uwd', title: 'PADI Underwater Dance Specialty', agencies: ['PADI'] },
+            { key: 'auwd', title: 'PADI Advanced Underwater Dance Specialty', agencies: ['PADI'] },
+            { key: 'uwdi', title: 'PADI Underwater Dance Distinctive Specialty Instructor', agencies: ['PADI'] }] },
+  { test: (c) => /mermaid instructor/i.test(c) && /zero\s*to\s*hero/i.test(c),
+    parts: [{ key: 'mer', title: 'PADI Mermaid', agencies: ['PADI'] },
+            { key: 'amer', title: 'PADI Advanced Mermaid', agencies: ['PADI'] },
+            { key: 'efr', title: 'Emergency First Response (EFR)', agencies: ['EFR'] },
+            { key: 'mi', title: 'PADI Mermaid Instructor', agencies: ['PADI'] }] },
+  { test: (c) => /mermaid instructor/i.test(c) && /\bEFR\b|Emergency First Response/i.test(c),
+    parts: [{ key: 'mi', title: 'PADI Mermaid Instructor', agencies: ['PADI'] },
+            { key: 'efr', title: 'Emergency First Response (EFR)', agencies: ['EFR'] }] },
+];
+/* The courses inside one sheet block. A package lists its parts; any other
+   course is a single part with no key, whose name the desk proposes. */
+export function partsFor(course) {
+  const pk = PACKAGES.find((p) => p.test(String(course || '')));
+  if (pk) return pk.parts.map((x) => ({ ...x, agencies: x.agencies.slice() }));
+  return [{ key: '', title: '', agencies: agenciesFor(course) }];
+}
 
 const str = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
 function bad(msg, status = 400) { const e = new Error(msg); e.status = status; return e; }
@@ -72,6 +99,7 @@ const enrolOut = (e) => ({
   course: str(e.course, 200), last_seen: str(e.last_seen, 40),
   sessions: Number(e.sessions) || 0, done: Number(e.done) || 0, plan: Number(e.plan) || 0,
   agencies: agenciesFor(e.course),
+  parts: partsFor(e.course),
 });
 
 /* One reference per course block (14 Oct 2026, after review): invoice, student
@@ -95,8 +123,11 @@ export function addRefs(lists) {
 /* Befa's slice of the sheet service's bootstrap. Pure, so it can be tested. */
 export function cut(boot, today) {
   const mine = (x) => String(x && x.instructor_email || '').toLowerCase() === ME;
-  const enrolments = (boot.enrolments || []).filter(mine).map(enrolOut);
-  const certQueue = (boot.certQueue || []).filter(mine).map(enrolOut);
+  const enrolments = (boot.enrolments || []).filter(mine).map((e) => ({ ...enrolOut(e), whatsapp: str(e.whatsapp, 40) }));
+  /* Each course carries the student's WhatsApp number, so the certificate can
+     be sent from the card (also right after "Course finished" moves it).
+     Befa's own desk, behind her key; she sends it herself. */
+  const certQueue = (boot.certQueue || []).filter(mine).map((e) => ({ ...enrolOut(e), whatsapp: str(e.whatsapp, 40) }));
   addRefs([enrolments, certQueue]);
   const upcoming = (boot.assignments || [])
     .filter((a) => mine(a) && String(a.date || '') >= today && !/cancel/i.test(String(a.status || '')))
@@ -136,7 +167,13 @@ export async function read(fetchImpl = fetch) {
   const today = witaDate();
   const boot = await bootstrap(fetchImpl);
   const out = cut(boot, today);
-  const keys = out.enrolments.concat(out.certQueue).filter((e) => e.invoice_no).map((e) => e.invoice_no + ':' + e.ref).slice(0, 120);
+  const keys = [];
+  /* Finished courses first: they are the ones whose certificates matter if the
+     list is ever cut. */
+  out.certQueue.concat(out.enrolments).filter((e) => e.invoice_no).forEach((e) => {
+    e.parts.forEach((pt) => keys.push(e.invoice_no + ':' + e.ref + (pt.key ? '.' + pt.key : '')));
+  });
+  keys.splice(120);
   const names = [...new Set(out.certQueue.map((e) => e.student).filter(Boolean))];
   const chunks = [];
   for (let i = 0; i < names.length; i += 20) chunks.push(names.slice(i, i + 20));
