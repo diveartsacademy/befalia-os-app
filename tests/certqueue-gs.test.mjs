@@ -84,6 +84,9 @@ t('a row that moved, an unknown status, an unknown workbook and a bad row write 
   assert.throws(() => setStatus({ ...base, instructor_email: 'x@y.z' }), /No instructor workbook/);
   assert.throws(() => setStatus({ ...base, sheet_row: 3 }), /A sheet row is required/);
   assert.throws(() => setStatus({ ...base, sheet_row: 999 }), /past the end/);
+  assert.equal(rows[6][1], '', 'row 7 is a session row inside Claire\'s block: name and invoice are blank there');
+  assert.throws(() => setStatus({ ...base, sheet_row: 7, student: '', invoice_no: '' }), /are required/, 'a blank name and invoice never match a mid-block row');
+  assert.throws(() => setStatus({ ...base, student: '  ' }), /are required/);
   assert.deepEqual(written, []);
   assert.equal(locks, 0, 'lock always released');
 });

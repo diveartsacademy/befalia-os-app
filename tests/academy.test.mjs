@@ -8,7 +8,7 @@ process.env.BIZ_FEED_KEY = 'f'.repeat(40);
 process.env.DAA_API_KEY = 'daa';
 delete process.env.DAA_API_URL;
 
-const { default: handler, cut, agenciesFor, witaDate, ME } = await import('../api/academy.js');
+const { default: handler, cut, agenciesFor, witaDate, ME, refOf } = await import('../api/academy.js');
 
 const PID = '11111111-1111-4111-8111-111111111111';
 const today = witaDate();
@@ -94,7 +94,8 @@ await t('GET: one sheet read, then the portal certs and name matches for the que
   assert.equal(r.j.certs.length, 1);
   assert.equal(r.j.matches[0].q, 'Laura Fitz');
   const certsCall = calls.find((c) => c.body && c.body.action === 'certs');
-  assert.deepEqual(certsCall.body.invoices.sort(), ['DAAJUN26-26', 'DAAOCT26-1', 'DAAOCT26-2']);
+  assert.deepEqual(certsCall.body.keys.map((k) => k.split(':')[0]).sort(), ['DAAJUN26-26', 'DAAOCT26-1', 'DAAOCT26-2']);
+  assert.ok(certsCall.body.keys.every((k) => /^[A-Z0-9-]+:[0-9a-f]{16}(-\d+)?$/.test(k)), 'each key is invoice:ref');
   assert.equal(r.j.portalError, '');
 });
 
@@ -131,23 +132,60 @@ await t('status: a sheet refusal comes back as the reason, not as success', asyn
   assert.match(r.j.error, /no longer holds/);
 });
 
-await t('cert: only known steps and agencies, a real portal id, issue carries number and date', async () => {
+await t('two course blocks on one invoice get different refs; identical blocks get -2', () => {
+  const B = { ok: true, enrolments: [
+    enrol({ sheet_row: 131, student: 'Michaella Neyssa', invoice_no: 'DAAMAY26-14', course: 'Mermaid Course - Adult - Avanced Open Water - PADI Advanced Mermaid 1D' }),
+    enrol({ sheet_row: 134, student: 'Michaella Neyssa', invoice_no: 'DAAMAY26-14', course: 'Mermaid Course - Adult - Avanced Open Water - PADI Advanced Mermaid 2D' }),
+    enrol({ sheet_row: 140, student: 'Twin', invoice_no: 'DAAMAY26-15', course: 'C' }),
+    enrol({ sheet_row: 150, student: 'Twin', invoice_no: 'DAAMAY26-15', course: 'C' }),
+  ], certQueue: [enrol({ sheet_row: 120, status: 'course done, waiting for certificate', student: 'Michaella Neyssa', invoice_no: 'DAAMAY26-14', course: 'Elite' })] };
+  const c = cut(B, today);
+  const [m1, m2, t1, t2] = c.enrolments;
+  assert.notEqual(m1.ref, m2.ref, 'same student, same invoice, two courses: two refs');
+  assert.equal(m1.blocks_on_invoice, 3, 'the queue block on the same invoice is counted too');
+  assert.equal(t1.ref, refOf(t1)); assert.equal(t2.ref, refOf(t2) + '-2', 'identical block later in the sheet gets -2');
+  assert.equal(cut(B, today).enrolments[1].ref, m2.ref, 'refs are stable between reads');
+  const moved = cut({ ...B, enrolments: B.enrolments.slice(1), certQueue: B.certQueue.concat([B.enrolments[0]]) }, today);
+  assert.equal(moved.certQueue.find((e) => e.sheet_row === 131).ref, m1.ref, 'a block keeps its ref when it moves to the certificate queue');
+});
+
+await t('status needs the student and the invoice for the sheet\'s row check', async () => {
+  assert.equal((await run('POST', { action: 'status', sheet_row: 131, student: '', invoice_no: 'DAAMAY26-14', to: 'wait' })).s, 400);
+  assert.equal((await run('POST', { action: 'status', sheet_row: 131, student: 'Michaella Neyssa', invoice_no: ' ', to: 'wait' })).s, 400);
+  assert.equal(calls.length, 0, 'nothing reached the sheet');
+});
+
+await t('more than 20 finished students: every name is looked up, in batches of 20', async () => {
+  const many = Array.from({ length: 27 }, (_, i) => enrol({ status: 'course done, waiting for certificate', student: 'S' + i, invoice_no: 'INV-' + i, sheet_row: 200 + i }));
+  const save = BOOT.certQueue; BOOT.certQueue = many;
+  const r = await run('GET');
+  BOOT.certQueue = save;
+  const m = calls.filter((c) => c.body && c.body.action === 'match');
+  assert.deepEqual(m.map((c) => c.body.names.length), [20, 7]);
+  assert.equal(r.j.matches.length, 27);
+});
+
+await t('cert: only known steps and agencies, a real portal id, a ref, issue carries number and date', async () => {
+  const REF = '0123456789abcdef';
+  assert.equal((await run('POST', { action: 'cert', step: 'submit', agency: 'PADI', invoice_no: 'X-1', profile_id: PID })).s, 400, 'no ref, refused');
+  assert.equal((await run('POST', { action: 'cert', step: 'submit', agency: 'PADI', invoice_no: 'X-1', ref: 'X-1', profile_id: PID })).s, 400, 'a bad ref, refused');
   assert.equal((await run('POST', { action: 'cert', step: 'issue', agency: 'NAUI', invoice_no: 'X-1', profile_id: PID })).s, 400);
   assert.equal((await run('POST', { action: 'cert', step: 'delete', agency: 'PADI', invoice_no: 'X-1', profile_id: PID })).s, 400);
   assert.equal((await run('POST', { action: 'cert', step: 'submit', agency: 'PADI', invoice_no: 'X-1', profile_id: 'Laura' })).s, 400);
   calls = [];
-  const r = await run('POST', { action: 'cert', step: 'issue', agency: 'PADI', invoice_no: 'X-1', profile_id: PID, number: ' 12345 ', issued_on: '2026-10-14', course_name: 'c' });
+  const r = await run('POST', { action: 'cert', step: 'issue', agency: 'PADI', invoice_no: 'X-1', ref: REF, profile_id: PID, number: ' 12345 ', issued_on: '2026-10-14', course_name: 'c', level: ' PADI Mermaid ' });
   assert.equal(r.s, 200);
   const b = calls[0].body;
   assert.equal(b.action, 'cert_set'); assert.equal(b.number, '12345'); assert.equal(b.issued_on, '2026-10-14');
+  assert.equal(b.ref, REF); assert.equal(b.level, 'PADI Mermaid');
   calls = [];
-  await run('POST', { action: 'cert', step: 'submit', agency: 'MFI', invoice_no: 'X-1', profile_id: PID, number: 'sneak' });
+  await run('POST', { action: 'cert', step: 'submit', agency: 'MFI', invoice_no: 'X-1', ref: REF, profile_id: PID, number: 'sneak' });
   assert.equal(calls[0].body.number, undefined, 'a submit never carries a number');
 });
 
 await t('cert: the portal\'s refusal is passed on word for word', async () => {
   portal = () => ({ ok: false, error: 'The issue date is in the future.' });
-  const r = await run('POST', { action: 'cert', step: 'issue', agency: 'PADI', invoice_no: 'X-1', profile_id: PID, number: '1', issued_on: '2099-01-01' });
+  const r = await run('POST', { action: 'cert', step: 'issue', agency: 'PADI', invoice_no: 'X-1', ref: '0123456789abcdef', profile_id: PID, number: '1', issued_on: '2099-01-01' });
   assert.equal(r.s, 409); assert.equal(r.j.error, 'The issue date is in the future.');
 });
 
