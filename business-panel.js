@@ -17,12 +17,20 @@
    POSTs to /api/business, and can be undone from the same card. The server
    moves the products to Ready to be shipped, moves the board job to Shipping
    and logs a done task on the To-Do.
+
+   My work (14 Oct 2026): every product line that waits on Befa's own hands
+   (Designer with TailCraft designs, ordering from third parties, fluke
+   filler, crown, other things to make) and on the craftspeople (printing,
+   sewing). Each line has Done buttons, two taps each, that move it along by
+   her rulings; the server holds the list of allowed moves.
    --------------------------------------------------------------------------- */
 (function () {
   'use strict';
   var ROOT = 'biz-root';
   var S = { biz: 'seadiva', stage: 'all', ch: 'all', data: null, err: '', loading: false, at: null,
-            arm: '', busy: '', flash: {}, addr: {}, noteEdit: '', noteDraft: {}, noteBusy: '', notice: null, visible: [], trackDraft: {} };
+            arm: '', busy: '', flash: {}, addr: {}, noteEdit: '', noteDraft: {}, noteBusy: '', notice: null, visible: [], trackDraft: {},
+            view: 'work', wtab: 'all', showLog: false };
+  try { var v0 = localStorage.getItem('biz-view'); if (v0 === 'pack' || v0 === 'work') S.view = v0; } catch (e) { /* storage blocked */ }
   var CH = { shopify: 'Shopify', shopee: 'Shopee', toko: 'Tokopedia/TikTok', manual: 'Manual', tailcraft: 'TailCraft' };
 
   var BUSINESSES = [
@@ -186,6 +194,27 @@
       '.biz-noteed button{font:600 12px var(--sans);border-radius:7px;padding:5px 10px;cursor:pointer;border:1px solid var(--line);background:none;color:var(--ink)}' +
       '.biz-noteed button.save{background:#ffd27f;color:#04121f;border-color:#ffd27f}' +
       '.biz-empty{font:13.5px/1.5 var(--sans);color:var(--muted);padding:18px;border:1px dashed var(--line);border-radius:14px;margin-top:12px}' +
+      '.biz-views{display:flex;gap:8px;margin:12px 2px 2px}' +
+      '.biz-views button{flex:1;font:700 14px var(--sans);padding:11px 12px;border-radius:12px;cursor:pointer;border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--muted);text-align:left}' +
+      '.biz-views button b{display:block;font:600 22px var(--serif);color:var(--aqua)}' +
+      '.biz-views button.on{border-color:var(--aqua);color:var(--ink);box-shadow:var(--glowsoft)}' +
+      '.biz-wgroup{font:600 12px var(--sans);letter-spacing:.6px;text-transform:uppercase;color:var(--dim);margin:14px 4px 2px}' +
+      '.biz-tile.wait b{color:#8fd3ff}' +
+      '.biz-tile.zero{opacity:.55}' +
+      '.biz-wsec{margin-top:14px}' +
+      '.biz-wsec h4{margin:0 4px 2px;font:600 15px var(--serif);color:var(--ink)}' +
+      '.biz-wsec .why{font:12px/1.45 var(--sans);color:var(--muted);margin:0 4px 6px}' +
+      '.biz-witem{display:flex;gap:11px;align-items:flex-start;background:linear-gradient(160deg,rgba(12,42,62,.44),rgba(5,20,32,.52));border:1px solid rgba(46,230,255,.16);border-radius:14px;padding:11px;margin:8px 0;min-width:0}' +
+      '.biz-witem.tc{border-color:rgba(206,160,255,.35)}' +
+      '.biz-witem .m{font:12px/1.4 var(--sans);color:var(--muted);margin-top:3px}' +
+      '.biz-witem .m b{color:var(--ink)}' +
+      '.biz-wbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}' +
+      '.biz-wbtn{font:700 12.5px var(--sans);border-radius:10px;padding:9px 12px;cursor:pointer;border:1px solid rgba(126,224,160,.55);background:rgba(126,224,160,.14);color:#c9f3d6}' +
+      '.biz-wbtn.alt{border-color:var(--line);background:none;color:var(--muted)}' +
+      '.biz-wbtn.arm{background:#ffd27f;color:#04121f;border-color:#ffd27f}' +
+      '.biz-wbtn[disabled]{opacity:.55;cursor:wait}' +
+      '.biz-unpaid{font:700 10.5px var(--sans);letter-spacing:.4px;text-transform:uppercase;padding:2px 6px;border-radius:6px;background:rgba(255,107,129,.14);color:#ffa3b3}' +
+      '.biz-stale{font:11.5px/1.4 var(--sans);color:#ffd99a;margin-top:3px}' +
       '@media (max-width:420px){.biz-list{grid-template-columns:1fr}.biz-ph{flex-basis:64px;width:64px;height:64px}}';
     document.head.appendChild(s);
   }
@@ -471,10 +500,140 @@
     var notice = '';
     if (S.notice) notice = '<div class="biz-notice">' + esc(S.notice.text) +
       (S.notice.undo ? '<button class="biz-undo" data-hand="' + esc(S.notice.undo + '|none') + '">Undo</button>' : '') +
-      (S.notice.unship ? '<button class="biz-undo" data-unship="' + esc(S.notice.unship) + '">Undo</button>' : '') + '</div>';
+      (S.notice.unship ? '<button class="biz-undo" data-unship="' + esc(S.notice.unship) + '">Undo</button>' : '') +
+      (S.notice.wundo ? '<button class="biz-undo" data-wundo="' + esc(S.notice.wundo) + '">Undo</button>' : '') + '</div>';
     if (c.pickupHidden) notice += '<div class="biz-fresh">' + c.pickupHidden + (c.pickupHidden === 1 ? ' packed order is' : ' packed orders are') +
       ' waiting for the customer to pick up. They are on the Sea Diva dashboard only, Pack and ship, Waiting for pickup.</div>';
-    return h + '<div class="biz-fresh">' + esc(fresh) + '</div>' + warn + notice + tiles + chans + photoLine0 + photoLine + shipBox + body;
+    var W = d.work || null, wc = (W && W.counts) || {};
+    var views = '<div class="biz-views">' +
+      '<button data-view="work" class="' + (S.view === 'work' ? 'on' : '') + '"><b>' + (W ? wc.mine : '?') + '</b>My work' +
+        (W && wc.waiting ? ' · ' + wc.waiting + ' waiting on others' : '') + '</button>' +
+      '<button data-view="pack" class="' + (S.view === 'pack' ? 'on' : '') + '"><b>' + (c.ready || 0) + '</b>Pack &amp; ship · ready to pack</button></div>';
+    if (S.view === 'work') return h + '<div class="biz-fresh">' + esc(fresh) + '</div>' + warn + notice + views + workHtml(d);
+    return h + '<div class="biz-fresh">' + esc(fresh) + '</div>' + warn + notice + views + tiles + chans + photoLine0 + photoLine + shipBox + body;
+  }
+
+  /* ---------------------------------------------------------------------
+     My work (14 Oct 2026)
+  --------------------------------------------------------------------- */
+  var WORK_TILES = [
+    ['design', 'Designer', 'Sea Diva and TailCraft designs to make. Done sends a Sea Diva design to Printing; a TailCraft design to Design options sent.'],
+    ['order', 'To order, 3rd party', 'Paid products bought from a supplier. Once you have ordered, tap Bought, now ordered.'],
+    ['ordered', 'Ordered, arriving', 'Ordered from the supplier. When it arrives, tap Arrived and it moves to Pack and ship.'],
+    ['fluke', 'Fluke filler', 'Fluke fillers to make. Done moves the product to Ready to be shipped.'],
+    ['crown', 'Crown', 'Crowns to make. Done moves the product to Ready to be shipped.'],
+    ['make', 'Other to make', 'Status Need to Create or In the Making. Done moves the product to Ready to be shipped.']
+  ];
+  var WAIT_TILES = [
+    ['printing', 'Printing · Timur Jaya', 'At the printer. When the print is back, send it to sewing or straight to ready.'],
+    ['sewing', 'Sewing · Pak Supri', 'With the tailor. When it is sewn, tap Sewn, ready to pack.']
+  ];
+  function tabName(src) {
+    return { 'MANUAL (IG & WA) - OL': 'Manual', 'SHOPIFY-OL': 'Shopify', 'SHOPEE - OL': 'Shopee', 'TOKOPEDIA/TIKTOK shop -OL': 'Tokopedia/TikTok', 'TAILCRAFT': 'TailCraft' }[src] || src;
+  }
+  function workSheetNote(k) {
+    if (!k) return '';
+    if (k.write === 'queued') {
+      if (k.written) return 'Sheet updated.';
+      if (k.writeError) return 'The sheet was not changed: ' + k.writeError + ' Change it by hand.';
+      return 'The sheet changes to ' + k.to + ' within the hour.';
+    }
+    if (k.write === 'by_hand') return 'The ' + tabName(k.src) + ' tab cannot be written automatically yet. Set ' + k.to + ' in the sheet by hand.';
+    if (k.write === 'tailcraft') return 'TailCraft project updated.';
+    return '';
+  }
+  function workItemHtml(x) {
+    var ph = x.photo && x.photo.url
+      ? '<a class="biz-ph" href="' + esc(x.photo.url) + '" target="_blank" rel="noopener"><img loading="lazy" referrerpolicy="no-referrer" alt="' + esc(x.title) + '" src="' + esc(x.photo.url) + '" onerror="this.parentNode.outerHTML=\'<div class=&quot;biz-ph&quot;>photo did not load</div>\'"></a>'
+      : '<div class="biz-ph">' + (x.tc ? 'TailCraft custom' : 'no shop photo') + '</div>';
+    var meta = '<span class="biz-badge ' + esc(x.channel) + '">' + esc(CH[x.channel] || x.channel) + '</span> <b>' + esc(x.invoice) + '</b>' +
+      (x.customer ? ' · ' + esc(x.customer) : '') + (x.days != null ? ' · ' + (x.tc ? 'last change ' : '') + x.days + (x.days === 1 ? ' day ago' : ' days ago') : '') +
+      (x.unpaid ? ' <span class="biz-unpaid">not paid yet</span>' : '');
+    var detail = (x.detail || []).map(function (t) { return '<div class="d">' + esc(t) + '</div>'; }).join('');
+    if (x.note) detail += '<div class="biz-pnote2">' + esc(x.note.text) + '<span class="w">Note' + (x.note.by ? ' by ' + esc(x.note.by) : '') + '</span></div>';
+    var st = '<span class="biz-s ' + (x.tc ? 'design_todo' : '') + '">' + esc(x.status) + '</span>' +
+      (x.qty ? ' <span class="biz-q">× ' + esc(x.qty) + '</span>' : '');
+    if (x.sheetStatus && x.sheetStatus.toLowerCase() !== String(x.status).toLowerCase()) st += ' <span class="biz-pnote">sheet still says ' + esc(x.sheetStatus) + '</span>';
+    var moved = '';
+    if (x.work) {
+      moved = '<div class="m">Moved here' + (x.work.by ? ' by ' + esc(x.work.by) : '') + (x.work.at ? ' · ' + esc(when(x.work.at)) : '') +
+        ' <button class="biz-undo" data-wundo="' + esc(x.work.id) + '">Undo</button></div>' +
+        (workSheetNote(Object.assign({ src: x.src }, x.work)) ? '<div class="biz-sheet' + (x.work.write === 'by_hand' || x.work.writeError ? ' todo' : '') + '">' + esc(workSheetNote(Object.assign({ src: x.src }, x.work))) + '</div>' : '');
+    }
+    if (x.tc && x.days != null && x.days > 30) moved += '<div class="biz-stale">No change on this project for ' + x.days + ' days. If the customer went quiet, tap Not going ahead.</div>';
+    var live = S.data && S.data.work && S.data.work.live;
+    var btns = !live ? '' : '<div class="biz-wbtns">' + (x.moves || []).map(function (m, i) {
+      var id = x.key + '|' + i;
+      return '<button class="biz-wbtn' + (i > 0 && m.to === 'lost' ? ' alt' : '') + (S.arm === 'w:' + id ? ' arm' : '') + '" data-work="' + esc(id) + '"' + (S.busy ? ' disabled' : '') + '>' +
+        (S.arm === 'w:' + id ? 'Tap again: ' + esc(m.label) : esc(m.label)) + '</button>';
+    }).join('') + '</div>';
+    var fl = S.flash[x.key] ? '<div class="biz-flash' + (S.flash[x.key].bad ? ' bad' : '') + '">' + esc(S.flash[x.key].text) + '</div>' : '';
+    return '<div class="biz-witem' + (x.tc ? ' tc' : '') + '">' + ph + '<div class="biz-it"><div class="t">' + esc(x.title) + '</div>' + detail +
+      '<div class="row">' + st + '</div><div class="m">' + meta + '</div>' + moved + btns + fl + '</div></div>';
+  }
+  function workHtml(d) {
+    var W = d.work;
+    if (!W) return '<div class="biz-err">My work could not be worked out from this answer. Tap Refresh.</div>';
+    var c = W.counts || {}, items = W.items || {};
+    var warn = '';
+    if (!W.live) warn += '<div class="biz-warn">The Done buttons are not switched on yet: the database part is waiting for approval. The lists below are already correct, read from the sheet.</div>';
+    if (!(d.sources && d.sources.tcwork)) warn += '<div class="biz-warn">TailCraft designs could not be read, so the Designer list shows Sea Diva only.</div>';
+    var tile = function (t, wait) {
+      var n = c[t[0]] || 0;
+      return '<button class="biz-tile' + (wait ? ' wait' : '') + (n ? '' : ' zero') + (S.wtab === t[0] ? ' on' : '') + '" data-wtab="' + t[0] + '"><b>' + n + '</b><span>' + esc(t[1]) + '</span></button>';
+    };
+    var tiles = '<div class="biz-wgroup">My hands</div><div class="biz-tiles">' + WORK_TILES.map(function (t) { return tile(t, false); }).join('') + '</div>' +
+      '<div class="biz-wgroup">Waiting on someone</div><div class="biz-tiles">' + WAIT_TILES.map(function (t) { return tile(t, true); }).join('') + '</div>';
+    var show = WORK_TILES.concat(WAIT_TILES).filter(function (t) { return (S.wtab === 'all' || S.wtab === t[0]) && (items[t[0]] || []).length; });
+    var secs = show.map(function (t) {
+      var list = items[t[0]] || [];
+      var extra = '';
+      if (t[0] === 'design' && c.tcDesign) extra = ' ' + c.tcDesign + ' of them TailCraft.';
+      if (t[0] === 'order') extra = ' <button class="biz-undo" data-act="copy-order">Copy the list</button> <span id="biz-copied"></span>';
+      return '<div class="biz-wsec"><h4>' + esc(t[1]) + ' (' + list.length + ')</h4><div class="why">' + esc(t[2]) + extra + '</div>' + list.map(workItemHtml).join('') + '</div>';
+    }).join('');
+    if (!secs) secs = '<div class="biz-empty">' + (S.wtab === 'all' ? 'Nothing is waiting on you or on the craftspeople. Every paid product is ready, packed or done.' : 'Nothing here right now.') + '</div>';
+    var log = '';
+    if ((W.log || []).length) {
+      log = S.showLog
+        ? '<div class="biz-shipped"><h4>Moved in the last 24 hours <button class="biz-undo" data-act="hide-wlog">Hide</button></h4>' + W.log.map(function (k) {
+            return '<div class="r"><b>' + esc(k.invoice) + '</b> <span>' + esc(String(k.item || '').split('\n')[0]) + ': ' + esc(k.from) + ' → ' + esc(k.to) + ' · ' + esc(when(k.at)) + '</span>' +
+              '<button class="biz-undo" data-wundo="' + esc(k.id) + '">Undo</button>' +
+              (workSheetNote(k) ? '<span class="h">' + esc(workSheetNote(k)) + '</span>' : '') + '</div>';
+          }).join('') + '</div>'
+        : '<div class="biz-fresh">' + W.log.length + (W.log.length === 1 ? ' product' : ' products') + ' moved in the last 24 hours. <button class="biz-undo" data-act="show-wlog">Show to undo</button></div>';
+    }
+    return warn + tiles + log + secs;
+  }
+  function workItem(key) {
+    var W = S.data && S.data.work, hit = null;
+    if (!W) return null;
+    Object.keys(W.items || {}).forEach(function (k) { (W.items[k] || []).forEach(function (x) { if (x.key === key) hit = x; }); });
+    return hit;
+  }
+  function doWork(id) {
+    var parts = id.split('|'), i = Number(parts.pop()), key = parts.join('|');
+    var x = workItem(key), m = x && x.moves[i];
+    if (!x || !m) return;
+    var body = x.tc ? { action: 'tc_work', project: x.project, from: 'design_making', to: m.to }
+      : { action: 'work', src: x.src, row: x.row, invoice: x.invoice, slot: x.slot, from: x.status, to: m.to };
+    post(body, key).then(function (j) {
+      var r = (j && j.result) || j || {};
+      var t = String(x.title).split('\n')[0] + ' (' + x.invoice + '): ' + m.label + '.';
+      if (r.write === 'by_hand') t += ' The ' + tabName(x.src) + ' tab cannot be written automatically yet, so set ' + m.to + ' in the sheet by hand.';
+      else if (r.write === 'queued') t += ' The sheet changes within the hour.';
+      if (r.job && /not moved/.test(r.job)) t += ' Board: ' + r.job + '.';
+      S.notice = { text: t, wundo: r.id };
+      delete S.flash[key];
+      load();
+    }).catch(function (e) { S.flash[key] = { text: 'Not saved: ' + (e.message || 'error'), bad: true }; render(); });
+  }
+  function doWorkUndo(id) {
+    post({ action: 'work_undo', id: id }, 'wundo').then(function (j) {
+      var r = (j && j.result) || j || {};
+      S.notice = { text: 'Undone.' + (r.note ? ' ' + r.note.charAt(0).toUpperCase() + r.note.slice(1) + '.' : '') };
+      load();
+    }).catch(function (e) { S.notice = { text: 'Undo failed: ' + (e.message || 'error') }; render(); });
   }
 
   function render() {
@@ -680,7 +839,7 @@
   document.addEventListener('click', function (e) {
     var root = document.getElementById(ROOT);
     if (!root || !root.contains(e.target)) return;
-    var b = e.target.closest('[data-biz],[data-stage],[data-ch],[data-act],[data-pack],[data-undo-mark],[data-undo-click],[data-tick],[data-addr],[data-addr-hide],[data-addr-copy],[data-ship],[data-unship],[data-note-edit],[data-note-save],[data-note-cancel],[data-hand],[data-packgo],[data-track-save],[data-addr-print]');
+    var b = e.target.closest('[data-biz],[data-stage],[data-ch],[data-act],[data-pack],[data-undo-mark],[data-undo-click],[data-tick],[data-addr],[data-addr-hide],[data-addr-copy],[data-ship],[data-unship],[data-note-edit],[data-note-save],[data-note-cancel],[data-hand],[data-packgo],[data-track-save],[data-addr-print],[data-view],[data-wtab],[data-work],[data-wundo]');
     if (!b) return;
     if (b.dataset.noteEdit) { S.noteEdit = b.dataset.noteEdit; render(); var ta = document.querySelector('[data-note-input]'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } return; }
     if (b.dataset.noteCancel) { delete S.noteDraft[b.dataset.noteCancel]; S.noteEdit = ''; render(); return; }
@@ -692,6 +851,20 @@
       doShip(b.dataset.ship); return;
     }
     if (b.dataset.addrPrint) { printLabel(b.dataset.addrPrint); return; }
+    if (b.dataset.view) {
+      S.view = b.dataset.view;
+      try { localStorage.setItem('biz-view', S.view); } catch (e2) { /* storage blocked */ }
+      render(); return;
+    }
+    if (b.dataset.wtab) { S.wtab = S.wtab === b.dataset.wtab ? 'all' : b.dataset.wtab; render(); return; }
+    if (b.dataset.work) {
+      if (S.busy) return;
+      /* Two taps, so a stray tap while scrolling never moves anything. */
+      var wa = 'w:' + b.dataset.work;
+      if (S.arm !== wa) { S.arm = wa; render(); setTimeout(function () { if (S.arm === wa) { S.arm = ''; render(); } }, 5000); return; }
+      S.arm = ''; doWork(b.dataset.work); return;
+    }
+    if (b.dataset.wundo) { if (!S.busy) doWorkUndo(Number(b.dataset.wundo)); return; }
     if (b.dataset.packgo || b.dataset.trackSave) {
       if (S.busy) return;
       var ga = b.dataset.packgo ? 'go:' + b.dataset.packgo : 'track:' + b.dataset.trackSave;
@@ -740,6 +913,16 @@
     if (b.dataset.stage) { S.stage = S.stage === b.dataset.stage ? 'all' : b.dataset.stage; render(); return; }
     if (b.dataset.ch) { S.ch = b.dataset.ch; render(); return; }
     if (b.dataset.act === 'show-shipped') { S.showShipped = true; render(); return; }
+    if (b.dataset.act === 'show-wlog') { S.showLog = true; render(); return; }
+    if (b.dataset.act === 'hide-wlog') { S.showLog = false; render(); return; }
+    if (b.dataset.act === 'copy-order') {
+      var ol = ((S.data && S.data.work && S.data.work.items.order) || []).map(function (x) {
+        return String(x.title).split('\n')[0] + (x.qty ? ' × ' + x.qty : '') + '  (' + x.invoice + (x.customer ? ', ' + x.customer : '') + ')';
+      }).join('\n');
+      var cp = document.getElementById('biz-copied');
+      if (navigator.clipboard) navigator.clipboard.writeText(ol).then(function () { if (cp) cp.textContent = 'Copied.'; }, function () { if (cp) cp.textContent = 'Copy was blocked.'; });
+      return;
+    }
     if (b.dataset.act === 'hide-shipped') { S.showShipped = false; render(); return; }
     if (b.dataset.act === 'refresh') { S.flash = {}; S.notice = null; load(); }
   });

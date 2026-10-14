@@ -251,3 +251,57 @@ test('POST for a TailCraft order needs row 0, never a sheet row', async () => {
   await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'mark', src: 'SHOPEE - OL', row: 0, invoice: 'X1', slots: [1] } }), r);
   assert.equal(r.code, 400, 'row 0 on a sheet order is refused');
 });
+
+test('POST work passes one allowed move through and refuses any other', async () => {
+  calls.length = 0;
+  packAnswer = { work: { ok: true, id: 7, write: 'queued' } };
+  let r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'work', src: 'MANUAL (IG & WA) - OL', row: 282, invoice: ' SDTJun26-23 ', slot: 1, from: 'Design Needs to Be Made', to: 'Printing' } }), r);
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  assert.deepEqual(calls[0].body, { action: 'work', src: 'MANUAL (IG & WA) - OL', row: 282, invoice: 'SDTJun26-23', slot: 1, from: 'Design Needs to Be Made', to: 'Printing' });
+  for (const bad of [
+    { from: 'Design Needs to Be Made', to: 'DONE' },
+    { from: 'Ready to be shipped', to: 'Printing' },
+    { from: 'Order from 3rd Party', to: 'Ready to be shipped' }
+  ]) {
+    r = res();
+    await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: Object.assign({ action: 'work', src: 'SHOPIFY-OL', row: 74, invoice: '#1065', slot: 1 }, bad) }), r);
+    assert.equal(r.code, 400, bad.from + ' -> ' + bad.to);
+  }
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'work', src: 'TAILCRAFT', row: 0, invoice: 'X', slot: 1, from: 'Printing', to: 'Ready to be shipped' } }), r);
+  assert.equal(r.code, 400, 'TailCraft designs go through tc_work');
+  assert.equal(calls.length, 1);
+});
+
+test('POST tc_work and work_undo', async () => {
+  calls.length = 0;
+  packAnswer = { tc_work: { ok: true, id: 8 }, work_undo: { ok: true, id: 8 } };
+  let r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'tc_work', project: 'TC-2026-005', from: 'design_making', to: 'design_sent' } }), r);
+  assert.equal(r.code, 200);
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'tc_work', project: 'TC-2026-005', from: 'design_making', to: 'shipped' } }), r);
+  assert.equal(r.code, 400);
+  r = res();
+  await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: { action: 'work_undo', id: 8 } }), r);
+  assert.equal(r.code, 200);
+  assert.deepEqual(calls.map((c) => c.pack), ['tc_work', 'work_undo']);
+});
+
+test('GET carries My work, with or without the database part', async () => {
+  delete process.env.NOTION_TOKEN;
+  packAnswer = { overlay: { ok: true, ticks: [], shipped: [], notes: [], handoff: [],
+    work: [{ id: 1, src: 'SHOPIFY-OL', invoice: '#1069', slot: 1, from: 'Order from 3rd Party', to: 'Ordered', at: '2026-10-13T01:00:00Z' }],
+    tcwork: [{ project: 'TC-2026-005', customer: 'Studio A', stage: 'design_making', stage_label: 'Custom Design Making', updated_at: '2026-08-26T00:00:00Z' }] } };
+  let r = res(); await handler(req({ headers: { 'x-os-key': 'os-key' } }), r);
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  assert.ok(r.body.work.items.ordered.some((x) => x.invoice === '#1069'));
+  assert.equal(r.body.work.counts.tcDesign, 1);
+  packAnswer = { overlay: { ok: true, ticks: [], shipped: [], notes: [], handoff: [] } };
+  delete feed.work; delete feed.tcwork; /* the mock hands back the same object each time */
+  r = res(); await handler(req({ headers: { 'x-os-key': 'os-key' } }), r);
+  assert.equal(r.code, 200);
+  assert.ok(r.body.work.counts.mine > 0, 'the sheet lists still work without the database part');
+  assert.equal(r.body.sources.tcwork, undefined, 'and the page can say TailCraft is missing');
+});
