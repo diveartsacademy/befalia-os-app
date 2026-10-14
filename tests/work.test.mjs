@@ -142,3 +142,11 @@ test('no Done buttons until the database part is live', () => {
   assert.equal(build(feedWith(), products, NOW).work.live, false);
   assert.equal(build(feedWith({ work: [] }), products, NOW).work.live, true);
 });
+
+test('a product ticked in the box is never work, whatever the sheet still says', () => {
+  const f = feedWith({ ticks: [1, 2].map((s) => ({ src: 'MANUAL (IG & WA) - OL', invoice: 'SDTJun26-23', slot: s, at: '2026-10-13T16:22:00Z', by: 'Befa' })) });
+  const w = build(f, products, NOW).work;
+  assert.equal(find(w, 'SDTJun26-23', 1).length, 0);
+  assert.equal(find(w, 'SDTJun26-23', 2).length, 0);
+  assert.deepEqual(find(w, 'SDTJun26-23', 3).map((x) => x.bucket), ['printing'], 'not ticked, still listed');
+});
