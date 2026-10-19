@@ -165,6 +165,54 @@ function cityOf(t, log) {
   return '';
 }
 
+/* ---------- cancel, restore or move a class (18 Oct 2026) ----------
+   Befa: "click the X to delete a schedule in my calendar that shows in my
+   to-do list ... or reschedule it ... all synchronized."
+   The class is changed at its source first, by the DAA sheet service action
+   classCalEdit (apps-script/daa-instructor/BefaliaClass.gs): a student session
+   through its OS_SCHEDULE row, a regular class or all-day block on its Google
+   Calendar event. Only when that worked does the To-Do row change:
+     cancel   Status Parked (hidden, kept) and a "Cancelled in Befalia OS" note
+     restore  Status To do, the note taken off
+     move     the new Date, in the class's own zone (WITA Bali, WIB Jakarta)
+   The morning sync then finds the calendar and the row already agreeing. */
+export const CANCEL_NOTE = 'Cancelled in Befalia OS on ';
+const CANCEL_RE = /^Cancelled in Befalia OS on [^.]*\.\s*/;
+export function gcalIds(notes) {
+  const out = [];
+  String(notes || '').replace(/gcal:([A-Za-z0-9_]{5,200})/g, (m, id) => { if (out.indexOf(id) === -1) out.push(id); return m; });
+  return out;
+}
+export function calOf(t) { return /DiveArts Jakarta/i.test(String((t && t.notes) || '')) ? 'Jakarta' : 'Bali'; }
+export const OFFSET = { Bali: '+08:00', Jakarta: '+07:00' };
+const prettyDay = (ymd) => { const [y, m, d] = ymd.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }); };
+export function cancelNotes(notes, today) { return CANCEL_NOTE + prettyDay(today) + '. ' + String(notes || '').replace(CANCEL_RE, ''); }
+export function restoreNotes(notes) { return String(notes || '').replace(CANCEL_RE, ''); }
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+// The move as the sheet service wants it, checked here first so a typo never reaches Google.
+export function cleanMove(t, raw, today) {
+  const m = raw || {};
+  const allDay = !!(t.date && t.date.start && String(t.date.start).length === 10);
+  const date = String(m.date || '');
+  if (!DAY_RE.test(date)) throw bad('Pick the new date.');
+  if (date < today) throw bad('Pick today or a later day. A class cannot move into the past.');
+  if (allDay) {
+    const last = String(m.endDate || date);
+    if (!DAY_RE.test(last) || last < date) throw bad('The last day has to be on or after the first day.');
+    return { date, endDate: last };
+  }
+  const start = String(m.start || ''), end = String(m.end || '');
+  if (!TIME_RE.test(start) || !TIME_RE.test(end)) throw bad('Give the new start and end time.');
+  if (end <= start) throw bad('The end time has to be after the start time.');
+  return { date, start, end };
+}
+export function movedDate(mv, cal) {
+  if (mv.endDate) return { start: mv.date, end: mv.endDate === mv.date ? null : mv.endDate };
+  const off = OFFSET[cal] || OFFSET.Bali;
+  return { start: mv.date + 'T' + mv.start + ':00.000' + off, end: mv.date + 'T' + mv.end + ':00.000' + off };
+}
+
 export default async function handler(req, res) {
   if (req.method === 'GET') {
     // Says only whether sending is switched on. No values.
@@ -223,6 +271,28 @@ export default async function handler(req, res) {
       const stored = { ...prev, video: inc.video, lang: inc.lang, students: inc.students, videos };
       const pg = await notion('/pages/' + nid(body.id), H, { method: 'PATCH', body: { properties: { 'Expenses': { rich_text: rt(JSON.stringify(stored)) } } } });
       res.status(200).json({ today, task: mapPage(pg), videos });
+      return;
+    }
+
+    if (body.action === 'calendar') {
+      const op = String(body.op || '');
+      if (['cancel', 'restore', 'move'].indexOf(op) === -1) throw bad('Unknown change');
+      if (t.sessionId) throw bad('This class is already in the DiveArts books as ' + t.sessionId + ', so it took place. It cannot be cancelled or moved from here.', 409);
+      const ids = gcalIds(t.notes);
+      if (!ids.length) throw bad('This class has no Google Calendar link in its notes, so it cannot be changed from here.', 409);
+      if (ids.length > 12) throw bad('This class holds more than 12 calendar events. Change it on the /academy Schedule screen.', 409);
+      const mv = op === 'move' ? cleanMove(t, body.move, today) : null;
+      if (!process.env.DAA_API_KEY) throw bad('Not connected yet: DAA_API_KEY needs to be added in Vercel. Nothing changed.', 503);
+      const out = await sheet({ action: 'classCalEdit', op, ids, ...(mv ? { move: mv } : {}) });
+      const cal = (out.events || []).map((e) => e && e.cal).find(Boolean) || calOf(t);
+      const props = {};
+      if (op === 'cancel') { props['Status'] = { select: { name: 'Parked' } }; props['Notes'] = { rich_text: rt(cancelNotes(t.notes, today)) }; }
+      if (op === 'restore') { props['Status'] = { select: { name: 'To do' } }; props['Notes'] = { rich_text: rt(restoreNotes(t.notes)) }; }
+      if (op === 'move') props['Date'] = { date: movedDate(mv, cal) };
+      let pg;
+      try { pg = await notion('/pages/' + nid(body.id), H, { method: 'PATCH', body: { properties: props } }); }
+      catch (e) { throw bad('The calendar changed, but the To-Do row did not (' + e.message + '). The 05:54 sync will catch it up; nothing needs redoing.', 502); }
+      res.status(200).json({ today, task: mapPage(pg), result: { op, calendar: out.calendar || null, deferred: out.deferred || 0, syncError: out.syncError || '', events: out.events || [] } });
       return;
     }
 

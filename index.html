@@ -61,6 +61,7 @@
   .card:before{content:"";position:absolute;left:0;top:0;height:100%;width:3px;background:linear-gradient(var(--aqua),transparent);box-shadow:0 0 12px rgba(46,230,255,.5);}
   .card.feature:before{background:linear-gradient(var(--rose),transparent);}
   .card.wide{grid-column:span 2;} @media(max-width:720px){.card.wide{grid-column:span 1;}}
+  .feed-img{margin:10px 0;}.feed-img img{display:block;width:100%;max-height:420px;object-fit:cover;border-radius:16px;border:1px solid var(--line);}.feed-img figcaption{font-size:12px;color:var(--muted);margin-top:5px;}
   .card h2{font-family:var(--serif);font-weight:600;margin:0;font-size:18px;letter-spacing:.6px;display:flex;align-items:center;gap:12px;color:var(--aquasoft);}
   .ic{flex:none;width:36px;height:36px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;
     font-size:19px;background:rgba(46,230,255,.10);border:1px solid var(--aqualine);box-shadow:var(--glowsoft),inset 0 0 10px rgba(46,230,255,.08);}
@@ -266,6 +267,7 @@
   .td-add .gold-btn{height:40px;padding:0 18px;}
   .td-stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:14px;}
   @media(max-width:700px){.td-stats{grid-template-columns:repeat(3,minmax(0,1fr));}}
+  .td-stats.td-stats-top{margin:0 0 12px;}
   .td-stat{background:rgba(46,230,255,.05);border:1px solid var(--aqualine);border-radius:12px;padding:9px 6px;text-align:center;cursor:pointer;color:var(--ink);font-family:var(--sans);transition:.15s;}
   .td-stat b{display:block;font-family:var(--serif);font-size:21px;color:var(--aqua);line-height:1.1;}
   .td-stat span{font-size:10.5px;color:var(--muted);}
@@ -273,6 +275,7 @@
   .td-stat.warn b{color:#ff9db0;}
   .td-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,1fr);gap:16px;margin-top:16px;align-items:start;}
   .td-side{position:sticky;top:64px;}
+  .td-col{min-width:0;}
   @media(max-width:980px){.td-layout{display:flex;flex-direction:column;align-items:stretch;}.td-side{position:static;order:-1;}}
   .td-min{margin-left:auto;}
   .td-head.min .td-headbody{display:none;}
@@ -383,6 +386,13 @@
   .td-mv-ts{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 0 4px;}
   .td-mv-t{border:1px solid var(--aqualine);background:rgba(46,230,255,.05);color:var(--ink);border-radius:999px;padding:6px 11px;font:600 12px var(--sans);cursor:pointer;}
   .td-mv-t.new{color:var(--aqua2);border-style:dashed;}
+  .td-clx-name{font:700 15px var(--sans);color:var(--ink);margin:4px 0 2px;}
+  .td-clx-when{font-size:12.5px;color:var(--aqua2);}
+  .td-clx-kind{font-size:11.5px;color:var(--dim);margin-top:2px;}
+  .td-clx-hint{font-size:12px;color:var(--muted);margin:4px 0 2px;}
+  .td-clx-msg{font-size:12.5px;color:var(--aqua2);margin-top:10px;min-height:1em;}
+  .td-clx-msg.bad{color:#ff8a8a;}
+  .td-flag.td-x{color:#ff9b9b;font-weight:700;}
   .td-mv-a.here,.td-mv-t.here{opacity:.45;cursor:default;}
   .td-mv-newbox{display:flex;gap:8px;margin:8px 0 0 4px;}
   .td-mv-newbox[hidden]{display:none;}
@@ -462,10 +472,10 @@
     <div id="rel-root"></div>
   </div>
   <div class="tabpane" id="tab-room">
-    <div class="section-label">Achievements &amp; wins</div>
-    <div class="blurb" style="margin:10px 4px 0;font-style:italic">A place to remember how far you have come. Photos open full-size in Notion — the dashboard can't load images directly.</div>
+    <div class="section-label">About me</div>
+    <div id="me-root"></div>
+    <div class="section-label">More about me</div>
     <div class="grid" id="room"></div>
-    <div class="section-label">All about me</div>
     <div class="grid" id="aboutme"></div>
     <div class="section-label">Journals &amp; trackers</div>
     <div class="grid" id="trackers"></div>
@@ -477,7 +487,7 @@
   </div>
   <div class="tabpane" id="tab-finance">
     <div class="section-label">Personal finance</div>
-    <div class="grid" id="pending"></div>
+    <div id="fin-root"></div>
   </div>
   <div class="tabpane" id="tab-social">
     <div class="section-label">Social Media</div>
@@ -611,7 +621,7 @@ let todayEventCount=0;
 
 const MET={Swim:8,Class:7,Gym:5,Run:9.8,Walk:3.5,Yoga:3,Cycle:7,'Underwater':6,Dance:6,Other:5};
 const WEEKLY_REVIEW_ID='3a2eb411ed7a816d9760efc4342c5362';
-const FINANCE_ID='3a2eb411ed7a814abbaac4cf8a05c80f';
+// Finance now reads the HUTANG BEFA sheet (finance-panel.js, /api/finance). The old Notion page stays in Notion.
 const FOUNDER_ID='3a2eb411ed7a8167ac9cd4d91d39ece2';
 const CONNECTIONS_ID='3a2eb411ed7a81919ba0c70f35ee974b';
 const MY_PERSONALITY_ID='3a2eb411ed7a81d694b7d9b1dbaa32f6';
@@ -639,7 +649,7 @@ const ROUTES={
 };
 
 /* ---------- tabs ---------- */
-function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-business'&&typeof window.bizOpen==='function')window.bizOpen();if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
+function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-business'&&typeof window.bizOpen==='function')window.bizOpen();if(id==='tab-finance'&&typeof window.finOpen==='function')window.finOpen();if(id==='tab-room'&&typeof window.meOpen==='function')window.meOpen();if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
 function buildTabs(){
   const bar=document.getElementById('tabs');
   [['tab-command','Home'],['tab-todo','To-Do'],['tab-goals','Goals'],['tab-health','Health'],['tab-areas','Relationship'],['tab-room','About Me'],['tab-business','Business'],['tab-finance','Finance'],['tab-social','Social'],['tab-agents','Agents']].forEach((t,i)=>{
@@ -1059,13 +1069,8 @@ const TRACKERS=[
   {icon:"🌟",title:"Befalia",url:"https://app.notion.com/p/e7a837fbe7bc430daab522c18852dd24",blurb:"BEFALIA (by date) — personal log"},
 ];
 const ROOM=[
-  {icon:"🏆",title:"Medals & Trophies",id:"3a2eb411ed7a8151ac94c380e41244e1",blurb:"Wins and placements",cls:"feature"},
   {icon:"🎖️",title:"Certifications & Titles",id:"3a2eb411ed7a81ad8480f6c9e78d8363",blurb:"Your qualifications"},
   {icon:"🌟",title:"Milestones",id:"3a2eb411ed7a81828016ef3c45f98047",blurb:"Firsts and big moments"},
-  {icon:"🎬",title:"Film, TV & Stage",id:"3a2eb411ed7a81368908e4f0d95e8b46",blurb:"Netflix, films, performances"},
-  {icon:"💬",title:"Kind Words",id:"3a2eb411ed7a81bdbfc6c9acd41588c3",blurb:"For the days you need them",cls:"feature"},
-  {icon:"📊",title:"Impact by Numbers",id:"3a2eb411ed7a8158b681de12fb6587b0",blurb:"Your reach",tiles:true},
-  {icon:"📸",title:"Gallery",id:"3a2eb411ed7a81aba6caf53124b39333",blurb:"Open in Notion to view photos"},
 ];
 const AFFIRMS=[
   "You built a world underwater that did not exist before you. That is not luck. That is you.",
@@ -1094,16 +1099,13 @@ function renderAffirm(){const box=document.getElementById('affirm-bubble');if(!b
   const anew=document.getElementById('aff-new');anew.addEventListener('keydown',e=>{if(e.key==='Enter'&&anew.value.trim()){affirmCustom.push(anew.value.trim());LS.set('plos_affirm',affirmCustom);anew.value='';renderAffirm();}});}
 function parseChildren(text){const out=[];const re=/<page\s+url="([^"]+)"[^>]*>([^<]*)<\/page>/g;let m;while((m=re.exec(text))!==null){out.push({url:m[1],title:(m[2]||"Untitled").trim()});}return out;}
 function extractContent(text){const m=(text||"").match(/<content>([\s\S]*?)<\/content>/);return m?m[1].trim():(text||"");}
-function renderMini(md){let html="";md.split("\n").forEach(raw=>{const l=raw.trim();if(!l)return;if(l.startsWith("# "))return;if(l.startsWith("## ")){html+='<div class="feed-h">'+escapeHtml(l.slice(3))+'</div>';return;}let x=escapeHtml(l).replace(/^_(.*)_$/,'<em>$1</em>');html+='<div class="feed-p">'+x+'</div>';});return html;}
+function renderMini(md){let html="";md.split("\n").forEach(raw=>{const l=raw.trim();if(!l)return;if(l.startsWith("# "))return;const im=l.match(/^!\[([^\]]*)\]\((https:\/\/[^)\s]+)\)$/);if(im){html+='<figure class="feed-img"><img src="'+escapeHtml(im[2])+'" alt="'+escapeHtml(im[1]||'Photo')+'" loading="lazy">'+(im[1]?'<figcaption>'+escapeHtml(im[1])+'</figcaption>':'')+'</figure>';return;}if(l.startsWith("## ")){html+='<div class="feed-h">'+escapeHtml(l.slice(3))+'</div>';return;}let x=escapeHtml(l).replace(/^_(.*)_$/,'<em>$1</em>');html+='<div class="feed-p">'+x+'</div>';});return html;}
 async function fetchNotion(id){const r=await window.cowork.callMcpTool(TOOL,{id});if(r&&r.isError)throw new Error("err");let data;if(r&&r.structuredContent)data=r.structuredContent;else if(r&&r.content&&r.content[0]&&r.content[0].text)data=JSON.parse(r.content[0].text);else throw new Error("no data");return data;}
-function shell(a,extra){const el=document.createElement("div");el.className="card"+(extra?(" "+extra):"");el.innerHTML='<h2><span class="ic">'+a.icon+'</span>'+a.title+'<span class="badge" data-badge>…</span></h2><div class="blurb">'+a.blurb+'</div><div data-body class="loading">Loading from Notion…</div>';return el;}
+function shell(a,extra){const el=document.createElement("div");el.className="card"+(extra?(" "+extra):"");el.innerHTML='<h2><span class="ic">'+a.icon+'</span>'+a.title+'<span class="badge" data-badge>…</span></h2>'+(a.blurb?'<div class="blurb">'+a.blurb+'</div>':'')+'<div data-body class="loading">Loading from Notion…</div>';return el;}
 async function renderFeed(f,cid){const el=shell(f,f.cls);el.querySelector("[data-badge]").remove();document.getElementById(cid||"areas").appendChild(el);const body=el.querySelector("[data-body]");try{const d=await fetchNotion(f.id);let html=(f.tiles?renderTiles:renderMini)(extractContent(d.text||""));html+='<div class="foot"><a href="'+(d.url||("https://app.notion.com/p/"+f.id))+'" target="_blank" rel="noopener">Edit this page →</a>'+(f.history?'<a href="'+f.history+'" target="_blank" rel="noopener">Full history →</a>':'')+'</div>';body.className="";body.innerHTML=html;}catch(e){body.className="err";body.textContent="Couldn't load right now. Try Reload.";}}
 async function renderArea(a,cid){const el=shell(a,a.sensitive?'sensitive':'');document.getElementById(cid||"areas").appendChild(el);const body=el.querySelector("[data-body]"),badge=el.querySelector("[data-badge]");try{const d=await fetchNotion(a.id);const kids=parseChildren(d.text||"");badge.textContent=kids.length;let html;if(a.sensitive){html='<div class="note-hint">'+kids.length+' private items. Kept in Notion, not shown here.</div>';}else{html='<ul class="notes">';kids.slice(0,30).forEach(k=>{html+='<li><a href="'+k.url+'" target="_blank" rel="noopener">'+escapeHtml(k.title)+'</a></li>';});html+='</ul>';if(kids.length===0)html='<div class="note-hint">No sub-notes yet in this area.</div>';}
   html+='<div class="foot"><a href="'+(d.url||("https://app.notion.com/p/"+a.id))+'" target="_blank" rel="noopener">Open in Notion →</a></div>';if(a.sensitive)html+='<div class="lock">🔒 Sensitive — opened only in Notion</div>';body.className="";body.innerHTML=html;return kids.length;}catch(e){badge.textContent="!";body.className="err";body.textContent="Couldn't load this area right now. Try Reload.";return 0;}}
 function renderTracker(t){const el=document.createElement("div");el.className="card";el.innerHTML='<h2><span class="ic">'+t.icon+'</span>'+t.title+'</h2><div class="blurb">'+t.blurb+'</div><div class="note-hint">Dated entries live here in Notion.</div><div class="foot"><a href="'+t.url+'" target="_blank" rel="noopener">Open tracker →</a></div>';document.getElementById("trackers").appendChild(el);}
-function renderPending(){const el=document.createElement("div");el.className="card sensitive";el.innerHTML='<h2><span class="ic">💰</span>Personal Finance<button class="link-btn" id="fin-edit" style="margin-left:auto">Edit in Notion →</button></h2><div class="blurb">Personal money only — separate from DiveArts, Sea Diva and TailCraft business finances.</div><div data-body id="fin-body" class="loading">Loading…</div>';document.getElementById("pending").appendChild(el);document.getElementById('fin-edit').onclick=()=>window.open('https://app.notion.com/p/'+FINANCE_ID,'_blank');loadFinance();}
-async function loadFinance(){const body=document.getElementById('fin-body');if(!body)return;try{const d=await fetchNotion(FINANCE_ID);const c=extractContent(d.text||'');let inner=renderMini(c);if(!c||c.replace(/\s/g,'').length<60)inner='<div class="note-hint">No numbers yet. Add available cash, monthly spend, savings, upcoming payments and subscriptions in the Notion page and they appear here — or tell me where your finance sheet lives and I will summarize it.</div>';body.className='';body.innerHTML=inner+'<div class="foot"><button class="link-btn" onclick="askFinance()">Summarize from a sheet →</button></div>';}catch(e){body.className='err';body.textContent='Could not load finance page. Try Reload.';}}
-function askFinance(){if(window.sendPrompt)window.sendPrompt("My personal finance sheet is ready — help me wire the Personal Finance card of my Personal Life OS to it (kept separate from business money).");}
 
 /* ---------- Connections (relationship CRM) ---------- */
 function buildRelationship(){
@@ -1370,7 +1372,7 @@ function tdLocal(t,patch){
 async function tdPatch(id,patch,okMsg){
   const t=TD.byId[id];if(!t||String(id).indexOf('tmp')===0)return;
   const before=JSON.parse(JSON.stringify(t));tdLocal(t,patch);t._saving=true;delete t._err;tdRenderAll();
-  try{const j=await tdApi('update',{id:id,patch:patch});Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,j.task);if(j.today)TD.today=j.today;TD.lastSync=new Date();tdRenderAll();if(okMsg)showToast(okMsg,true);return true;}
+  try{const j=await tdApi('update',{id:id,patch:patch});Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,j.task);if(j.today)TD.today=j.today;TD.lastSync=new Date();tdRenderAll();if(okMsg)showToast(okMsg,true);if('done' in patch&&/HUTANG BEFA/i.test(t.notes||'')&&typeof window.finAfterTodoTick==='function')window.finAfterTodoTick(t.notes,!!t.done);return true;}
   catch(e){Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,before);t._err=true;tdRenderAll();showToast('Not saved: '+(e.message||e),false);return false;}
 }
 async function tdCreate(task){
@@ -1409,7 +1411,8 @@ function tdRowHTML(t,opt){
     +'<div class="td-body"><div class="td-name" data-act="edit">'+escapeHtml(t.name||'(no name)')+'</div><div class="td-meta">'+meta+'</div></div>'
     +(t.done?'':'<button class="td-flag'+(t.status==='Doing'?' on':'')+'" data-act="doing" title="In progress ▶">▶️</button>')
     +'<button class="td-flag'+(t.priority?' on':'')+'" data-act="pri" title="Priority ⏰">⏰</button>'
-    +'<button class="td-flag'+(t.urgent?' on':'')+'" data-act="urg" title="Urgent 🚨">🚨</button></li>';
+    +'<button class="td-flag'+(t.urgent?' on':'')+'" data-act="urg" title="Urgent 🚨">🚨</button>'
+    +(tdClChangeable(t)?'<button class="td-flag td-x" data-act="clx" title="Cancel or reschedule this class" aria-label="Cancel or reschedule this class">✕</button>':'')+'</li>';
 }
 function tdMatches(t){
   if(TD.area!=='All'&&t.area!==TD.area)return false;
@@ -1621,6 +1624,7 @@ function tdOpenEditor(id){
   if(TD.clOpen&&CL){if(CL.dirty&&!(TD.byId[CL.id]||{}).sessionId)tdClDraft(CL.id,true);CL=null;}
   tdCloseEditor();TD_EDIT=id;const dayEl=document.getElementById('td-day');if(dayEl&&dayEl.querySelector('#tde-cl'))dayEl.querySelector('#tde-cl').remove();
   const sd=t.date&&t.date.start?tdDayOf(t.date.start):'';const st=t.date&&t.date.start?tdTimeOf(t.date.start):'';const ed=t.date&&t.date.end?tdDayOf(t.date.end):'';
+  const lk=tdClLinked(t),ro=lk?' disabled title="Use Cancel or reschedule, so the calendar changes too"':'';
   const w=document.createElement('div');w.className='td-modal';w.id='td-modal';
   w.innerHTML='<div class="card td-sheet" data-no-tools><h2><span class="ic">✏️</span>Edit task<button class="link-btn" data-act="close" style="margin-left:auto;font-size:20px">×</button></h2>'
    +'<div class="td-form">'
@@ -1629,15 +1633,16 @@ function tdOpenEditor(id){
    +'<label>Section<input class="fld" id="tde-sec" list="td-sec-list" value="'+attr(t.section||'')+'" placeholder="e.g. Payments (Bayar)"></label>'
    +'<label>Status<select class="fld" id="tde-status">'+['To do','Doing','Done'].map(s=>'<option'+(t.status===s?' selected':'')+'>'+s+'</option>').join('')+'</select></label>'
    +'<label>Kind<select class="fld" id="tde-type">'+['Task','Event'].map(s=>'<option'+(t.type===s?' selected':'')+'>'+s+'</option>').join('')+'</select></label>'
-   +'<label>Date<input class="fld" type="date" id="tde-date" value="'+sd+'"></label>'
-   +'<label>Time (WITA, optional)<input class="fld" type="time" id="tde-time" value="'+st+'"></label>'
-   +'<label>Until (optional)<input class="fld" type="date" id="tde-end" value="'+ed+'"></label>'
+   +'<label>Date<input class="fld" type="date" id="tde-date" value="'+sd+'"'+ro+'></label>'
+   +'<label>Time (WITA, optional)<input class="fld" type="time" id="tde-time" value="'+st+'"'+ro+'></label>'
+   +'<label>Until (optional)<input class="fld" type="date" id="tde-end" value="'+ed+'"'+ro+'></label>'
+   +(lk?'<div class="full td-clx-hint">This class comes from the DiveArts '+tdClCal(t)+' calendar. Its day and time change with Cancel or reschedule below, so the calendar, the sheet and this list stay the same.</div>':'')
    +(t.done?'<label>Done on<input class="fld" type="date" id="tde-doneon" max="'+(TD.today||tdWita())+'" value="'+(t.completedOn||'')+'"></label>':'')
    +'<label>Flags<span style="display:flex;gap:8px"><button class="td-tog'+(t.priority?' on':'')+'" id="tde-pri" type="button">⏰ Priority</button><button class="td-tog'+(t.urgent?' on':'')+'" id="tde-urg" type="button">🚨 Urgent</button></span></label>'
    +'<label class="full">Notes<textarea class="fld" id="tde-notes" rows="3">'+escapeHtml(t.notes||'')+'</textarea></label>'
    +'</div>'+(tdIsClass(t)?'<div class="cl-box" id="tde-cl"></div>':'')+'<div class="td-sub">Sub-tasks</div><ul class="td-list" id="tde-subs"></ul>'
    +'<div class="todo-add" style="margin-top:8px"><input class="fld" id="tde-subin" placeholder="Add a sub-task…"><button class="gold-btn" data-act="subadd">+</button></div>'
-   +'<div class="td-actions"><button class="gold-btn" data-act="save">Save</button><button class="td-ghost" data-act="close">Cancel</button>'+(t.url?'<a class="ctool" href="'+safeHref(t.url)+'" target="_blank" rel="noopener">Notion ↗</a>':'')+'<button class="td-danger" data-act="del">Delete</button></div></div>';
+   +'<div class="td-actions"><button class="gold-btn" data-act="save">Save</button><button class="td-ghost" data-act="close">Cancel</button>'+(t.url?'<a class="ctool" href="'+safeHref(t.url)+'" target="_blank" rel="noopener">Notion ↗</a>':'')+(lk?(tdClChangeable(t)?'<button class="td-danger" data-act="clx">Cancel or reschedule</button>':''):'<button class="td-danger" data-act="del">Delete</button>')+'</div></div>';
   document.body.appendChild(w);tdRenderModalSubs();
   if(tdIsClass(t))tdClOpen(t);
   ['tde-pri','tde-urg'].forEach(x=>{const b=document.getElementById(x);b.onclick=()=>b.classList.toggle('on');});
@@ -1648,6 +1653,7 @@ function tdOpenEditor(id){
     if(row&&row.closest('#tde-subs')){if(a!=='edit')tdRowAction(a,row.getAttribute('data-id'));return;}
     if(a==='close')tdCloseEditor();
     if(a==='save')tdSaveEditor();
+    if(a==='clx'){const id=TD_EDIT;tdCloseEditor();tdClxOpen(id);return;}
     if(a==='subadd'){const inp=document.getElementById('tde-subin');const v=(inp.value||'').trim();if(!v)return;inp.value='';const p=TD.byId[TD_EDIT];await tdCreate({name:v,parent:TD_EDIT,area:p.area,section:p.section});}
     if(a==='del'){if(!act.classList.contains('arm')){act.classList.add('arm');act.textContent='Tap again to delete';setTimeout(()=>{if(act.isConnected){act.classList.remove('arm');act.textContent='Delete';}},4000);return;}const id=TD_EDIT;tdCloseEditor();tdArchive(id);}
   });
@@ -1664,6 +1670,101 @@ const CL_COMPONENTS=[['pool_ticket','Pool ticket'],['transport_grab','Grab / tra
 const CL_TYPES=['pool','theory','ocean','aquarium','studio','event'];
 let CL=null,CL_READY=null;
 function tdIsClass(t){return !!t&&t.section==='Classes'&&t.type==='Event';}
+
+/* ---------- cancel or reschedule a class (18 Oct 2026) ----------
+   Befa: an X on each class in the calendar and the To-Do to cancel it, or move
+   it to another day, all of it in sync. The change goes to the class's source
+   first through /api/classlog 'calendar' (a student session on its OS_SCHEDULE
+   row, a regular class or class block on its Google Calendar event); only then
+   does this list change. A cancelled class stays on the calendar greyed out as
+   CANCELLED and leaves the To-Do (Status Parked). Every change has Undo.
+   A tap on a class's ⠿, its ✕, Cancel or reschedule in its editor, or dragging
+   it onto a day all open the same sheet. Nobody is messaged. */
+function tdClIds(t){const out=[];String((t&&t.notes)||'').replace(/gcal:([A-Za-z0-9_]{5,200})/g,(m,id)=>{if(out.indexOf(id)===-1)out.push(id);return m;});return out;}
+function tdClLinked(t){return tdIsClass(t)&&tdClIds(t).length>0;}
+function tdClChangeable(t){if(!t||!tdClLinked(t)||t.sessionId||t.done)return false;const l=tdLast(t);return !l||l>=(TD.today||tdWita());}
+function tdClCal(t){return /DiveArts Jakarta/i.test((t&&t.notes)||'')?'Jakarta':'Bali';}
+function tdClAllDay(t){return !!(t&&t.date&&t.date.start&&String(t.date.start).length===10);}
+// Day and time of an instant in the class's own zone: WITA (+8) for Bali, WIB (+7) for Jakarta.
+function tdClLocal(iso,cal){const d=new Date(new Date(iso).getTime()+(cal==='Jakarta'?7:8)*3600000).toISOString();return {day:d.slice(0,10),time:d.slice(11,16)};}
+function tdClSpan(a,b){return Math.round((tdUTC(b)-tdUTC(a))/86400000);}
+function tdClKind(t){const n=(t&&t.notes)||'';if(/Students:|Invoice/.test(n))return 'Student session. Changes its OS_SCHEDULE row, which moves the calendar event.';if(/Regular class/i.test(n+' '+((t&&t.name)||'')))return 'Regular class. Changes the event on the calendar.';return 'Class block. Changes the event on the calendar.';}
+// Where the class is now, in its own zone.
+function tdClNow(t){const cal=tdClCal(t);if(tdClAllDay(t)){const d=tdDayOf(t.date.start);return {all:true,day:d,last:t.date.end?tdDayOf(t.date.end):d};}const a=tdClLocal(t.date.start,cal);return {all:false,day:a.day,start:a.time,end:t.date.end?tdClLocal(t.date.end,cal).time:''};}
+function tdClWhen(w,cal){const z=cal==='Jakarta'?'WIB':'WITA';return w.all?(w.day===w.last?tdPretty(w.day):tdPretty(w.day)+' to '+tdPretty(w.last)):tdPretty(w.day)+', '+w.start+(w.end?' to '+w.end:'')+' '+z;}
+let TD_CLX=null;
+function tdClxOpen(id,o){
+  const t=TD.byId[id];if(!t)return;
+  if(!tdClLinked(t)){showToast('This class has no calendar link, so it cannot be changed from here',false);return;}
+  if(!tdClChangeable(t)){showToast(t.sessionId?'This class is already in the books, so it took place':'A past class cannot be cancelled or moved',false);return;}
+  tdClxClose();
+  const cal=tdClCal(t),z=cal==='Jakarta'?'WIB':'WITA',now=tdClNow(t),today=TD.today||tdWita();
+  let nd=(o&&o.day)||now.day;if(nd<today)nd=today;
+  const nl=now.all?tdAdd(nd,tdClSpan(now.day,now.last)):'';
+  const w=document.createElement('div');w.className='td-modal';w.id='td-clx';
+  w.innerHTML='<div class="card td-sheet" data-no-tools><h2><span class="ic">📅</span>Cancel or reschedule<button class="link-btn" data-clx="close" style="margin-left:auto;font-size:20px" aria-label="Close">×</button></h2>'
+   +'<div class="td-clx-name">'+escapeHtml(String(t.name||'Class').replace(/^Teach:\s*/,''))+'</div>'
+   +'<div class="td-clx-when">Now: '+escapeHtml(tdClWhen(now,cal))+' · DiveArts '+cal+' calendar</div>'
+   +'<div class="td-clx-kind">'+escapeHtml(tdClKind(t))+'</div>'
+   +'<div class="td-sub">Reschedule</div><div class="td-form">'
+   +(now.all?'<label>First day<input class="fld" type="date" id="clx-d" min="'+today+'" value="'+nd+'"></label><label>Last day<input class="fld" type="date" id="clx-l" min="'+today+'" value="'+nl+'"></label>'
+       :'<label class="full">New date<input class="fld" type="date" id="clx-d" min="'+today+'" value="'+nd+'"></label><label>Start ('+z+')<input class="fld" type="time" id="clx-s" value="'+now.start+'"></label><label>End ('+z+')<input class="fld" type="time" id="clx-e" value="'+now.end+'"></label>')
+   +'</div><div class="td-actions"><button class="gold-btn" data-clx="move">Move class</button></div>'
+   +'<div class="td-sub">Cancel</div><div class="td-clx-hint">It stays on the calendar greyed out as CANCELLED and leaves your To-Do. You can undo it.</div>'
+   +'<div class="td-actions"><button class="td-danger" data-clx="cancel">Cancel class</button><button class="td-ghost" data-clx="close">Keep it</button></div>'
+   +'<div class="td-clx-hint">Nobody is messaged. Tell the students yourself.</div>'
+   +'<div class="td-clx-msg" id="clx-msg" role="status" aria-live="polite"></div></div>';
+  document.body.appendChild(w);TD_CLX={id:id,busy:false};
+  w.addEventListener('click',e=>{if(e.target===w){if(!TD_CLX||!TD_CLX.busy)tdClxClose();return;}const b=e.target.closest('[data-clx]');if(b)tdClxAct(b.getAttribute('data-clx'),b);});
+}
+function tdClxClose(){const m=document.getElementById('td-clx');if(m)m.remove();TD_CLX=null;}
+async function tdClxCall(id,p){
+  const r=await fetch('/api/classlog',{method:'POST',headers:osHeaders(),body:JSON.stringify(Object.assign({action:'calendar',id:id},p))});
+  if(r.status===401){osUnauthorised();throw new Error('OS key refused');}
+  let j={};try{j=await r.json();}catch(e){j={};}
+  if(!r.ok||j.error)throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+// The row as the server now has it: a cancelled class leaves the list, a restored or moved one comes back.
+function tdClxApply(id,j){
+  const nt=j&&j.task;if(!nt)return;if(j.today)TD.today=j.today;
+  const i=TD.tasks.findIndex(x=>x.id===id);TD.parked=(TD.parked||[]).filter(x=>x.id!==id);
+  if(nt.status==='Parked'){if(i>=0)TD.tasks.splice(i,1);delete TD.byId[id];TD.parked.push(nt);if(TD.clOpen===id)TD.clOpen=null;}
+  else{if(i>=0)TD.tasks[i]=nt;else TD.tasks.push(nt);TD.byId[id]=nt;}
+  TD.lastSync=new Date();tdRenderAll();
+}
+function tdClxLate(j){const r=(j&&j.result)||{};if(r.syncError)return ' The sheet saved but the calendar will catch up within 30 minutes ('+r.syncError+').';if(r.deferred)return ' The calendar will show it within 30 minutes.';return '';}
+async function tdClxAct(a,b){
+  if(!TD_CLX||TD_CLX.busy)return;
+  if(a==='close'){tdClxClose();return;}
+  const id=TD_CLX.id,t=TD.byId[id];if(!t){tdClxClose();return;}
+  const msg=document.getElementById('clx-msg');const say=(x,bad)=>{if(!msg)return;msg.textContent=x;msg.classList.toggle('bad',!!bad);};
+  const cal=tdClCal(t),z=cal==='Jakarta'?'WIB':'WITA',was=tdClNow(t),today=TD.today||tdWita();
+  let p,label;
+  if(a==='cancel'){
+    if(!b.classList.contains('arm')){b.classList.add('arm');b.textContent='Tap again to cancel this class';setTimeout(()=>{if(b.isConnected&&!(TD_CLX&&TD_CLX.busy)){b.classList.remove('arm');b.textContent='Cancel class';}},4000);return;}
+    p={op:'cancel'};label='Class cancelled. Greyed out on the calendar, off your To-Do.';
+  }else if(a==='move'){
+    const v=x=>{const el=document.getElementById(x);return el?el.value:'';};
+    const day=v('clx-d');if(!day){say('Pick the new date.',true);return;}
+    if(day<today){say('Pick today or a later day.',true);return;}
+    if(was.all){const last=v('clx-l')||day;if(last<day){say('The last day is before the first day.',true);return;}
+      if(day===was.day&&last===was.last){say('That is when it already is.',true);return;}
+      p={op:'move',move:{date:day,endDate:last}};label='Class moved to '+tdClWhen({all:true,day:day,last:last},cal)+'.';}
+    else{const s=v('clx-s'),e=v('clx-e');if(!s||!e){say('Give the new start and end time.',true);return;}if(e<=s){say('The end time has to be after the start time.',true);return;}
+      if(day===was.day&&s===was.start&&e===was.end){say('That is when it already is.',true);return;}
+      p={op:'move',move:{date:day,start:s,end:e}};label='Class moved to '+tdPretty(day)+', '+s+' to '+e+' '+z+'.';}
+  }else return;
+  TD_CLX.busy=true;document.querySelectorAll('#td-clx button,#td-clx input').forEach(x=>x.disabled=true);
+  say(a==='cancel'?'Cancelling it on the calendar. This can take up to a minute.':'Moving it on the calendar. This can take up to a minute.');
+  let j;
+  try{j=await tdClxCall(id,p);}
+  catch(e){if(TD_CLX){TD_CLX.busy=false;document.querySelectorAll('#td-clx button,#td-clx input').forEach(x=>x.disabled=false);}say(String(e.message||e),true);if(/calendar changed/i.test(String(e.message||e)))tdLoad(true);return;}
+  tdClxApply(id,j);tdClxClose();
+  const back=p.op==='cancel'?{op:'restore'}:{op:'move',move:was.all?{date:was.day,endDate:was.last}:{date:was.day,start:was.start,end:was.end}};
+  const late=tdClxLate(j);
+  tdUndoToast(label+late,async()=>{showToast('Undoing on the calendar…',true);try{const k=await tdClxCall(id,back);tdClxApply(id,k);showToast(p.op==='cancel'?'Class is back on the calendar and your To-Do':'Class is back where it was',true);}catch(e){showToast('Not undone: '+(e.message||e),false);}});
+}
 function tdRp(n){return 'Rp'+(Math.round(Number(n)||0)).toLocaleString('id-ID');}
 function tdClDigits(v){return Number(String(v==null?'':v).replace(/[^0-9]/g,''))||0;}
 // First guess from what the calendar sync wrote, so most classes need only the costs typed.
@@ -1845,7 +1946,7 @@ function tdSaveEditor(){
   const patch={};Object.keys(next).forEach(k=>{if((t[k]==null?'':t[k])!==(next[k]==null?'':next[k]))patch[k]=next[k];});
   const curDate=t.date?JSON.stringify({s:tdDayOf(t.date.start)+'|'+tdTimeOf(t.date.start),e:t.date.end?tdDayOf(t.date.end):null}):'null';
   const newDate=date?JSON.stringify({s:day+'|'+time,e:date.end}):'null';
-  if(curDate!==newDate)patch.date=date;
+  if(curDate!==newDate&&!tdClLinked(t))patch.date=date;
   if('status' in patch){if(patch.status==='Done'&&!t.done){patch.done=true;delete patch.status;}else if(patch.status!=='Done'&&t.done){patch.done=false;}}
   const don=document.getElementById('tde-doneon');if(don&&t.done&&!('done' in patch)&&don.value&&don.value!==t.completedOn){if(don.value>(TD.today||tdWita())){showToast('Pick today or an earlier day',false);return;}patch.completedOn=don.value;}
   const clPay=(CL&&CL.id===t.id&&CL.dirty&&!t.sessionId)?tdClPayload():null;const clId=t.id;
@@ -1959,7 +2060,7 @@ function tdDragEnd(cancel){
   if(d.over)d.over.el.classList.remove('td-drop-ok');
   if(d.started){TD_DRAG_JUST=Date.now();if(!cancel&&d.over)tdDrop(d.id,d.over);}
   // A tap on ⠿ without dragging opens "Move to…" (15 Oct 2026): no long drag to a far title.
-  else if(!cancel){TD_DRAG_JUST=Date.now();tdMoveOpen({task:d.id});}
+  else if(!cancel){TD_DRAG_JUST=Date.now();if(tdClChangeable(TD.byId[d.id]))tdClxOpen(d.id);else tdMoveOpen({task:d.id});}
 }
 function tdShift(date,day){
   if(!date||!date.start)return {start:day};
@@ -1970,6 +2071,8 @@ function tdShift(date,day){
 async function tdDrop(id,tg){
   const t=TD.byId[id];if(!t)return;
   const ops=[];let msg='';
+  // A class moves at its source (calendar or OS_SCHEDULE), so a drop opens the reschedule sheet on that day.
+  if(tg.day&&tdClLinked(t)&&!t.done){if(!tdClChangeable(t)){showToast(t.sessionId?'This class is already in the books, so it took place':'A past class stays where it was',false);return;}if(tg.day<(TD.today||tdWita())){showToast('A class can only move to today or a later day',false);return;}tdClxOpen(id,{day:tg.day});return;}
   if(tg.day){
     const d=tg.day;
     if(t.done){if(t.completedOn===d)return;if(d>TD.today){showToast('Done tasks can only move to today or an earlier day',false);return;}ops.push({id:id,patch:{completedOn:d},undo:{completedOn:t.completedOn}});msg='Counted as done on '+tdPretty(d);}
@@ -2109,6 +2212,7 @@ function tdRowAction(a,id){
   else if(a==='urg')tdPatch(id,{urgent:!t.urgent});
   else if(a==='doing')tdPatch(id,{status:t.status==='Doing'?'To do':'Doing'});
   else if(a==='edit')tdOpenEditor(id);
+  else if(a==='clx')tdClxOpen(id);
 }
 function tdHandleClick(e){
   if(TD_DRAG_JUST&&Date.now()-TD_DRAG_JUST<350)return;
@@ -2366,7 +2470,7 @@ function buildTodo(){
   const root=document.getElementById('todo-root');if(!root)return;
   const lastArea=LS.get('td_lastArea','Personal');
   const headMin=LS.get('td_head_min',false);
-  root.innerHTML='<div class="card td-head'+(headMin?' min':'')+'" id="td-head" data-no-tools>'
+  root.innerHTML='<div class="td-layout"><div class="td-col"><div class="card td-head'+(headMin?' min':'')+'" id="td-head" data-no-tools>'
    +'<div class="td-headrow"><h2><span class="ic">✅</span>To-Do</h2><div class="td-seg" id="td-seg"><button data-view="list">List</button><button data-view="history">History</button></div>'
    +'<span class="td-sync" id="td-sync"></span><button class="ctool" id="td-refresh" title="Reload from Notion">↻ Refresh</button><a class="ctool" href="'+TD_NOTION_URL+'" target="_blank" rel="noopener">Notion ↗</a><button class="ctool td-min" id="td-min" type="button" aria-expanded="true">▴ Minimize</button></div>'
    +'<div class="td-headbody"><div class="td-add"><input class="fld" id="td-new-name" placeholder="New task… then Enter">'
@@ -2375,8 +2479,8 @@ function buildTodo(){
    +'<input class="fld" type="date" id="td-new-date" title="Date, only if it is tied to a day">'
    +'<input class="fld" type="time" id="td-new-time" title="Time WITA, optional">'
    +'<span class="td-addbtns"><button class="td-tog" id="td-new-pri" type="button" title="Priority">⏰</button><button class="td-tog" id="td-new-urg" type="button" title="Urgent">🚨</button><button class="gold-btn" id="td-new-go">Add</button></span></div>'
-   +'<datalist id="td-sec-list"></datalist><div class="td-stats" id="td-stats"></div><div id="td-migrate"></div></div></div>'
-   +'<div class="td-layout"><div class="card" id="td-main" data-no-tools><div class="todo-add" style="margin:0"><input class="fld" id="td-q" placeholder="Search tasks…"></div><div class="td-chips" id="td-chips"></div><div id="td-list"></div></div>'
+   +'<datalist id="td-sec-list"></datalist><div id="td-migrate"></div></div></div>'
+   +'<div class="card" id="td-main" data-no-tools><div class="td-stats td-stats-top" id="td-stats"></div><div class="todo-add" style="margin:0"><input class="fld" id="td-q" placeholder="Search tasks…"></div><div class="td-chips" id="td-chips"></div><div id="td-list"></div></div></div>'
    +'<div class="td-side"><div class="card" id="td-cal" data-no-tools></div><div class="card" id="td-day" data-no-tools></div></div></div>';
   root.addEventListener('click',tdHandleClick);
   document.getElementById('td-seg').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;TD.view=b.getAttribute('data-view');LS.set('td_view',TD.view);TD.sel=null;tdRenderAll();});
@@ -2413,11 +2517,11 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
   renderAffirm();
   buildToday();
   buildExtras();
-  TRACKERS.forEach(renderTracker); renderPending();
+  TRACKERS.forEach(renderTracker);
   buildRelationship();
   renderArea({icon:'🌿',title:'Health notes',id:'39eeb411ed7a81b8b7d3ff501f26a72b',sensitive:true},'healthnotes');
   await Promise.all(ROOM.map(r=>renderFeed(r,'room')));
-  renderFeed({icon:'🪩',title:'About Me — Personality',id:MY_PERSONALITY_ID,cls:'feature sensitive'},'aboutme');
+  // Personality, medals, film, numbers, kind words and gallery are drawn by aboutme-panel.js.
   renderArea({icon:'👑',title:'High Value Woman notes',id:'39deb411ed7a81c38bade41e5ae70a23'},'aboutme');
   renderArea({icon:'📓',title:'My Journals',id:'39eeb411ed7a81fcba99efa6066168b7'},'aboutme');
   loadDay();
@@ -2428,5 +2532,7 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
 <script src="/packing-panel.js"></script>
 <script src="/academy-panel.js"></script>
 <script src="/business-panel.js"></script>
+<script src="/finance-panel.js"></script>
+<script src="/aboutme-panel.js"></script>
 </body>
 </html>
