@@ -9,13 +9,13 @@
 //                               mark rows paid or unpaid. Written to the sheet
 //                               when Google lets us; when it does not (Drive
 //                               storage full), a paid tick is kept as a Done
-//                               task in To-Do (Personal, Payments (Bayar)) and
+//                               task in To-Do (Personal, Pembayaran Hutang) and
 //                               sent again by the next sync.
 //   POST {action:'sync'}        sends every waiting tick to the sheet, and
 //                               ticks off the To-Do reminder of any row Befa
 //                               already ticked in the sheet herself.
 //
-// The waiting list is the To-Do itself: a Done task in Payments (Bayar)
+// The waiting list is the To-Do itself: a Done task in Pembayaran Hutang
 // whose Notes name "HUTANG BEFA" and "baris N" means row N should be ticked.
 // The H-1 reminders written on 19 Oct carry exactly that, so ticking a
 // reminder in To-Do ticks its rows in the sheet too.
@@ -29,7 +29,11 @@ const DAA_FALLBACK_URL = 'https://script.google.com/macros/s/AKfycbwJ5s1d9I6-aEw
 const daaUrl = () => process.env.DAA_API_URL || DAA_FALLBACK_URL;
 const ACTOR = 'diveartsacademy@gmail.com via Personal OS (Finance)';
 const NOTION = 'https://api.notion.com/v1';
-const SECTION = 'Payments (Bayar)';
+// 19 Oct 2026, 21:41: Befa asked for the debt reminders to sit under their
+// own title, "Pembayaran Hutang", so she can fold them away. New tasks go
+// there; tasks still under the old title keep counting, so nothing is lost.
+const SECTION = 'Pembayaran Hutang';
+export const SECTIONS = [SECTION, 'Payments (Bayar)'];
 const SOURCE_RE = /HUTANG BEFA/i;
 const ROWS_RE = /baris\s+([\d\s,dan&]+)/i;
 const MAX_TICKS = 40;
@@ -55,7 +59,7 @@ export function planSync(items, tasks) {
   const push = new Map();
   const close = [];
   for (const t of tasks) {
-    if (t.section !== SECTION) continue;
+    if (SECTIONS.indexOf(t.section) < 0) continue;
     const rows = rowsOfNotes(t.notes).filter((r) => byRow.has(r));
     if (!rows.length) continue;
     if (t.done) {
@@ -86,7 +90,7 @@ async function paymentTasks(H) {
   let cursor;
   for (let i = 0; i < 10; i++) {
     const body = { page_size: 100, filter: { and: [
-      { property: 'Section', select: { equals: SECTION } },
+      { or: SECTIONS.map((s) => ({ property: 'Section', select: { equals: s } })) },
       { property: 'Notes', rich_text: { contains: 'HUTANG BEFA' } },
     ] } };
     if (cursor) body.start_cursor = cursor;

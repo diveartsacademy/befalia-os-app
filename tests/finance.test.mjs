@@ -10,7 +10,7 @@ delete process.env.DAA_API_URL;
 process.env.DAA_API_KEY = 'daa';
 
 const { parseHutang, lenderOf } = await import('../api/_hutang.js');
-const { default: handler, rowsOfNotes, planSync, rupiah } = await import('../api/finance.js');
+const { default: handler, rowsOfNotes, planSync, rupiah, SECTIONS } = await import('../api/finance.js');
 const { TASKS_DB } = await import('../api/tasks.js');
 
 const T = (s) => ({ t: s });
@@ -140,9 +140,19 @@ await t('sync plan: a done reminder pushes its rows, a sheet tick closes an open
     task('c', false, 'Dari sheet HUTANG BEFA, baris 20.'),
     task('d', true, 'Dari sheet HUTANG BEFA, baris 10.'), // already ticked in the sheet
     task('e', true, 'Dari sheet HUTANG BEFA, baris 20.', 'Other'),
+    task('f', false, 'Dari sheet HUTANG BEFA, baris 20.', 'Pembayaran Hutang'),
   ]);
   assert.deepEqual(p.push.map((x) => [x.row, x.name]), [[18, 'BLIBLI TIKET PAYLATER']]);
   assert.deepEqual(p.close, ['b']);
+});
+await t('the new title "Pembayaran Hutang" counts, and so does the old one', () => {
+  assert.deepEqual(SECTIONS, ['Pembayaran Hutang', 'Payments (Bayar)']);
+  const m = parseHutang(fixture(), '2026-10-19');
+  const p = planSync(m.items, [
+    task('new', true, 'Dari sheet HUTANG BEFA, baris 18.', 'Pembayaran Hutang'),
+    task('old', true, 'Dari sheet HUTANG BEFA, baris 20.', 'Payments (Bayar)'),
+  ]);
+  assert.deepEqual(p.push.map((x) => x.row), [18, 20]);
 });
 
 /* ---------- the route, with the sheet and Notion faked ---------- */
@@ -165,7 +175,7 @@ globalThis.fetch = async (url, init = {}) => {
     }
   }
   if (u === 'https://api.notion.com/v1/databases/' + TASKS_DB + '/query') {
-    assert.equal(body.filter.and[0].select.equals, 'Payments (Bayar)');
+    assert.deepEqual(body.filter.and[0].or.map((f) => f.select.equals), ['Pembayaran Hutang', 'Payments (Bayar)']);
     return new Response(JSON.stringify({ results: tasks.map(page), has_more: false }));
   }
   if (u.startsWith('https://api.notion.com/v1/pages/') && init.method === 'PATCH') {
@@ -187,7 +197,7 @@ const run = async (method, body, key = 'os') => {
   return res;
 };
 const reset = () => { rows = fixture(); calls = []; sheetFull = false; created = 0; tasks = [
-  { id: 'rem18', section: 'Payments (Bayar)', done: false, notes: 'Pengingat H-1. Dari sheet HUTANG BEFA (FINANCIAL REPORT BEFALIA), baris 18.' },
+  { id: 'rem18', section: 'Pembayaran Hutang', done: false, notes: 'Pengingat H-1. Dari sheet HUTANG BEFA (FINANCIAL REPORT BEFALIA), baris 18.' },
   { id: 'rem20', section: 'Payments (Bayar)', done: false, notes: 'Pengingat H-1. Dari sheet HUTANG BEFA (FINANCIAL REPORT BEFALIA), baris 20.' },
 ]; };
 const sheetWrites = () => calls.filter((c) => c.body && c.body.action === 'hutangTick');
@@ -239,6 +249,7 @@ await t('a debt without a reminder, ticked while storage is full, gets a Done "L
   assert.match(x.name, /^Lunas: Teman A Rp3\.000\.000$/);
   assert.deepEqual(rowsOfNotes(x.notes), [11]);
   assert.equal(x.done, true);
+  assert.equal(x.section, 'Pembayaran Hutang', 'a waiting tick goes under the new title');
   assert.deepEqual((await run('GET')).j.waiting, [11]);
 });
 

@@ -1294,6 +1294,10 @@ const TD_NOTION_URL='https://app.notion.com/p/3eceb411ed7a81ee967bd6d40f7c4ee4';
 const TD={tasks:[],byId:{},sections:[],today:null,loaded:false,loading:false,err:'',lastSync:null,
   arch:null,archLoading:false,archErr:'',titles:LS.get('td_titles',{}),indent:{},newTitleFor:null,renaming:null,focusKey:null,view:LS.get('td_view','list'),area:LS.get('td_area','All'),flag:'',q:'',month:null,sel:null,histLimit:21,
   closed:LS.get('td_closed',{}),newPri:false,newUrg:false};
+/* 19 Oct 2026: the debt reminders moved to their own title, "Pembayaran Hutang",
+   because Befa wants to fold them away. It starts folded once on each device;
+   after that a tap on the title opens or folds it as usual. */
+try{if(!LS.get('td_hutang_folded',false)){TD.closed[tdSecKey('Personal','Pembayaran Hutang')]=1;LS.set('td_closed',TD.closed);LS.set('td_hutang_folded',true);}}catch(e){}
 
 function tdWita(d){return new Intl.DateTimeFormat('en-CA',{timeZone:TD_TZ,year:'numeric',month:'2-digit',day:'2-digit'}).format(d||new Date());}
 function tdIsDT(s){return !!s&&String(s).length>10;}
@@ -1343,7 +1347,7 @@ async function tdLoad(silent){
     TD.parked=all.filter(t=>t.status==='Parked');
     // Focus rows belong to the Goals tab checklist, never to the To-Do list or calendar.
     TD.focus=all.filter(t=>t.area==='Focus'&&t.status!=='Parked');TD.tasks=all.filter(t=>t.status!=='Parked'&&t.area!=='Focus');TD.today=j.today||tdWita();if(Array.isArray(j.sections)&&j.sections.length)TD.sections=j.sections;
-    TD.loaded=true;TD.err=j.complete===false?'Only part of the list loaded. Tell Claude, the list has outgrown one load.':'';TD.lastSync=new Date();tdIndex();setTimeout(()=>pcSync(false),0);}
+    TD.loaded=true;TD.err=j.complete===false?'Only part of the list loaded. Tell Claude, the list has outgrown one load.':'';TD.lastSync=new Date();tdIndex();setTimeout(()=>pcSync(false),0);setTimeout(tdHutangMove,0);}
   catch(e){TD.err=String(e.message||e);}
   finally{TD.loading=false;tdRenderAll();if(typeof fcRender==='function')fcRender();if(TD.loaded&&!TD.arch&&!TD.archErr)tdLoadArchive();}
 }
@@ -1368,6 +1372,20 @@ async function pcApi(body){
   let j={};try{j=await r.json();}catch(e){j={};}
   if(!r.ok||!j.ok)throw new Error(j.error||('HTTP '+r.status));
   return j;
+}
+/* 19 Oct 2026: debt reminders and Finance paid records move from Payments
+   (Bayar) to their own title, Pembayaran Hutang. Done here, with the key on
+   Befa's own device, because the Notion connector cannot add a new title
+   without rewriting the whole list. Runs once there is something to move;
+   after that it finds nothing. Her own payment tasks are left alone. */
+let HUT_MOVING=false;
+function tdIsHutang(t){return t&&t.section==='Payments (Bayar)'&&(/HUTANG BEFA/i.test(t.notes||'')||/^Bayar besok \(/.test(t.name||'')||/^Cek dan centang di sheet HUTANG BEFA/i.test(t.name||''));}
+async function tdHutangMove(){
+  if(HUT_MOVING)return;const list=TD.tasks.filter(tdIsHutang);if(!list.length)return;
+  HUT_MOVING=true;let ok=0;
+  try{for(const t of list){try{const j=await tdApi('update',{id:t.id,patch:{section:'Pembayaran Hutang'}});if(j.task){Object.assign(t,j.task);ok++;}}catch(e){console.warn('Pembayaran Hutang move: '+(e.message||e));break;}}}
+  finally{HUT_MOVING=false;}
+  if(ok){tdIndex();tdRenderAll();showToast(ok+' pengingat hutang dipindah ke Pembayaran Hutang',true);}
 }
 let PC_SYNCING=false;
 async function pcSync(force){
