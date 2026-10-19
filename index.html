@@ -266,6 +266,7 @@
   .td-add .gold-btn{height:40px;padding:0 18px;}
   .td-stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin-top:14px;}
   @media(max-width:700px){.td-stats{grid-template-columns:repeat(3,minmax(0,1fr));}}
+  .td-stats.td-stats-top{margin:0 0 12px;}
   .td-stat{background:rgba(46,230,255,.05);border:1px solid var(--aqualine);border-radius:12px;padding:9px 6px;text-align:center;cursor:pointer;color:var(--ink);font-family:var(--sans);transition:.15s;}
   .td-stat b{display:block;font-family:var(--serif);font-size:21px;color:var(--aqua);line-height:1.1;}
   .td-stat span{font-size:10.5px;color:var(--muted);}
@@ -2484,8 +2485,8 @@ function buildTodo(){
    +'<input class="fld" type="date" id="td-new-date" title="Date, only if it is tied to a day">'
    +'<input class="fld" type="time" id="td-new-time" title="Time WITA, optional">'
    +'<span class="td-addbtns"><button class="td-tog" id="td-new-pri" type="button" title="Priority">⏰</button><button class="td-tog" id="td-new-urg" type="button" title="Urgent">🚨</button><button class="gold-btn" id="td-new-go">Add</button></span></div>'
-   +'<datalist id="td-sec-list"></datalist><div class="td-stats" id="td-stats"></div><div id="td-migrate"></div></div></div>'
-   +'<div class="td-layout"><div class="card" id="td-main" data-no-tools><div class="todo-add" style="margin:0"><input class="fld" id="td-q" placeholder="Search tasks…"></div><div class="td-chips" id="td-chips"></div><div id="td-list"></div></div>'
+   +'<datalist id="td-sec-list"></datalist><div id="td-migrate"></div></div></div>'
+   +'<div class="td-layout"><div class="card" id="td-main" data-no-tools><div class="td-stats td-stats-top" id="td-stats"></div><div class="todo-add" style="margin:0"><input class="fld" id="td-q" placeholder="Search tasks…"></div><div class="td-chips" id="td-chips"></div><div id="td-list"></div></div>'
    +'<div class="td-side"><div class="card" id="td-cal" data-no-tools></div><div class="card" id="td-day" data-no-tools></div></div></div>';
   root.addEventListener('click',tdHandleClick);
   document.getElementById('td-seg').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;TD.view=b.getAttribute('data-view');LS.set('td_view',TD.view);TD.sel=null;tdRenderAll();});
