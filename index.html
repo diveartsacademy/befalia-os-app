@@ -61,6 +61,7 @@
   .card:before{content:"";position:absolute;left:0;top:0;height:100%;width:3px;background:linear-gradient(var(--aqua),transparent);box-shadow:0 0 12px rgba(46,230,255,.5);}
   .card.feature:before{background:linear-gradient(var(--rose),transparent);}
   .card.wide{grid-column:span 2;} @media(max-width:720px){.card.wide{grid-column:span 1;}}
+  .feed-img{margin:10px 0;}.feed-img img{display:block;width:100%;max-height:420px;object-fit:cover;border-radius:16px;border:1px solid var(--line);}.feed-img figcaption{font-size:12px;color:var(--muted);margin-top:5px;}
   .card h2{font-family:var(--serif);font-weight:600;margin:0;font-size:18px;letter-spacing:.6px;display:flex;align-items:center;gap:12px;color:var(--aquasoft);}
   .ic{flex:none;width:36px;height:36px;border-radius:11px;display:inline-flex;align-items:center;justify-content:center;
     font-size:19px;background:rgba(46,230,255,.10);border:1px solid var(--aqualine);box-shadow:var(--glowsoft),inset 0 0 10px rgba(46,230,255,.08);}
@@ -471,10 +472,10 @@
     <div id="rel-root"></div>
   </div>
   <div class="tabpane" id="tab-room">
-    <div class="section-label">Achievements &amp; wins</div>
-    <div class="blurb" style="margin:10px 4px 0;font-style:italic">A place to remember how far you have come. Photos open full-size in Notion — the dashboard can't load images directly.</div>
+    <div class="section-label">About me</div>
+    <div id="me-root"></div>
+    <div class="section-label">More about me</div>
     <div class="grid" id="room"></div>
-    <div class="section-label">All about me</div>
     <div class="grid" id="aboutme"></div>
     <div class="section-label">Journals &amp; trackers</div>
     <div class="grid" id="trackers"></div>
@@ -648,7 +649,7 @@ const ROUTES={
 };
 
 /* ---------- tabs ---------- */
-function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-business'&&typeof window.bizOpen==='function')window.bizOpen();if(id==='tab-finance'&&typeof window.finOpen==='function')window.finOpen();if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
+function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-business'&&typeof window.bizOpen==='function')window.bizOpen();if(id==='tab-finance'&&typeof window.finOpen==='function')window.finOpen();if(id==='tab-room'&&typeof window.meOpen==='function')window.meOpen();if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
 function buildTabs(){
   const bar=document.getElementById('tabs');
   [['tab-command','Home'],['tab-todo','To-Do'],['tab-goals','Goals'],['tab-health','Health'],['tab-areas','Relationship'],['tab-room','About Me'],['tab-business','Business'],['tab-finance','Finance'],['tab-social','Social'],['tab-agents','Agents']].forEach((t,i)=>{
@@ -1068,13 +1069,8 @@ const TRACKERS=[
   {icon:"🌟",title:"Befalia",url:"https://app.notion.com/p/e7a837fbe7bc430daab522c18852dd24",blurb:"BEFALIA (by date) — personal log"},
 ];
 const ROOM=[
-  {icon:"🏆",title:"Medals & Trophies",id:"3a2eb411ed7a8151ac94c380e41244e1",blurb:"Wins and placements",cls:"feature"},
   {icon:"🎖️",title:"Certifications & Titles",id:"3a2eb411ed7a81ad8480f6c9e78d8363",blurb:"Your qualifications"},
   {icon:"🌟",title:"Milestones",id:"3a2eb411ed7a81828016ef3c45f98047",blurb:"Firsts and big moments"},
-  {icon:"🎬",title:"Film, TV & Stage",id:"3a2eb411ed7a81368908e4f0d95e8b46",blurb:"Netflix, films, performances"},
-  {icon:"💬",title:"Kind Words",id:"3a2eb411ed7a81bdbfc6c9acd41588c3",blurb:"For the days you need them",cls:"feature"},
-  {icon:"📊",title:"Impact by Numbers",id:"3a2eb411ed7a8158b681de12fb6587b0",blurb:"Your reach",tiles:true},
-  {icon:"📸",title:"Gallery",id:"3a2eb411ed7a81aba6caf53124b39333",blurb:"Open in Notion to view photos"},
 ];
 const AFFIRMS=[
   "You built a world underwater that did not exist before you. That is not luck. That is you.",
@@ -1103,9 +1099,9 @@ function renderAffirm(){const box=document.getElementById('affirm-bubble');if(!b
   const anew=document.getElementById('aff-new');anew.addEventListener('keydown',e=>{if(e.key==='Enter'&&anew.value.trim()){affirmCustom.push(anew.value.trim());LS.set('plos_affirm',affirmCustom);anew.value='';renderAffirm();}});}
 function parseChildren(text){const out=[];const re=/<page\s+url="([^"]+)"[^>]*>([^<]*)<\/page>/g;let m;while((m=re.exec(text))!==null){out.push({url:m[1],title:(m[2]||"Untitled").trim()});}return out;}
 function extractContent(text){const m=(text||"").match(/<content>([\s\S]*?)<\/content>/);return m?m[1].trim():(text||"");}
-function renderMini(md){let html="";md.split("\n").forEach(raw=>{const l=raw.trim();if(!l)return;if(l.startsWith("# "))return;if(l.startsWith("## ")){html+='<div class="feed-h">'+escapeHtml(l.slice(3))+'</div>';return;}let x=escapeHtml(l).replace(/^_(.*)_$/,'<em>$1</em>');html+='<div class="feed-p">'+x+'</div>';});return html;}
+function renderMini(md){let html="";md.split("\n").forEach(raw=>{const l=raw.trim();if(!l)return;if(l.startsWith("# "))return;const im=l.match(/^!\[([^\]]*)\]\((https:\/\/[^)\s]+)\)$/);if(im){html+='<figure class="feed-img"><img src="'+escapeHtml(im[2])+'" alt="'+escapeHtml(im[1]||'Photo')+'" loading="lazy">'+(im[1]?'<figcaption>'+escapeHtml(im[1])+'</figcaption>':'')+'</figure>';return;}if(l.startsWith("## ")){html+='<div class="feed-h">'+escapeHtml(l.slice(3))+'</div>';return;}let x=escapeHtml(l).replace(/^_(.*)_$/,'<em>$1</em>');html+='<div class="feed-p">'+x+'</div>';});return html;}
 async function fetchNotion(id){const r=await window.cowork.callMcpTool(TOOL,{id});if(r&&r.isError)throw new Error("err");let data;if(r&&r.structuredContent)data=r.structuredContent;else if(r&&r.content&&r.content[0]&&r.content[0].text)data=JSON.parse(r.content[0].text);else throw new Error("no data");return data;}
-function shell(a,extra){const el=document.createElement("div");el.className="card"+(extra?(" "+extra):"");el.innerHTML='<h2><span class="ic">'+a.icon+'</span>'+a.title+'<span class="badge" data-badge>…</span></h2><div class="blurb">'+a.blurb+'</div><div data-body class="loading">Loading from Notion…</div>';return el;}
+function shell(a,extra){const el=document.createElement("div");el.className="card"+(extra?(" "+extra):"");el.innerHTML='<h2><span class="ic">'+a.icon+'</span>'+a.title+'<span class="badge" data-badge>…</span></h2>'+(a.blurb?'<div class="blurb">'+a.blurb+'</div>':'')+'<div data-body class="loading">Loading from Notion…</div>';return el;}
 async function renderFeed(f,cid){const el=shell(f,f.cls);el.querySelector("[data-badge]").remove();document.getElementById(cid||"areas").appendChild(el);const body=el.querySelector("[data-body]");try{const d=await fetchNotion(f.id);let html=(f.tiles?renderTiles:renderMini)(extractContent(d.text||""));html+='<div class="foot"><a href="'+(d.url||("https://app.notion.com/p/"+f.id))+'" target="_blank" rel="noopener">Edit this page →</a>'+(f.history?'<a href="'+f.history+'" target="_blank" rel="noopener">Full history →</a>':'')+'</div>';body.className="";body.innerHTML=html;}catch(e){body.className="err";body.textContent="Couldn't load right now. Try Reload.";}}
 async function renderArea(a,cid){const el=shell(a,a.sensitive?'sensitive':'');document.getElementById(cid||"areas").appendChild(el);const body=el.querySelector("[data-body]"),badge=el.querySelector("[data-badge]");try{const d=await fetchNotion(a.id);const kids=parseChildren(d.text||"");badge.textContent=kids.length;let html;if(a.sensitive){html='<div class="note-hint">'+kids.length+' private items. Kept in Notion, not shown here.</div>';}else{html='<ul class="notes">';kids.slice(0,30).forEach(k=>{html+='<li><a href="'+k.url+'" target="_blank" rel="noopener">'+escapeHtml(k.title)+'</a></li>';});html+='</ul>';if(kids.length===0)html='<div class="note-hint">No sub-notes yet in this area.</div>';}
   html+='<div class="foot"><a href="'+(d.url||("https://app.notion.com/p/"+a.id))+'" target="_blank" rel="noopener">Open in Notion →</a></div>';if(a.sensitive)html+='<div class="lock">🔒 Sensitive — opened only in Notion</div>';body.className="";body.innerHTML=html;return kids.length;}catch(e){badge.textContent="!";body.className="err";body.textContent="Couldn't load this area right now. Try Reload.";return 0;}}
@@ -2525,7 +2521,7 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
   buildRelationship();
   renderArea({icon:'🌿',title:'Health notes',id:'39eeb411ed7a81b8b7d3ff501f26a72b',sensitive:true},'healthnotes');
   await Promise.all(ROOM.map(r=>renderFeed(r,'room')));
-  renderFeed({icon:'🪩',title:'About Me — Personality',id:MY_PERSONALITY_ID,cls:'feature sensitive'},'aboutme');
+  // Personality, medals, film, numbers, kind words and gallery are drawn by aboutme-panel.js.
   renderArea({icon:'👑',title:'High Value Woman notes',id:'39deb411ed7a81c38bade41e5ae70a23'},'aboutme');
   renderArea({icon:'📓',title:'My Journals',id:'39eeb411ed7a81fcba99efa6066168b7'},'aboutme');
   loadDay();
@@ -2537,5 +2533,6 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
 <script src="/academy-panel.js"></script>
 <script src="/business-panel.js"></script>
 <script src="/finance-panel.js"></script>
+<script src="/aboutme-panel.js"></script>
 </body>
 </html>
