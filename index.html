@@ -1343,7 +1343,7 @@ async function tdLoad(silent){
     TD.parked=all.filter(t=>t.status==='Parked');
     // Focus rows belong to the Goals tab checklist, never to the To-Do list or calendar.
     TD.focus=all.filter(t=>t.area==='Focus'&&t.status!=='Parked');TD.tasks=all.filter(t=>t.status!=='Parked'&&t.area!=='Focus');TD.today=j.today||tdWita();if(Array.isArray(j.sections)&&j.sections.length)TD.sections=j.sections;
-    TD.loaded=true;TD.err=j.complete===false?'Only part of the list loaded. Tell Claude, the list has outgrown one load.':'';TD.lastSync=new Date();tdIndex();}
+    TD.loaded=true;TD.err=j.complete===false?'Only part of the list loaded. Tell Claude, the list has outgrown one load.':'';TD.lastSync=new Date();tdIndex();setTimeout(()=>pcSync(false),0);}
   catch(e){TD.err=String(e.message||e);}
   finally{TD.loading=false;tdRenderAll();if(typeof fcRender==='function')fcRender();if(TD.loaded&&!TD.arch&&!TD.archErr)tdLoadArchive();}
 }
@@ -1355,6 +1355,31 @@ async function tdLoadArchive(){
   catch(e){TD.archErr=String(e.message||e);}
   finally{TD.archLoading=false;tdRenderAll();}
 }
+/* After class (19 Oct 2026). Each class that has ended gets its steps as tasks
+   under the title "After class": log the expenses, organize and upload the
+   student files, and after the last session of a course, process the
+   certification in PADI Pros or MFI. /api/postclass creates them, ticks off what
+   is already done, and keeps them in step with the instructor dashboard through
+   the sheet tab OS_POSTCLASS. Synced on load at most every 10 minutes, and right
+   after a class is sent to the books or its videos are sent. */
+async function pcApi(body){
+  const r=await fetch('/api/postclass',{method:body?'POST':'GET',headers:osHeaders(),body:body?JSON.stringify(body):undefined});
+  if(r.status===401){osUnauthorised();throw new Error('OS key refused');}
+  let j={};try{j=await r.json();}catch(e){j={};}
+  if(!r.ok||!j.ok)throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+let PC_SYNCING=false;
+async function pcSync(force){
+  if(PC_SYNCING)return;const last=Number(LS.get('pc_sync_at',0))||0;
+  if(!force&&Date.now()-last<600000)return;
+  PC_SYNCING=true;
+  try{const j=await pcApi({action:'sync'});LS.set('pc_sync_at',Date.now());if(j.created||j.closed||j.reopened)tdLoad(true);}
+  catch(e){console.warn('After class sync: '+(e.message||e));}
+  finally{PC_SYNCING=false;}
+}
+function pcKeyOf(t){const m=String(t.notes||'').match(/gcal:([A-Za-z0-9_]{5,200})/);return m?'ev:'+m[1]:'nt:'+String(t.id).replace(/-/g,'');}
+function pcSteps(t){const k='postclass:'+pcKeyOf(t)+':';return TD.tasks.filter(x=>x.section==='After class'&&String(x.notes||'').indexOf(k)===0);}
 function tdArchDay(d){return TD.arch&&TD.arch[d]&&TD.arch[d].items.length?TD.arch[d]:null;}
 function tdArchItems(d){const a=tdArchDay(d);if(!a)return [];if(!TD.q)return a.items;const q=TD.q.toLowerCase();return a.items.filter(i=>i.t.toLowerCase().indexOf(q)!==-1);}
 function tdLinkify(s){return escapeHtml(s).replace(/(https?:\/\/[^\s<]+)/g,function(u){return '<a href="'+u+'" target="_blank" rel="noopener">link</a>';});}
@@ -1372,7 +1397,7 @@ function tdLocal(t,patch){
 async function tdPatch(id,patch,okMsg){
   const t=TD.byId[id];if(!t||String(id).indexOf('tmp')===0)return;
   const before=JSON.parse(JSON.stringify(t));tdLocal(t,patch);t._saving=true;delete t._err;tdRenderAll();
-  try{const j=await tdApi('update',{id:id,patch:patch});Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,j.task);if(j.today)TD.today=j.today;TD.lastSync=new Date();tdRenderAll();if(okMsg)showToast(okMsg,true);if('done' in patch&&/HUTANG BEFA/i.test(t.notes||'')&&typeof window.finAfterTodoTick==='function')window.finAfterTodoTick(t.notes,!!t.done);return true;}
+  try{const j=await tdApi('update',{id:id,patch:patch});Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,j.task);if(j.today)TD.today=j.today;TD.lastSync=new Date();tdRenderAll();if(okMsg)showToast(okMsg,true);if('done' in patch&&/HUTANG BEFA/i.test(t.notes||'')&&typeof window.finAfterTodoTick==='function')window.finAfterTodoTick(t.notes,!!t.done);if('done' in patch&&t.section==='After class'&&/^postclass:/.test(t.notes||''))pcApi({action:'tickTask',id:id,done:!!t.done}).catch(e=>showToast('Ticked here, but the instructor dashboard did not get it: '+(e.message||e),false));return true;}
   catch(e){Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,before);t._err=true;tdRenderAll();showToast('Not saved: '+(e.message||e),false);return false;}
 }
 async function tdCreate(task){
@@ -1405,7 +1430,7 @@ function tdRowHTML(t,opt){
   if(kids.length&&!opt.nested)meta+='<span>'+openKids+' of '+kids.length+' sub-tasks open</span>';
   if(t.sessionId)meta+='<span class="td-pill" title="In the DiveArts books as '+attr(t.sessionId)+'">💸 '+tdRp(t.expenses&&t.expenses.total)+' ✓ in books</span>';
   else if(t.expenses&&t.expenses.costs&&t.expenses.costs.length)meta+='<span class="td-pill" title="Expense draft, not sent yet">💸 '+tdRp(t.expenses.total)+' draft</span>';
-  if(t.notes)meta+='<span title="'+attr(t.notes)+'">📝 '+escapeHtml(t.notes.length>48?t.notes.slice(0,48)+'…':t.notes)+'</span>';
+  if(t.notes){const nn=t.section==='After class'?String(t.notes).replace(/^postclass:\S+\s*·\s*/,''):t.notes;meta+='<span title="'+attr(nn)+'">📝 '+escapeHtml(nn.length>48?nn.slice(0,48)+'…':nn)+'</span>';}
   const cls='td-row'+(t.done?' done':'')+(t._saving?' saving':'')+(t._err?' err':'')+(t.urgent&&!t.done?' urgent':'')+(opt.kid?' kid':'');
   return '<li class="'+cls+'" data-id="'+t.id+'">'+(opt.noGrip?'':'<span class="td-grip" title="Tap to move to another business or title. Drag onto a day, a title, or another task">⠿</span>')+'<button class="check" data-act="done" title="'+(t.done?'Untick':'Tick done')+'">'+(t.done?'✓':'')+'</button>'
     +'<div class="td-body"><div class="td-name" data-act="edit">'+escapeHtml(t.name||'(no name)')+'</div><div class="td-meta">'+meta+'</div></div>'
@@ -1558,7 +1583,8 @@ function tdClCardsHTML(day,sched){
   const cls=sched.filter(tdIsClass);if(!cls.length){if(TD.clOpen&&!(TD.byId[TD.clOpen]))TD.clOpen=null;return '';}
   if(TD.clAuto!==day){TD.clAuto=day;if(!TD.clOpen||!cls.some(t=>t.id===TD.clOpen)){const due=cls.find(t=>!t.sessionId&&tdDayOf(t.date.start)<=(TD.today||tdWita()));TD.clOpen=due?due.id:null;}}
   return '<div class="td-sub">Class sessions · expenses and videos</div>'+cls.map(t=>{const st=tdClState(t);const open=TD.clOpen===t.id&&!TD_EDIT;
-    return '<div class="cl-card"><button class="cl-card-h" data-act="clopen" data-id="'+attr(t.id)+'"><span>'+(open?'▾':'▸')+' 📝 '+escapeHtml(String(t.name||'Class').replace(/^Teach:\s*/,''))+'</span><span class="st '+st[1]+'">'+escapeHtml(st[0])+'</span></button>'+(open?'<div class="cl-box" id="tde-cl"></div>':'')+'</div>';}).join('');
+    const ps=pcSteps(t),pd=ps.filter(x=>x.done).length;const pc=ps.length?'<span class="st '+(pd===ps.length?'ok':'warn')+'" title="After class: '+escapeHtml(ps.map(x=>(x.done?'✓ ':'○ ')+String(x.name).replace(/^.*\):\s*/,'')).join(', '))+'">after class '+pd+'/'+ps.length+'</span>':'';
+    return '<div class="cl-card"><button class="cl-card-h" data-act="clopen" data-id="'+attr(t.id)+'"><span>'+(open?'▾':'▸')+' 📝 '+escapeHtml(String(t.name||'Class').replace(/^Teach:\s*/,''))+'</span><span style="display:flex;gap:6px">'+pc+'<span class="st '+st[1]+'">'+escapeHtml(st[0])+'</span></span></button>'+(open?'<div class="cl-box" id="tde-cl"></div>':'')+'</div>';}).join('');
 }
 function tdClToggle(id){
   if(CL&&CL.dirty&&!(TD.byId[CL.id]||{}).sessionId)tdClDraft(CL.id,true);
@@ -1850,7 +1876,7 @@ async function tdClVideos(id){
   if(!CL||CL.id!==id)return;const L=CL.log;
   CL.busy=true;CL.msg='Saving the links. Google can take up to a minute.';CL.bad=false;tdClRender();
   try{const j=await clApi('videos',{id:id,log:{video:L.video,lang:L.lang,students:L.students.map(s=>({name:s.name,video:s.video,profile_id:s.profile_id}))}});
-    tdClApply(j.task);if(CL&&CL.id===id){CL.busy=false;CL.dirty=false;CL.msg='';tdClRender();}showToast('Class videos saved',true);}
+    tdClApply(j.task);if(CL&&CL.id===id){CL.busy=false;CL.dirty=false;CL.msg='';tdClRender();}showToast('Class videos saved',true);pcSync(true);}
   catch(e){if(CL&&CL.id===id){CL.busy=false;CL.msg=String(e.message||e);CL.bad=true;tdClRender();}}
 }
 function tdClTotal(){return CL?CL.log.costs.reduce((s,c)=>s+tdClDigits(c.amount),0):0;}
@@ -1929,7 +1955,7 @@ async function tdClSend(id){
   if(!CL||CL.id!==id)return;const payload=tdClPayload();CL.busy=true;CL.arm=false;CL.msg='Sending to the DiveArts books. Google can take up to a minute.';CL.bad=false;tdClRender();
   try{const j=await clApi('send',{id:id,log:payload});tdClApply(j.task);
     const r=j.result||{};const vq=j.videos&&j.videos.portal&&j.videos.portal.queued;showToast(r.expensesError?'Saved as '+j.sessionId+' but NOT in 1. SESSION EXPENSES: '+r.expensesError:'In the books as '+j.sessionId+(r.expensesRow?', row '+r.expensesRow:'')+(vq?' · '+vq+' video email'+(vq>1?'s':'')+' queued':''),!r.expensesError);
-    if(CL&&CL.id===id){CL.busy=false;tdClRender();}}
+    if(CL&&CL.id===id){CL.busy=false;tdClRender();}pcSync(true);}
   catch(e){if(CL&&CL.id===id){CL.busy=false;CL.msg=String(e.message||e);CL.bad=true;tdClRender();}}
 }
 function tdRenderModalSubs(){const ul=document.getElementById('tde-subs');if(!ul||!TD_EDIT)return;const k=tdKids(TD_EDIT).sort(tdSort);ul.innerHTML=k.length?k.map(t=>tdRowHTML(t,{nested:true,noGrip:true})).join(''):'<li class="td-empty">No sub-tasks.</li>';}
