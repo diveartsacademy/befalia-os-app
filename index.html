@@ -486,7 +486,7 @@
   </div>
   <div class="tabpane" id="tab-finance">
     <div class="section-label">Personal finance</div>
-    <div class="grid" id="pending"></div>
+    <div id="fin-root"></div>
   </div>
   <div class="tabpane" id="tab-social">
     <div class="section-label">Social Media</div>
@@ -620,7 +620,7 @@ let todayEventCount=0;
 
 const MET={Swim:8,Class:7,Gym:5,Run:9.8,Walk:3.5,Yoga:3,Cycle:7,'Underwater':6,Dance:6,Other:5};
 const WEEKLY_REVIEW_ID='3a2eb411ed7a816d9760efc4342c5362';
-const FINANCE_ID='3a2eb411ed7a814abbaac4cf8a05c80f';
+// Finance now reads the HUTANG BEFA sheet (finance-panel.js, /api/finance). The old Notion page stays in Notion.
 const FOUNDER_ID='3a2eb411ed7a8167ac9cd4d91d39ece2';
 const CONNECTIONS_ID='3a2eb411ed7a81919ba0c70f35ee974b';
 const MY_PERSONALITY_ID='3a2eb411ed7a81d694b7d9b1dbaa32f6';
@@ -648,7 +648,7 @@ const ROUTES={
 };
 
 /* ---------- tabs ---------- */
-function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-business'&&typeof window.bizOpen==='function')window.bizOpen();if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
+function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-business'&&typeof window.bizOpen==='function')window.bizOpen();if(id==='tab-finance'&&typeof window.finOpen==='function')window.finOpen();if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
 function buildTabs(){
   const bar=document.getElementById('tabs');
   [['tab-command','Home'],['tab-todo','To-Do'],['tab-goals','Goals'],['tab-health','Health'],['tab-areas','Relationship'],['tab-room','About Me'],['tab-business','Business'],['tab-finance','Finance'],['tab-social','Social'],['tab-agents','Agents']].forEach((t,i)=>{
@@ -1110,9 +1110,6 @@ async function renderFeed(f,cid){const el=shell(f,f.cls);el.querySelector("[data
 async function renderArea(a,cid){const el=shell(a,a.sensitive?'sensitive':'');document.getElementById(cid||"areas").appendChild(el);const body=el.querySelector("[data-body]"),badge=el.querySelector("[data-badge]");try{const d=await fetchNotion(a.id);const kids=parseChildren(d.text||"");badge.textContent=kids.length;let html;if(a.sensitive){html='<div class="note-hint">'+kids.length+' private items. Kept in Notion, not shown here.</div>';}else{html='<ul class="notes">';kids.slice(0,30).forEach(k=>{html+='<li><a href="'+k.url+'" target="_blank" rel="noopener">'+escapeHtml(k.title)+'</a></li>';});html+='</ul>';if(kids.length===0)html='<div class="note-hint">No sub-notes yet in this area.</div>';}
   html+='<div class="foot"><a href="'+(d.url||("https://app.notion.com/p/"+a.id))+'" target="_blank" rel="noopener">Open in Notion →</a></div>';if(a.sensitive)html+='<div class="lock">🔒 Sensitive — opened only in Notion</div>';body.className="";body.innerHTML=html;return kids.length;}catch(e){badge.textContent="!";body.className="err";body.textContent="Couldn't load this area right now. Try Reload.";return 0;}}
 function renderTracker(t){const el=document.createElement("div");el.className="card";el.innerHTML='<h2><span class="ic">'+t.icon+'</span>'+t.title+'</h2><div class="blurb">'+t.blurb+'</div><div class="note-hint">Dated entries live here in Notion.</div><div class="foot"><a href="'+t.url+'" target="_blank" rel="noopener">Open tracker →</a></div>';document.getElementById("trackers").appendChild(el);}
-function renderPending(){const el=document.createElement("div");el.className="card sensitive";el.innerHTML='<h2><span class="ic">💰</span>Personal Finance<button class="link-btn" id="fin-edit" style="margin-left:auto">Edit in Notion →</button></h2><div class="blurb">Personal money only — separate from DiveArts, Sea Diva and TailCraft business finances.</div><div data-body id="fin-body" class="loading">Loading…</div>';document.getElementById("pending").appendChild(el);document.getElementById('fin-edit').onclick=()=>window.open('https://app.notion.com/p/'+FINANCE_ID,'_blank');loadFinance();}
-async function loadFinance(){const body=document.getElementById('fin-body');if(!body)return;try{const d=await fetchNotion(FINANCE_ID);const c=extractContent(d.text||'');let inner=renderMini(c);if(!c||c.replace(/\s/g,'').length<60)inner='<div class="note-hint">No numbers yet. Add available cash, monthly spend, savings, upcoming payments and subscriptions in the Notion page and they appear here — or tell me where your finance sheet lives and I will summarize it.</div>';body.className='';body.innerHTML=inner+'<div class="foot"><button class="link-btn" onclick="askFinance()">Summarize from a sheet →</button></div>';}catch(e){body.className='err';body.textContent='Could not load finance page. Try Reload.';}}
-function askFinance(){if(window.sendPrompt)window.sendPrompt("My personal finance sheet is ready — help me wire the Personal Finance card of my Personal Life OS to it (kept separate from business money).");}
 
 /* ---------- Connections (relationship CRM) ---------- */
 function buildRelationship(){
@@ -1379,7 +1376,7 @@ function tdLocal(t,patch){
 async function tdPatch(id,patch,okMsg){
   const t=TD.byId[id];if(!t||String(id).indexOf('tmp')===0)return;
   const before=JSON.parse(JSON.stringify(t));tdLocal(t,patch);t._saving=true;delete t._err;tdRenderAll();
-  try{const j=await tdApi('update',{id:id,patch:patch});Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,j.task);if(j.today)TD.today=j.today;TD.lastSync=new Date();tdRenderAll();if(okMsg)showToast(okMsg,true);return true;}
+  try{const j=await tdApi('update',{id:id,patch:patch});Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,j.task);if(j.today)TD.today=j.today;TD.lastSync=new Date();tdRenderAll();if(okMsg)showToast(okMsg,true);if('done' in patch&&/HUTANG BEFA/i.test(t.notes||'')&&typeof window.finAfterTodoTick==='function')window.finAfterTodoTick(t.notes,!!t.done);return true;}
   catch(e){Object.keys(t).forEach(k=>delete t[k]);Object.assign(t,before);t._err=true;tdRenderAll();showToast('Not saved: '+(e.message||e),false);return false;}
 }
 async function tdCreate(task){
@@ -2524,7 +2521,7 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
   renderAffirm();
   buildToday();
   buildExtras();
-  TRACKERS.forEach(renderTracker); renderPending();
+  TRACKERS.forEach(renderTracker);
   buildRelationship();
   renderArea({icon:'🌿',title:'Health notes',id:'39eeb411ed7a81b8b7d3ff501f26a72b',sensitive:true},'healthnotes');
   await Promise.all(ROOM.map(r=>renderFeed(r,'room')));
@@ -2539,5 +2536,6 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
 <script src="/packing-panel.js"></script>
 <script src="/academy-panel.js"></script>
 <script src="/business-panel.js"></script>
+<script src="/finance-panel.js"></script>
 </body>
 </html>
