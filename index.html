@@ -1347,7 +1347,7 @@ async function tdLoad(silent){
     TD.parked=all.filter(t=>t.status==='Parked');
     // Focus rows belong to the Goals tab checklist, never to the To-Do list or calendar.
     TD.focus=all.filter(t=>t.area==='Focus'&&t.status!=='Parked');TD.tasks=all.filter(t=>t.status!=='Parked'&&t.area!=='Focus');TD.today=j.today||tdWita();if(Array.isArray(j.sections)&&j.sections.length)TD.sections=j.sections;
-    TD.loaded=true;TD.err=j.complete===false?'Only part of the list loaded. Tell Claude, the list has outgrown one load.':'';TD.lastSync=new Date();tdIndex();setTimeout(()=>pcSync(false),0);}
+    TD.loaded=true;TD.err=j.complete===false?'Only part of the list loaded. Tell Claude, the list has outgrown one load.':'';TD.lastSync=new Date();tdIndex();setTimeout(()=>pcSync(false),0);setTimeout(tdHutangMove,0);}
   catch(e){TD.err=String(e.message||e);}
   finally{TD.loading=false;tdRenderAll();if(typeof fcRender==='function')fcRender();if(TD.loaded&&!TD.arch&&!TD.archErr)tdLoadArchive();}
 }
@@ -1372,6 +1372,20 @@ async function pcApi(body){
   let j={};try{j=await r.json();}catch(e){j={};}
   if(!r.ok||!j.ok)throw new Error(j.error||('HTTP '+r.status));
   return j;
+}
+/* 19 Oct 2026: debt reminders and Finance paid records move from Payments
+   (Bayar) to their own title, Pembayaran Hutang. Done here, with the key on
+   Befa's own device, because the Notion connector cannot add a new title
+   without rewriting the whole list. Runs once there is something to move;
+   after that it finds nothing. Her own payment tasks are left alone. */
+let HUT_MOVING=false;
+function tdIsHutang(t){return t&&t.section==='Payments (Bayar)'&&(/HUTANG BEFA/i.test(t.notes||'')||/^Bayar besok \(/.test(t.name||'')||/^Cek dan centang di sheet HUTANG BEFA/i.test(t.name||''));}
+async function tdHutangMove(){
+  if(HUT_MOVING)return;const list=TD.tasks.filter(tdIsHutang);if(!list.length)return;
+  HUT_MOVING=true;let ok=0;
+  try{for(const t of list){try{const j=await tdApi('update',{id:t.id,patch:{section:'Pembayaran Hutang'}});if(j.task){Object.assign(t,j.task);ok++;}}catch(e){console.warn('Pembayaran Hutang move: '+(e.message||e));break;}}}
+  finally{HUT_MOVING=false;}
+  if(ok){tdIndex();tdRenderAll();showToast(ok+' pengingat hutang dipindah ke Pembayaran Hutang',true);}
 }
 let PC_SYNCING=false;
 async function pcSync(force){
