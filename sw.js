@@ -1,6 +1,6 @@
 // Minimal service worker — caches the app shell so it installs and opens fast.
-const CACHE = 'befalia-os-v41';
-const SHELL = ['./index.html', './packing-panel.js', './business-panel.js', './academy-panel.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+const CACHE = 'befalia-os-v42';
+const SHELL = ['./index.html', './packing-panel.js', './business-panel.js', './academy-panel.js', './finance-panel.js', './aboutme-panel.js', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(SHELL); }).then(function () { return self.skipWaiting(); }));
 });

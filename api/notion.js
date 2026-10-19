@@ -128,6 +128,15 @@ async function fetchPageText(id, H) {
   for (const b of results) {
     const t = b.type, node = b[t] || {};
     if (t === 'child_page') { out += '<page url="https://www.notion.so/' + (b.id || '').replace(/-/g, '') + '">' + ((b.child_page && b.child_page.title) || 'Untitled') + '</page>\n'; continue; }
+    // Photos added in Notion (19 Oct 2026: "add images ... in everything"). The
+    // file URL Notion gives is signed and expires after about an hour, so it is
+    // only ever used straight away by the page that asked.
+    if (t === 'image') {
+      const src = (node.file && node.file.url) || (node.external && node.external.url) || '';
+      const cap = (node.caption || []).map(function (x) { return x.plain_text; }).join('').replace(/[\[\]\n]/g, ' ').trim();
+      if (/^https:\/\//.test(src)) out += '![' + cap + '](' + src.replace(/[()\s]/g, function (c) { return '%' + ('0' + c.charCodeAt(0).toString(16).toUpperCase()).slice(-2); }) + ')\n';
+      continue;
+    }
     const s = (node.rich_text || []).map(function (x) { return x.plain_text; }).join('');
     if (t === 'code') { out += '```' + (node.language || '') + '\n' + s + '\n```\n'; continue; }
     if (!s) continue;
