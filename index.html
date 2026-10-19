@@ -274,6 +274,7 @@
   .td-stat.warn b{color:#ff9db0;}
   .td-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(330px,1fr);gap:16px;margin-top:16px;align-items:start;}
   .td-side{position:sticky;top:64px;}
+  .td-col{min-width:0;}
   @media(max-width:980px){.td-layout{display:flex;flex-direction:column;align-items:stretch;}.td-side{position:static;order:-1;}}
   .td-min{margin-left:auto;}
   .td-head.min .td-headbody{display:none;}
@@ -2476,7 +2477,7 @@ function buildTodo(){
   const root=document.getElementById('todo-root');if(!root)return;
   const lastArea=LS.get('td_lastArea','Personal');
   const headMin=LS.get('td_head_min',false);
-  root.innerHTML='<div class="card td-head'+(headMin?' min':'')+'" id="td-head" data-no-tools>'
+  root.innerHTML='<div class="td-layout"><div class="td-col"><div class="card td-head'+(headMin?' min':'')+'" id="td-head" data-no-tools>'
    +'<div class="td-headrow"><h2><span class="ic">✅</span>To-Do</h2><div class="td-seg" id="td-seg"><button data-view="list">List</button><button data-view="history">History</button></div>'
    +'<span class="td-sync" id="td-sync"></span><button class="ctool" id="td-refresh" title="Reload from Notion">↻ Refresh</button><a class="ctool" href="'+TD_NOTION_URL+'" target="_blank" rel="noopener">Notion ↗</a><button class="ctool td-min" id="td-min" type="button" aria-expanded="true">▴ Minimize</button></div>'
    +'<div class="td-headbody"><div class="td-add"><input class="fld" id="td-new-name" placeholder="New task… then Enter">'
@@ -2486,7 +2487,7 @@ function buildTodo(){
    +'<input class="fld" type="time" id="td-new-time" title="Time WITA, optional">'
    +'<span class="td-addbtns"><button class="td-tog" id="td-new-pri" type="button" title="Priority">⏰</button><button class="td-tog" id="td-new-urg" type="button" title="Urgent">🚨</button><button class="gold-btn" id="td-new-go">Add</button></span></div>'
    +'<datalist id="td-sec-list"></datalist><div id="td-migrate"></div></div></div>'
-   +'<div class="td-layout"><div class="card" id="td-main" data-no-tools><div class="td-stats td-stats-top" id="td-stats"></div><div class="todo-add" style="margin:0"><input class="fld" id="td-q" placeholder="Search tasks…"></div><div class="td-chips" id="td-chips"></div><div id="td-list"></div></div>'
+   +'<div class="card" id="td-main" data-no-tools><div class="td-stats td-stats-top" id="td-stats"></div><div class="todo-add" style="margin:0"><input class="fld" id="td-q" placeholder="Search tasks…"></div><div class="td-chips" id="td-chips"></div><div id="td-list"></div></div></div>'
    +'<div class="td-side"><div class="card" id="td-cal" data-no-tools></div><div class="card" id="td-day" data-no-tools></div></div></div>';
   root.addEventListener('click',tdHandleClick);
   document.getElementById('td-seg').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;TD.view=b.getAttribute('data-view');LS.set('td_view',TD.view);TD.sel=null;tdRenderAll();});
