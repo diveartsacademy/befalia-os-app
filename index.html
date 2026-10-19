@@ -1294,6 +1294,10 @@ const TD_NOTION_URL='https://app.notion.com/p/3eceb411ed7a81ee967bd6d40f7c4ee4';
 const TD={tasks:[],byId:{},sections:[],today:null,loaded:false,loading:false,err:'',lastSync:null,
   arch:null,archLoading:false,archErr:'',titles:LS.get('td_titles',{}),indent:{},newTitleFor:null,renaming:null,focusKey:null,view:LS.get('td_view','list'),area:LS.get('td_area','All'),flag:'',q:'',month:null,sel:null,histLimit:21,
   closed:LS.get('td_closed',{}),newPri:false,newUrg:false};
+/* 19 Oct 2026: the debt reminders moved to their own title, "Pembayaran Hutang",
+   because Befa wants to fold them away. It starts folded once on each device;
+   after that a tap on the title opens or folds it as usual. */
+try{if(!LS.get('td_hutang_folded',false)){TD.closed[tdSecKey('Personal','Pembayaran Hutang')]=1;LS.set('td_closed',TD.closed);LS.set('td_hutang_folded',true);}}catch(e){}
 
 function tdWita(d){return new Intl.DateTimeFormat('en-CA',{timeZone:TD_TZ,year:'numeric',month:'2-digit',day:'2-digit'}).format(d||new Date());}
 function tdIsDT(s){return !!s&&String(s).length>10;}
