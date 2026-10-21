@@ -488,6 +488,7 @@
   <div class="tabpane" id="tab-finance">
     <div class="section-label">Personal finance</div>
     <div id="fin-root"></div>
+    <div id="subs-root"></div>
   </div>
   <div class="tabpane" id="tab-social">
     <div class="section-label">Social Media</div>
@@ -649,7 +650,7 @@ const ROUTES={
 };
 
 /* ---------- tabs ---------- */
-function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-business'&&typeof window.bizOpen==='function')window.bizOpen();if(id==='tab-finance'&&typeof window.finOpen==='function')window.finOpen();if(id==='tab-room'&&typeof window.meOpen==='function')window.meOpen();if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
+function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-business'&&typeof window.bizOpen==='function')window.bizOpen();if(id==='tab-finance'&&typeof window.finOpen==='function')window.finOpen();if(id==='tab-finance'&&typeof window.subsOpen==='function')window.subsOpen();if(id==='tab-room'&&typeof window.meOpen==='function')window.meOpen();if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
 function buildTabs(){
   const bar=document.getElementById('tabs');
   [['tab-command','Home'],['tab-todo','To-Do'],['tab-goals','Goals'],['tab-health','Health'],['tab-areas','Relationship'],['tab-room','About Me'],['tab-business','Business'],['tab-finance','Finance'],['tab-social','Social'],['tab-agents','Agents']].forEach((t,i)=>{
@@ -1174,7 +1175,7 @@ const ORG=[
  {icon:'🌿',dept:'Health',chief:'Coral — Chief Health Officer',aim:'Every meal and habit serves your six health goals.',status:'live',beat:'Assessment · 21:00',subs:[['Nutritionist','photo → macros → nightly assessment','live'],['Cycle Guardian','phases + irregularity warning','live'],['Movement Coach','consistency over calories','live'],['Sleep & Recovery','hours, quality, 7d trend','live'],['Pharmacist','12-supplement adherence','live']]},
  {icon:'🧠',dept:'Learning',chief:'Sage — Chief Learning Officer',aim:'Everything you watch becomes retained mastery.',status:'live',beat:'07:00 · 20:15 · 20:30',subs:[['Curator','5 real picks each morning','live'],['Note Master','ticked videos → Knowledge notes','live'],['Recap Writer','the day in 3–6 takeaways','live'],['Librarian','monthly archiving','live']]},
  {icon:'💗',dept:'Relationship',chief:'Amara — Chief Relationship Officer',aim:'Your people understood, remembered, protected.',status:'oncall',beat:'',subs:[['Love Analyst','honest compatibility reads','oncall'],['Friendship Keeper','friends & who needs you','oncall'],['Family Keeper','family circle, docs stay private','oncall'],['Person Memory','dated notes via 10 boxes','live']]},
- {icon:'💰',dept:'Finance',chief:'Ledger — Chief Personal-Finance Officer',aim:'You always know your cash, spend, runway.',status:'planned',beat:'Waiting on your finance sheet',subs:[['Ledger Keeper','monthly money summary','planned'],['Runway Watcher','deadlines & subscriptions','planned']]},
+ {icon:'💰',dept:'Finance',chief:'Ledger — Chief Personal-Finance Officer',aim:'You always know your cash, spend, runway.',status:'planned',beat:'Waiting on your finance sheet',subs:[['Ledger Keeper','monthly money summary','planned'],['Runway Watcher','subscriptions, trials & renewals (Finance tab)','live']]},
  {icon:'📣',dept:'Social Media',chief:'Marlin — Chief Social Officer',aim:'Every platform grows and earns, on-brand, without you posting manually.',status:'oncall',beat:'',subs:[['Trend Researcher','what to post now in your niche','oncall'],['Content Creator','hooks, scripts, captions per platform','oncall'],['Analytics Keeper','monthly numbers you log','planned'],['Monetization Strategist','turn reach into tail sales & bookings','oncall']]},
  {icon:'🏛️',dept:'Memory & Archives',chief:'Keeper — Chief Memory Officer',aim:'Nothing you build or learn is ever lost.',status:'live',beat:'Archive · 1st 06:00',subs:[['Archivist','archive-first, trim-second','live'],['Brain Keeper','Claude’s Notes + ID registry','oncall'],['Room Curator','achievements current','oncall']]},
  {icon:'🛡️',dept:'Quality & Safety',chief:'Sentinel — Chief Quality Officer',aim:'The OS never lies, loses data, or ships broken.',status:'live',beat:'Every ship + every prompt',subs:[['Auditor','audits & pre-ship checks','oncall'],['Privacy Warden','sensitive tiers & redaction','live'],['Honesty Guard','no invented data, ever','live']]},
@@ -2577,6 +2578,7 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
 <script src="/academy-panel.js"></script>
 <script src="/business-panel.js"></script>
 <script src="/finance-panel.js"></script>
+<script src="/subscriptions-panel.js"></script>
 <script src="/aboutme-panel.js"></script>
 </body>
 </html>
