@@ -1348,7 +1348,7 @@ async function tdLoad(silent){
     TD.parked=all.filter(t=>t.status==='Parked');
     // Focus rows belong to the Goals tab checklist, never to the To-Do list or calendar.
     TD.focus=all.filter(t=>t.area==='Focus'&&t.status!=='Parked');TD.tasks=all.filter(t=>t.status!=='Parked'&&t.area!=='Focus');TD.today=j.today||tdWita();if(Array.isArray(j.sections)&&j.sections.length)TD.sections=j.sections;
-    TD.loaded=true;TD.err=j.complete===false?'Only part of the list loaded. Tell Claude, the list has outgrown one load.':'';TD.lastSync=new Date();tdIndex();setTimeout(()=>pcSync(false),0);setTimeout(tdHutangMove,0);}
+    TD.loaded=true;TD.complete=j.complete;TD.err=j.complete===false?'Only part of the list loaded. Tell Claude, the list has outgrown one load.':'';TD.lastSync=new Date();tdIndex();setTimeout(()=>pcSync(false),0);setTimeout(tdHutangMove,0);setTimeout(tdFlightPrep,0);}
   catch(e){TD.err=String(e.message||e);}
   finally{TD.loading=false;tdRenderAll();if(typeof fcRender==='function')fcRender();if(TD.loaded&&!TD.arch&&!TD.archErr)tdLoadArchive();}
 }
@@ -1379,6 +1379,74 @@ async function pcApi(body){
    Befa's own device, because the Notion connector cannot add a new title
    without rewriting the whole list. Runs once there is something to move;
    after that it finds nothing. Her own payment tasks are left alone. */
+/* ---------- flights and follow-ups (27 Oct 2026) ----------
+   Befa: "each time I'm going on a flight, a day before, put in the to-do list a
+   reminder to check in for the flight and a reminder to do the packing for the
+   trip. And each time I add a task that probably needs a follow up, maybe the
+   next day, I want the option for that."
+   A flight is a dated task whose name says so: ✈, flight, fly, pesawat,
+   penerbangan, terbang, boarding, or two airport codes such as CGK → DPS.
+   The ✈ button on the new-task form makes any task one. For every flight in
+   the next 45 days the To-Do keeps two tasks under Trips, dated the day
+   before: check in, and packing. They follow the flight when it moves and are
+   parked when it is cancelled. Nothing is sent anywhere. */
+const FP_WORD=/✈|\bflights?\b|\bfly(?:ing)?\b|pesawat|penerbangan|\bterbang\b|\bboarding\b/i;
+const FP_AIRPORTS='CGK HLP DPS SUB JOG YIA KNO UPG LOP LBJ BTH PLM PKU BPN SRG SOC MDC DJJ BDO PNK AMQ BKS TKG KOE TTE SIN KUL BKK DMK HKT HKG NRT HND KIX ICN TPE MNL SGN HAN SYD MEL PER BNE DRW AKL DOH DXB AUH IST MLE CMB DEL BOM LHR CDG AMS FRA LAX SFO JFK'.split(' ');
+const FP_DAYS=45;
+function fpAdd(ymd,n){const p=String(ymd).split('-').map(Number);const d=new Date(Date.UTC(p[0],p[1]-1,p[2]+n));return d.toISOString().slice(0,10);}
+function fpPair(name){const re=/\b([A-Z]{3})\s*(?:-|–|—|→|->|>|to|ke)\s*([A-Z]{3})\b/g;let m;while((m=re.exec(String(name||'')))){if(FP_AIRPORTS.indexOf(m[1])>=0&&FP_AIRPORTS.indexOf(m[2])>=0)return true;}return false;}
+function tdIsFlight(t){
+  if(!t||t.done||t.status==='Parked'||!t.date||!t.date.start)return false;
+  if(/^(flightprep|followup|postclass):/.test(t.notes||'')||t.section==='After class'||tdIsClass(t))return false;
+  return FP_WORD.test(t.name||'')||fpPair(t.name);
+}
+function fpKey(f,kind){return 'flightprep:'+String(f.id).replace(/-/g,'')+':'+kind;}
+function fpShort(f){return String(f.name||'Flight').replace(/^\s*✈\uFE0F?\s*/,'').slice(0,90);}
+let FP_BUSY=false;
+async function tdFlightPrep(){
+  if(FP_BUSY||!TD.loaded||TD.err)return;FP_BUSY=true;let made=0,moved=0,parked=0;
+  try{
+    const today=TD.today||tdWita(),until=fpAdd(today,FP_DAYS);
+    const preps=TD.tasks.filter(t=>/^flightprep:/.test(t.notes||''));
+    const flights=TD.tasks.filter(tdIsFlight).filter(f=>{const d=tdDayOf(f.date.start);return d>=today&&d<=until;});
+    for(const f of flights){
+      const day=tdDayOf(f.date.start);const want=fpAdd(day,-1)<today?today:fpAdd(day,-1);
+      for(const kind of ['checkin','packing']){
+        const key=fpKey(f,kind);const ex=preps.find(p=>String(p.notes).indexOf(key)===0);
+        if(!ex){
+          const name=(kind==='checkin'?'✈ Check-in flight: ':'🧳 Packing untuk trip: ')+fpShort(f);
+          const notes=key+' · Pengingat H-1 untuk flight '+day+(kind==='checkin'?'. Check-in online, lalu simpan boarding pass.':'. Siapkan koper dan barang untuk trip ini.');
+          const r=await tdCreate({name:name,area:f.area||'Personal',section:'Trips',type:'Task',priority:kind==='checkin',date:{start:want},notes:notes});
+          if(r)made++;else return;
+        }else if(!ex.done&&ex.date&&tdDayOf(ex.date.start)!==want){
+          try{const j=await tdApi('update',{id:ex.id,patch:{date:{start:want,end:null}}});if(j.task)Object.assign(ex,j.task);moved++;}catch(e){console.warn('Flight prep move: '+(e.message||e));}
+        }
+      }
+    }
+    // A flight that is gone (deleted or parked) parks its open reminders. Only
+    // with a complete list, so a half load never parks anything by mistake.
+    if(TD.complete!==false){
+      const live={};TD.tasks.forEach(t=>{if(tdIsFlight(t))live[String(t.id).replace(/-/g,'')]=1;});
+      for(const p of preps){
+        if(p.done)continue;const fid=(String(p.notes).match(/^flightprep:([0-9a-f]{32}):/)||[])[1];
+        const f=fid&&TD.tasks.find(t=>String(t.id).replace(/-/g,'')===fid);
+        if(fid&&!live[fid]&&!(f&&f.done)){try{await tdApi('update',{id:p.id,patch:{status:'Parked'}});TD.tasks=TD.tasks.filter(x=>x!==p);delete TD.byId[p.id];parked++;}catch(e){console.warn('Flight prep park: '+(e.message||e));}}
+      }
+    }
+  }finally{FP_BUSY=false;}
+  if(made||moved||parked){tdIndex();tdRenderAll();showToast([made?made+' pengingat flight ditambah':'',moved?moved+' ikut pindah tanggal':'',parked?parked+' disimpan karena flight batal':''].filter(Boolean).join(', '),true);}
+}
+/* A follow-up: a new task "Follow up: <task>" a few days after the task (or
+   after today when the task has no date or is already past). */
+async function tdFollowUp(t,days){
+  if(!t)return null;const today=TD.today||tdWita();const base=t.date&&t.date.start&&tdDayOf(t.date.start)>today?tdDayOf(t.date.start):today;
+  const day=fpAdd(base,days||1);
+  const r=await tdCreate({name:'Follow up: '+String(t.name||'').replace(/^Follow up:\s*/i,'').slice(0,150),area:t.area||null,section:t.section||null,type:'Task',date:{start:day},
+    notes:'followup:'+String(t.id).replace(/-/g,'')+' · Follow up dari task "'+String(t.name||'').slice(0,120)+'".'});
+  if(r)showToast('Follow up ditambah untuk '+tdShortDay(day),true);
+  return r;
+}
+function tdShortDay(ymd){const p=String(ymd).split('-').map(Number);return p[2]+' '+['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][p[1]-1];}
 let HUT_MOVING=false;
 function tdIsHutang(t){return t&&t.section==='Payments (Bayar)'&&(/HUTANG BEFA/i.test(t.notes||'')||/^Bayar besok \(/.test(t.name||'')||/^Cek dan centang di sheet HUTANG BEFA/i.test(t.name||''));}
 async function tdHutangMove(){
@@ -1684,6 +1752,7 @@ function tdOpenEditor(id){
    +(lk?'<div class="full td-clx-hint">This class comes from the DiveArts '+tdClCal(t)+' calendar. Its day and time change with Cancel or reschedule below, so the calendar, the sheet and this list stay the same.</div>':'')
    +(t.done?'<label>Done on<input class="fld" type="date" id="tde-doneon" max="'+(TD.today||tdWita())+'" value="'+(t.completedOn||'')+'"></label>':'')
    +'<label>Flags<span style="display:flex;gap:8px"><button class="td-tog'+(t.priority?' on':'')+'" id="tde-pri" type="button">⏰ Priority</button><button class="td-tog'+(t.urgent?' on':'')+'" id="tde-urg" type="button">🚨 Urgent</button></span></label>'
+   +(String(id).indexOf('tmp')===0?'':'<label class="full">Follow up<span style="display:flex;gap:8px;flex-wrap:wrap"><button class="td-ghost" type="button" data-act="fu" data-days="1">↻ Besok</button><button class="td-ghost" type="button" data-act="fu" data-days="3">+3 hari</button><button class="td-ghost" type="button" data-act="fu" data-days="7">+1 minggu</button></span></label>')
    +'<label class="full">Notes<textarea class="fld" id="tde-notes" rows="3">'+escapeHtml(t.notes||'')+'</textarea></label>'
    +'</div>'+(tdIsClass(t)?'<div class="cl-box" id="tde-cl"></div>':'')+'<div class="td-sub">Sub-tasks</div><ul class="td-list" id="tde-subs"></ul>'
    +'<div class="todo-add" style="margin-top:8px"><input class="fld" id="tde-subin" placeholder="Add a sub-task…"><button class="gold-btn" data-act="subadd">+</button></div>'
@@ -1698,6 +1767,7 @@ function tdOpenEditor(id){
     if(row&&row.closest('#tde-subs')){if(a!=='edit')tdRowAction(a,row.getAttribute('data-id'));return;}
     if(a==='close')tdCloseEditor();
     if(a==='save')tdSaveEditor();
+    if(a==='fu'){const t=TD.byId[TD_EDIT];if(t&&!act.disabled){act.disabled=true;await tdFollowUp(t,Number(act.getAttribute('data-days'))||1);act.disabled=false;}return;}
     if(a==='clx'){const id=TD_EDIT;tdCloseEditor();tdClxOpen(id);return;}
     if(a==='subadd'){const inp=document.getElementById('tde-subin');const v=(inp.value||'').trim();if(!v)return;inp.value='';const p=TD.byId[TD_EDIT];await tdCreate({name:v,parent:TD_EDIT,area:p.area,section:p.section});}
     if(a==='del'){if(!act.classList.contains('arm')){act.classList.add('arm');act.textContent='Tap again to delete';setTimeout(()=>{if(act.isConnected){act.classList.remove('arm');act.textContent='Delete';}},4000);return;}const id=TD_EDIT;tdCloseEditor();tdArchive(id);}
@@ -1996,7 +2066,7 @@ function tdSaveEditor(){
   const don=document.getElementById('tde-doneon');if(don&&t.done&&!('done' in patch)&&don.value&&don.value!==t.completedOn){if(don.value>(TD.today||tdWita())){showToast('Pick today or an earlier day',false);return;}patch.completedOn=don.value;}
   const clPay=(CL&&CL.id===t.id&&CL.dirty&&!t.sessionId)?tdClPayload():null;const clId=t.id;
   tdCloseEditor();
-  if(Object.keys(patch).length)tdPatch(t.id,patch,'Saved to Notion ✓');
+  if(Object.keys(patch).length)tdPatch(t.id,patch,'Saved to Notion ✓').then(ok=>{if(ok&&('date' in patch||'name' in patch||'status' in patch||'done' in patch))tdFlightPrep();});
   // Typed expenses are kept even when only the main Save is pressed.
   if(clPay)clApi('draft',{id:clId,log:clPay}).then(j=>{tdClApply(j.task);showToast('Expense draft saved',true);}).catch(e=>showToast('Expense draft not saved: '+(e.message||e),false));
 }
@@ -2287,12 +2357,17 @@ async function tdQuickAdd(){
   const day=document.getElementById('td-new-date').value;let time=document.getElementById('td-new-time').value;
   let name=raw;if(day&&!time){const p=tdTimeFrom(raw);name=p.text;time=p.time;}
   if(!day&&time){showToast('Pick a date for that time',false);return;}
+  if(TD.newFl&&!day){showToast('Pick the flight date',false);return;}
+  if(TD.newFl&&!(FP_WORD.test(name)||fpPair(name)))name='✈️ '+name;
+  const fl=!!TD.newFl,fu=!!TD.newFu;
   const task={name:name,area:area,section:sec,priority:TD.newPri,urgent:TD.newUrg,type:(day&&time)?'Event':'Task'};
   if(day)task.date={start:tdDateVal(day,time)};
   nameEl.value='';document.getElementById('td-new-time').value='';document.getElementById('td-new-date').value='';
-  TD.newPri=false;TD.newUrg=false;document.getElementById('td-new-pri').classList.remove('on');document.getElementById('td-new-urg').classList.remove('on');
+  TD.newPri=false;TD.newUrg=false;TD.newFl=false;TD.newFu=false;['td-new-pri','td-new-urg','td-new-fl','td-new-fu'].forEach(x=>{const b=document.getElementById(x);if(b)b.classList.remove('on');});
   LS.set('td_lastArea',area||'');
   const r=await tdCreate(task);if(r)showToast('Added to '+(area||'To-Do')+(sec?' · '+sec:''),true);else nameEl.value=raw;
+  if(r&&fu)await tdFollowUp(r,1);
+  if(r&&fl)tdFlightPrep();
   nameEl.focus();
 }
 async function tdDayAdd(){
@@ -2523,7 +2598,7 @@ function buildTodo(){
    +'<input class="fld" id="td-new-sec" list="td-sec-list" placeholder="Section">'
    +'<input class="fld" type="date" id="td-new-date" title="Date, only if it is tied to a day">'
    +'<input class="fld" type="time" id="td-new-time" title="Time WITA, optional">'
-   +'<span class="td-addbtns"><button class="td-tog" id="td-new-pri" type="button" title="Priority">⏰</button><button class="td-tog" id="td-new-urg" type="button" title="Urgent">🚨</button><button class="gold-btn" id="td-new-go">Add</button></span></div>'
+   +'<span class="td-addbtns"><button class="td-tog" id="td-new-pri" type="button" title="Priority">⏰</button><button class="td-tog" id="td-new-urg" type="button" title="Urgent">🚨</button><button class="td-tog" id="td-new-fl" type="button" title="Flight: adds a check-in and a packing reminder the day before">✈️</button><button class="td-tog" id="td-new-fu" type="button" title="Follow up: also adds a follow-up task for the next day">↻</button><button class="gold-btn" id="td-new-go">Add</button></span></div>'
    +'<datalist id="td-sec-list"></datalist><div id="td-migrate"></div></div></div>'
    +'<div class="card" id="td-main" data-no-tools><div class="td-stats td-stats-top" id="td-stats"></div><div class="todo-add" style="margin:0"><input class="fld" id="td-q" placeholder="Search tasks…"></div><div class="td-chips" id="td-chips"></div><div id="td-list"></div></div></div>'
    +'<div class="td-side"><div class="card" id="td-cal" data-no-tools></div><div class="card" id="td-day" data-no-tools></div></div></div>';
@@ -2538,6 +2613,8 @@ function buildTodo(){
   document.getElementById('td-new-name').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();tdQuickAdd();}});
   document.getElementById('td-new-pri').onclick=e=>{TD.newPri=!TD.newPri;e.currentTarget.classList.toggle('on',TD.newPri);};
   document.getElementById('td-new-urg').onclick=e=>{TD.newUrg=!TD.newUrg;e.currentTarget.classList.toggle('on',TD.newUrg);};
+  document.getElementById('td-new-fl').onclick=e=>{TD.newFl=!TD.newFl;e.currentTarget.classList.toggle('on',TD.newFl);};
+  document.getElementById('td-new-fu').onclick=e=>{TD.newFu=!TD.newFu;e.currentTarget.classList.toggle('on',TD.newFu);};
   let qT;document.getElementById('td-q').addEventListener('input',e=>{clearTimeout(qT);qT=setTimeout(()=>{TD.q=e.target.value.trim();tdRenderAll();},150);});
   root.addEventListener('keydown',e=>{if(tdInlineKey(e))return;if(e.key==='Enter'&&e.target&&e.target.id==='td-day-in'){e.preventDefault();tdDayAdd();}});
   tdInitDrag();
