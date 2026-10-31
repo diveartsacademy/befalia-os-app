@@ -13,6 +13,9 @@
      Film, TV & Stage    posters for the films and shows, then the stage work
      My Personality      type chips, the through-line, trait cards, strengths
                          and blind spots, and the three tarot cards
+                         Birth Chart (1 Nov 2026): a drawn chart wheel, the
+                         big three, element balance, every placement with
+                         its reading, and the key aspects
      Kind Words          quote cards
      Gallery             her photos: any photo she adds to the Notion page
    A photo added to any of these pages in Notion shows. The hero uses the
@@ -132,7 +135,11 @@
     var sun = (all.join(' ').match(/Sun in\s+([A-Z][a-z]+)/) || [])[1];
     var zod = (all.join(' ').match(/Chinese zodiac:\s*([A-Z][a-z]+\s+[A-Z][a-z]+)/) || [])[1];
     if (mb) out.types.push({ k: mb, v: 'MBTI' });
+    var moon = (all.join(' ').match(/Moon in\s+([A-Z][a-z]+)/) || [])[1];
+    var rise = (all.join(' ').match(/\b([A-Z][a-z]+) rising\b/) || [])[1];
     if (sun) out.types.push({ k: sun, v: 'Sun sign' });
+    if (moon) out.types.push({ k: moon, v: 'Moon sign' });
+    if (rise) out.types.push({ k: rise, v: 'Rising sign' });
     if (zod) out.types.push({ k: zod, v: 'Chinese zodiac' });
     if (blood) out.types.push({ k: 'Type ' + blood.toUpperCase(), v: 'Blood type' });
     secs.forEach(function (sec) {
@@ -151,6 +158,41 @@
         out.disagree = bullets(sec.lines);
       } else if (/^who you are/.test(t)) {
         out.who = bullets(sec.lines);
+      }
+    });
+    return out;
+  }
+
+  /* Birth chart (1 Nov 2026), from the "Birth Chart" and "Key Aspects"
+     sections of My Personality. A placement line reads
+       - Sun: Pisces 2°03' · house 1 · reading
+     and an aspect line
+       - Sun conjunct Saturn, orb 0°42': reading */
+  var SIGNS = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
+  function parseChart(md) {
+    var out = { placements: [], aspects: [], elements: [], modes: [], polarity: [], note: '', big: [] };
+    sections(md).forEach(function (sec) {
+      var t = sec.title.toLowerCase();
+      if (/birth chart/.test(t)) {
+        sec.lines.forEach(function (l) {
+          var c = clean(l), m;
+          if ((m = c.match(/^(Elements|Modes|Polarity):\s*(.+)$/i))) {
+            out[m[1].toLowerCase()] = m[2].split(/\s*·\s*/).map(function (x) { var p = x.match(/^([A-Za-z]+)\s+(\d+)$/); return p ? { k: p[1], n: +p[2] } : null; }).filter(Boolean);
+          } else if ((m = c.match(/^Big three:\s*(.+)$/i))) {
+            out.big = m[1].split(/\s*·\s*/).map(function (x) { var p = x.split(/\s+/); return { k: p[0], sign: p[1] || '' }; });
+          } else if ((m = c.match(/^Chart:\s*(.+)$/i))) { out.note = m[1]; }
+        });
+        bullets(sec.lines).forEach(function (b) {
+          var m = b.match(/^([A-Za-z ]+?):\s*([A-Z][a-z]+)\s+(\d{1,2})°(\d{1,2})'?\s*(R)?\s*(?:·\s*house\s+(\d{1,2}))?\s*(?:·\s*(.+))?$/);
+          if (!m || SIGNS.indexOf(m[2]) < 0) return;
+          var lon = SIGNS.indexOf(m[2]) * 30 + (+m[3]) + (+m[4]) / 60;
+          out.placements.push({ name: m[1].trim(), sign: m[2], deg: +m[3], min: +m[4], retro: !!m[5], house: m[6] ? +m[6] : null, text: (m[7] || '').trim(), lon: lon });
+        });
+      } else if (/key aspects/.test(t)) {
+        bullets(sec.lines).forEach(function (b) {
+          var m = b.match(/^([A-Za-z ]+?)\s+(conjunct|trine|square|sextile|opposite|opposition)\s+([A-Za-z ]+?),\s*orb\s+([\d°']+)\s*:\s*(.+)$/i);
+          if (m) out.aspects.push({ a: m[1].trim(), type: m[2].toLowerCase(), b: m[3].trim(), orb: m[4], text: m[5].trim() });
+        });
       }
     });
     return out;
@@ -235,6 +277,31 @@
       '#me-root .tcard .r{font-size:11.5px;color:var(--me-gold);font-weight:600;}',
       '#me-root .tcard .c{font-family:var(--serif);font-size:19px;color:#fff;margin:2px 0 6px;line-height:1.15;}',
       '#me-root .tcard .x{font-size:12.5px;color:var(--muted);line-height:1.45;}',
+      /* birth chart */
+      '#me-root .bc{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:18px;align-items:start;}',
+      '@media(max-width:760px){#me-root .bc{grid-template-columns:1fr;}}',
+      '#me-root .wheel{width:100%;max-width:340px;aspect-ratio:1;margin:0 auto;display:block;}',
+      '#me-root .wheel text{font-family:"Segoe UI Symbol","Apple Symbols","Noto Sans Symbols",var(--sans);}',
+      '#me-root .big3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px;}',
+      '#me-root .big3>div{border-radius:16px;padding:10px 12px;background:rgba(242,201,125,.08);border:1px solid rgba(242,201,125,.28);text-align:center;}',
+      '#me-root .big3 .g{font-size:22px;color:var(--me-gold);line-height:1;}',
+      '#me-root .big3 .k{font-family:var(--serif);font-size:18px;color:#fff;margin-top:4px;}',
+      '#me-root .big3 .v{font-size:11px;color:var(--muted);}',
+      '#me-root .bars{display:grid;gap:7px;margin-bottom:12px;}',
+      '#me-root .bar{display:grid;grid-template-columns:62px 1fr 18px;gap:8px;align-items:center;font-size:12px;color:var(--muted);}',
+      '#me-root .bar i{display:block;height:8px;border-radius:99px;background:rgba(46,230,255,.10);overflow:hidden;}',
+      '#me-root .bar i b{display:block;height:100%;border-radius:99px;}',
+      '#me-root .bar span:last-child{color:var(--ink);text-align:right;}',
+      '#me-root .pl{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin-top:14px;}',
+      '#me-root .pl>div{border-radius:16px;padding:11px 13px;background:rgba(4,18,29,.5);display:grid;grid-template-columns:30px 1fr;gap:4px 10px;}',
+      '#me-root .pl .g{grid-row:span 2;font-size:22px;color:var(--me-gold);line-height:1.2;text-align:center;}',
+      '#me-root .pl .h{font-size:13.5px;font-weight:650;color:var(--ink);}',
+      '#me-root .pl .h small{font-weight:500;color:var(--aquasoft);margin-left:4px;}',
+      '#me-root .pl .x{font-size:12.5px;color:var(--muted);line-height:1.45;}',
+      '#me-root .asp{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:8px;margin-top:10px;}',
+      '#me-root .asp>div{font-size:12.5px;color:var(--muted);line-height:1.45;padding:10px 12px;border-radius:14px;background:rgba(4,18,29,.45);}',
+      '#me-root .asp b{display:block;color:var(--ink);font-size:13px;margin-bottom:2px;}',
+      '#me-root .asp .o{color:var(--aquasoft);font-weight:500;font-size:11.5px;margin-left:4px;}',
       /* kind + gallery */
       '#me-root .quotes{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;}',
       '#me-root .quote{border-radius:18px;padding:16px;background:rgba(242,201,125,.06);border:1px solid rgba(242,201,125,.2);font-family:var(--serif);font-size:16px;line-height:1.45;color:#fff;}',
@@ -341,6 +408,68 @@
       + '</section>';
   }
 
+  var GLYPH = { Sun: '☉', Moon: '☽', Mercury: '☿', Venus: '♀', Mars: '♂', Jupiter: '♃', Saturn: '♄', Uranus: '♅', Neptune: '♆', Pluto: '♇', Lilith: '⚸', 'North Node': '☊', Ascendant: 'AC', Midheaven: 'MC', 'Part of Fortune': '⊗' };
+  var SGLYPH = ['♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓'];
+  var ELCOL = { Water: '#5ec8ff', Earth: '#9fd38a', Air: '#d7e3ee', Fire: '#ff8f6b', Mutable: '#7fe3c6', Fixed: '#f2c97d', Cardinal: '#ff8fa3', Feminine: '#c9a7ff', Masculine: '#8df3ff' };
+  var VS = '\uFE0E';
+  function wheelSVG(c) {
+    var asc = (c.placements.filter(function (p) { return p.name === 'Ascendant'; })[0] || { lon: 0 }).lon;
+    var C = 170, R1 = 160, R2 = 132, R3 = 112, R4 = 64;
+    var pt = function (lon, r) { var a = (180 + (lon - asc)) * Math.PI / 180; return [C + r * Math.cos(a), C - r * Math.sin(a)]; };
+    var f = function (n) { return n.toFixed(1); };
+    var out = '<svg class="wheel" viewBox="0 0 340 340" role="img" aria-label="Birth chart wheel">'
+      + '<circle cx="170" cy="170" r="' + R1 + '" fill="rgba(4,18,29,.6)" stroke="rgba(242,201,125,.45)"/>'
+      + '<circle cx="170" cy="170" r="' + R2 + '" fill="none" stroke="rgba(242,201,125,.30)"/>'
+      + '<circle cx="170" cy="170" r="' + R4 + '" fill="rgba(13,46,68,.55)" stroke="rgba(46,230,255,.18)"/>';
+    for (var i = 0; i < 12; i++) {
+      var a = pt(i * 30, R1), b = pt(i * 30, R2), g = pt(i * 30 + 15, (R1 + R2) / 2);
+      out += '<line x1="' + f(a[0]) + '" y1="' + f(a[1]) + '" x2="' + f(b[0]) + '" y2="' + f(b[1]) + '" stroke="rgba(242,201,125,.30)"/>'
+        + '<text x="' + f(g[0]) + '" y="' + f(g[1]) + '" text-anchor="middle" dominant-baseline="central" font-size="15" fill="' + ELCOL[['Fire', 'Earth', 'Air', 'Water'][i % 4]] + '">' + SGLYPH[i] + VS + '</text>';
+    }
+    // the horizon and meridian
+    var mc = (c.placements.filter(function (p) { return p.name === 'Midheaven'; })[0] || null);
+    [[asc, 'AC'], [asc + 180, 'DC']].concat(mc ? [[mc.lon, 'MC'], [mc.lon + 180, 'IC']] : []).forEach(function (x) {
+      var a = pt(x[0], R2), b = pt(x[0], R4), l = pt(x[0], R4 - 12);
+      out += '<line x1="' + f(a[0]) + '" y1="' + f(a[1]) + '" x2="' + f(b[0]) + '" y2="' + f(b[1]) + '" stroke="rgba(46,230,255,.45)" stroke-dasharray="' + (x[1] === 'AC' || x[1] === 'MC' ? '0' : '3 3') + '"/>'
+        + '<text x="' + f(l[0]) + '" y="' + f(l[1]) + '" text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="700" fill="var(--aquasoft)">' + x[1] + '</text>';
+    });
+    // planets, spread so close ones do not sit on each other
+    var ps = c.placements.filter(function (p) { return GLYPH[p.name] && p.name !== 'Ascendant' && p.name !== 'Midheaven' && p.name !== 'Part of Fortune'; })
+      .map(function (p) { return { p: p, at: p.lon }; }).sort(function (a, b) { return a.at - b.at; });
+    for (var pass = 0; pass < 4; pass++) for (var j = 1; j < ps.length; j++) if (ps[j].at - ps[j - 1].at < 9) ps[j].at = ps[j - 1].at + 9;
+    ps.forEach(function (x) {
+      var t = pt(x.p.lon, R2), t2 = pt(x.p.lon, R2 - 6), g = pt(x.at, R3 - 10);
+      out += '<line x1="' + f(t[0]) + '" y1="' + f(t[1]) + '" x2="' + f(t2[0]) + '" y2="' + f(t2[1]) + '" stroke="#f2c97d"/>'
+        + '<text x="' + f(g[0]) + '" y="' + f(g[1]) + '" text-anchor="middle" dominant-baseline="central" font-size="' + (x.p.name.length > 6 && GLYPH[x.p.name].length > 1 ? 10 : 16) + '" fill="#fff"><title>' + esc(x.p.name + ' in ' + x.p.sign) + '</title>' + GLYPH[x.p.name] + VS + '</text>';
+    });
+    return out + '</svg>';
+  }
+  function chartHTML() {
+    if (S.err.personality) return '';
+    var c = parseChart(S.md.personality);
+    if (!c.placements.length) return '';
+    var by = {}; c.placements.forEach(function (p) { by[p.name] = p; });
+    var big = [['Sun', 'Sun', '☉'], ['Moon', 'Moon', '☽'], ['Ascendant', 'Rising', 'AC']].filter(function (b) { return by[b[0]]; });
+    var bars = function (list) {
+      var max = Math.max.apply(null, list.map(function (x) { return x.n; }).concat([1]));
+      return list.map(function (x) { return '<div class="bar"><span>' + esc(x.k) + '</span><i><b style="width:' + Math.round(x.n / max * 100) + '%;background:' + (ELCOL[x.k] || 'var(--aqua)') + '"></b></i><span>' + x.n + '</span></div>'; }).join('');
+    };
+    var deg = function (p) { return p.deg + '°' + (p.min < 10 ? '0' : '') + p.min + '′' + (p.retro ? ' ℞' : ''); };
+    return '<section class="me-card sensitive"><div class="me-head"><div><h3>Birth chart</h3><p class="me-sub">' + esc(c.note || 'From your calculated natal chart.') + ' Astrology is a lens for reflection, not fact.</p></div><a href="' + notionUrl(PAGES.personality) + '" target="_blank" rel="noopener">Edit in Notion</a></div>'
+      + '<div class="bc"><div>' + wheelSVG(c) + '</div><div>'
+      + (big.length ? '<div class="big3">' + big.map(function (b) { var p = by[b[0]]; return '<div><div class="g">' + b[2] + VS + '</div><div class="k">' + esc(p.sign) + '</div><div class="v">' + b[1] + '</div></div>'; }).join('') + '</div>' : '')
+      + (c.elements.length ? '<div class="bars">' + bars(c.elements) + '</div>' : '')
+      + (c.modes.length ? '<div class="bars">' + bars(c.modes) + '</div>' : '')
+      + '</div></div>'
+      + '<div class="pl">' + c.placements.map(function (p) {
+        return '<div><span class="g">' + (GLYPH[p.name] || '•') + VS + '</span><span class="h">' + esc(p.name) + ' in ' + esc(p.sign) + '<small>' + deg(p) + (p.house ? ' · house ' + p.house : '') + '</small></span><span class="x">' + esc(p.text) + '</span></div>';
+      }).join('') + '</div>'
+      + (c.aspects.length ? '<h3 style="font-size:17px;margin:16px 0 0">Key aspects</h3><div class="asp">' + c.aspects.map(function (a) {
+        return '<div><b>' + (GLYPH[a.a] || '') + VS + ' ' + esc(a.a) + ' ' + esc(a.type) + ' ' + esc(a.b) + ' ' + (GLYPH[a.b] || '') + VS + '<span class="o">orb ' + esc(a.orb) + '</span></b>' + esc(a.text) + '</div>';
+      }).join('') + '</div>' : '')
+      + '</section>';
+  }
+
   function kindHTML() {
     var q = parseKind(S.md.kind);
     return '<section class="me-card sensitive"><div class="me-head"><div><h3>Kind words</h3><p class="me-sub">For the days you need them.</p></div><a href="' + notionUrl(PAGES.kind) + '" target="_blank" rel="noopener">Edit in Notion</a></div>'
@@ -362,7 +491,7 @@
     if (!root) return;
     css();
     if (!S.loaded) { root.innerHTML = '<div class="me-card" style="min-height:260px" aria-label="Loading"></div>'; return; }
-    root.innerHTML = heroHTML() + medalsHTML() + filmHTML() + personalityHTML() + kindHTML() + galleryHTML();
+    root.innerHTML = heroHTML() + medalsHTML() + filmHTML() + personalityHTML() + chartHTML() + kindHTML() + galleryHTML();
     art(root);
   }
 
@@ -402,5 +531,5 @@
   });
 
   window.meOpen = function () { render(); if (!S.loaded) load(); };
-  window.__meParse = { parseImpact: parseImpact, parseMedals: parseMedals, parseFilm: parseFilm, parsePersonality: parsePersonality, parseKind: parseKind, images: images };
+  window.__meParse = { parseImpact: parseImpact, parseMedals: parseMedals, parseFilm: parseFilm, parsePersonality: parsePersonality, parseChart: parseChart, parseKind: parseKind, images: images };
 })();
