@@ -68,4 +68,30 @@ t('images: only https photos from the page', () => {
   assert.deepEqual(plain(P.images('text\n![Stage](https://a.test/x.jpg)\n![](http://b.test/y.jpg)\n![](https://c.test/z.png)')), [{ src: 'https://a.test/x.jpg', cap: 'Stage' }, { src: 'https://c.test/z.png', cap: '' }]);
 });
 
+t('birth chart: placements, retrograde, houses, longitude, balance and aspects', () => {
+  const md = [
+    '## Per-System Read', "Astrology: Sun in Pisces; Aquarius rising; Moon in Gemini.",
+    '## Birth Chart (STABLE)', 'Chart: tropical zodiac, Placidus houses.',
+    'Elements: Water 6 · Earth 2 · Air 2 · Fire 0', 'Modes: Mutable 5 · Fixed 3 · Cardinal 2',
+    "- Sun: Pisces 2°03' · house 1 · Feels first.",
+    "- Mercury: Pisces 0°48' R · house 1 · Thinks in images.",
+    "- Ascendant: Aquarius 9°15' · Visionary first.",
+    '- Not a placement line',
+    "- Moon: Atlantis 3°00' · house 5 · not a sign, ignored",
+    '## Key Aspects (STABLE)',
+    "- Sun conjunct Saturn, orb 0°42': Discipline sits in your identity.",
+    "- Sun trine Moon, orb 5°29': Will and feelings cooperate.",
+    '- a note without the pattern',
+  ].join('\n');
+  const c = plain(P.parseChart(md));
+  assert.deepEqual(c.placements.map((p) => [p.name, p.sign, p.house, p.retro, Math.round(p.lon * 100) / 100]),
+    [['Sun', 'Pisces', 1, false, 332.05], ['Mercury', 'Pisces', 1, true, 330.8], ['Ascendant', 'Aquarius', null, false, 309.25]]);
+  assert.equal(c.placements[0].text, 'Feels first.');
+  assert.deepEqual(c.elements, [{ k: 'Water', n: 6 }, { k: 'Earth', n: 2 }, { k: 'Air', n: 2 }, { k: 'Fire', n: 0 }]);
+  assert.equal(c.modes.length, 3);
+  assert.deepEqual(c.aspects.map((a) => [a.a, a.type, a.b, a.orb]), [['Sun', 'conjunct', 'Saturn', "0°42'"], ['Sun', 'trine', 'Moon', "5°29'"]]);
+  assert.deepEqual(plain(P.parsePersonality(md).types).map((x) => x.v), ['Sun sign', 'Moon sign', 'Rising sign']);
+  assert.deepEqual(plain(P.parseChart('## Other\n- Sun: Pisces 2°03\'')).placements, [], 'only the Birth Chart section counts');
+});
+
 console.log(n + ' passed');
