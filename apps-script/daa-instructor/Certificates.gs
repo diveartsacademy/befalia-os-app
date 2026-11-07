@@ -22,9 +22,27 @@ var CERT_WAIT_ = 'course done, waiting for certificate';
 /* Read when called, not at load: these lists may live in another file. */
 function enrolStatuses_(){ return ENROL_OPEN_.concat(ENROL_DONE_); }
 
+/* 7 Nov 2026 (Befa): a DAA certificate is made only after the invoice is paid
+   in full. Column A (payment) of ADMIN Input Data, by invoice (column B), read
+   once per call. An unreadable sheet gives {} and the desk shows the payment as
+   unknown rather than guessing. */
+function invoicePay_(){
+  var out = {};
+  try {
+    var sh = SpreadsheetApp.openById(SS_ADMIN).getSheetByName('Input Data');
+    var v = sh.getRange(1, 1, sh.getLastRow(), 2).getDisplayValues();
+    for(var i = 0; i < v.length; i++){
+      var inv = S_(v[i][1]).toUpperCase();
+      if(inv) out[inv] = S_(v[i][0]).toUpperCase().replace(/\s+/g, ' ');
+    }
+  } catch(e){ /* unknown, see above */ }
+  return out;
+}
+
 function certQueue_(){
   var out = [];
   var plan_ = enrolCurriculum_();
+  var pays = invoicePay_();
   ENROL_BOOKS_.forEach(function(book){
     var ss;
     try { ss = SpreadsheetApp.openById(book.id); } catch(e){ return; }
@@ -53,6 +71,7 @@ function certQueue_(){
         whatsapp:   S_(vals[a][3]),   /* for sending the certificate (14 Oct 2026) */
         email:      S_(vals[a][4]),
         invoice_no: S_(vals[a][6]),
+        pay:        pays[S_(vals[a][6]).toUpperCase()] || '',
         course:     S_(vals[a][7]),
         last_seen:  lastSeen,
         sessions:   b - a,

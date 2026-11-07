@@ -36,7 +36,9 @@ function fakeSheet() {
 const ctx = vm.createContext({
   console,
   SpreadsheetApp: {
-    openById: (id) => { if (id !== 'BOOK') throw new Error('no access'); return { getSheetByName: (n) => (n === '2. STUDENTS' ? fakeSheet() : null) }; },
+    openById: (id) => {
+      if (id === 'ADMIN') return { getSheetByName: (n) => (n === 'Input Data' ? { getLastRow: () => 3, getRange: () => ({ getDisplayValues: () => [['Payment', ''], ['PAID', 'DAAJUL26-9'], ['INSTALLMENT  PLAN', 'daajun26-3']] }) } : null) };
+      if (id !== 'BOOK') throw new Error('no access'); return { getSheetByName: (n) => (n === '2. STUDENTS' ? fakeSheet() : null) }; },
     flush() {},
     DataValidationCriteria: { VALUE_IN_LIST: 'VALUE_IN_LIST' },
   },
@@ -53,6 +55,7 @@ vm.runInContext(`
   function enrolTaught_(v){ return /^\\d{4}-\\d{2}-\\d{2}/.test(S_(v)); }
   function enrolLayoutOk_(sh){ var h = sh.getRange(ENROL_HEAD_, 1, 1, 20).getDisplayValues()[0]; return /^name/i.test(h[1]) && /^inv/i.test(h[6]) && /^course/i.test(h[7]); }
   var WRITES_ = {};
+  var SS_ADMIN = 'ADMIN';
 `, ctx);
 vm.runInContext(fs.readFileSync(new URL('../apps-script/daa-instructor/Certificates.gs', import.meta.url), 'utf8'), ctx);
 const certQueue = vm.runInContext('certQueue_', ctx);
@@ -66,6 +69,14 @@ t('certQueue lists only "course done, waiting for certificate", with its block c
   assert.equal(q[0].student, 'Teneille Douglas'); assert.equal(q[0].sheet_row, 9); assert.equal(q[0].done, 3); assert.equal(q[0].plan, 3);
   assert.equal(q[0].last_seen, '2026-09-04'); assert.equal(q[0].email, 'teneille douglas@x.id');
   assert.equal(q[0].whatsapp, '+62 8116', 'the WhatsApp number (column D) comes with a finished course');
+});
+
+t('each finished course carries its invoice payment from ADMIN Input Data (7 Nov 2026)', () => {
+  const q = certQueue();
+  assert.equal(q[0].pay, 'PAID');
+  rows[5][0] = 'course done, waiting for certificate';
+  const c = certQueue().find((x) => x.student === 'Claire');
+  assert.equal(c.pay, 'INSTALLMENT PLAN', 'matched case-insensitively, spaces tidied');
 });
 
 t('setEnrolStatus writes column A of that one row, spelled as the dropdown spells it', () => {

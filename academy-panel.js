@@ -252,9 +252,20 @@
      date already stored, else today. */
   function issueDate(c, f) { return f.date || (c && c.issued_on) || witaToday(); }
 
+  /* 7 Nov 2026 (Befa): a DAA certificate is made only after the invoice is paid
+     in full. The sheet service reads the payment from ADMIN Input Data. A blank
+     payment means an older sheet service or an invoice it could not find: the
+     desk does not guess, it lets her go ahead. */
+  function unpaid(e) { return !!e.pay && e.pay !== 'PAID'; }
+
   function daaLine(e, pt, p) {
     var ref = partRef(e, pt), c = certOf(ref, 'DiveArts'), key = ref + '|DiveArts';
     var h = '<div class="ac-cert"><div class="ac-row"><span class="lbl">DAA</span>';
+    if (!(c && c.status === 'issued') && unpaid(e)) {
+      return h + '<span class="ac-pill">Waiting for payment</span></div>' +
+        '<div class="ac-m">Invoice ' + esc(e.invoice_no) + ' reads "' + esc(e.pay) + '" in Input Data. The DAA certificate is made after it is paid in full.</div>' +
+        fl(key) + '</div>';
+    }
     if (c && c.status === 'issued') {
       h += '<span class="ac-pill ok">Issued · ' + esc(c.number) + ' · ' + esc(dmy(c.issued_on)) + '</span>' +
         (c.file_url ? '<a class="ac-btn ghost" href="' + esc(c.file_url) + '" target="_blank" rel="noopener">View</a>' : '');
@@ -470,7 +481,16 @@
         : step === 'unsubmit' ? 'Undone. You can change the portal student now if it was wrong.'
         : 'Issued. It shows in ' + p.name + '\'s portal with number ' + j.cert.number + ', dated ' + dmy(j.cert.issued_on) + '.' };
       render();
+      if (step === 'issue') closeIfDone(e);
     }).catch(function (err) { A.busy = ''; A.flash[key] = { text: 'Not saved: ' + err.message, bad: true }; render(); });
+  }
+
+  /* 7 Nov 2026 (Befa): once every certificate of a finished course is issued
+     (the DAA one and each agency one), the course is marked done in her sheet
+     without a second tap, so the sheet never says "waiting" for a student who
+     already has everything. Same write as the "Mark done in my sheet" button. */
+  function closeIfDone(e) {
+    if (e && (A.data.certQueue || []).indexOf(e) >= 0 && allIssued(e)) doStatus(e.ref, 'done');
   }
 
   function doStatus(ref, to) {
@@ -681,6 +701,7 @@
   function doSaveDaa(ref) {
     var P = findP(ref), e = P && P.e, p = e && pickFor(e), f = e && genDefaults(e, P.pt), key = ref + '|DiveArts';
     if (!p || A.busy) return;
+    if (unpaid(e)) { A.flash[key] = { text: 'Not saved: invoice ' + e.invoice_no + ' is not paid in full yet.', bad: true }; render(); return; }
     if (!String(f.number || '').trim()) { A.flash[key] = { text: 'Type the DAA certificate number first.', bad: true }; render(); return; }
     if (!String(f.name || '').trim()) { A.flash[key] = { text: 'The name on the certificate is empty.', bad: true }; render(); return; }
     busy(key);
@@ -694,6 +715,7 @@
       putCert(j.cert); A.busy = ''; A.gen = '';
       A.flash[key] = { text: 'Saved as PDF. The DAA certificate shows in ' + p.name + '\'s portal, number ' + j.cert.number + '. Use the WhatsApp button to send it.' };
       render();
+      closeIfDone(e);
     }).catch(function (err) { A.busy = ''; A.flash[key] = { text: 'Not saved: ' + err.message, bad: true }; render(); });
   }
 

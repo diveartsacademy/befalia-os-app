@@ -96,6 +96,7 @@ export function agenciesFor(course) {
 const enrolOut = (e) => ({
   sheet_row: Number(e.sheet_row) || 0, status: str(e.status, 60) || 'Status not set', student: str(e.student, 120),
   student_id: str(e.student_id, 40), has_email: !!str(e.email, 200), invoice_no: str(e.invoice_no, 40),
+  pay: str(e.pay, 40),
   course: str(e.course, 200), last_seen: str(e.last_seen, 40),
   sessions: Number(e.sessions) || 0, done: Number(e.done) || 0, plan: Number(e.plan) || 0,
   agencies: agenciesFor(e.course),
