@@ -24,6 +24,12 @@
 //        { action: 'tc_work', project, from, to }     a TailCraft design: done
 //                                                     (design_sent) or not going ahead
 //        { action: 'work_undo', id }                  undo either of those
+//      TailCraft design certificates, 8 Nov 2026:
+//        { action: 'cert_contact', src, row, invoice }  phone and email to send to
+//        { action: 'tc_cert_issue', cert: {...} }       number, save, put in the
+//                                                     customer's portal (certPayload)
+//        { action: 'tc_cert_sent', cert_no, channel }   whatsapp or email, stamped
+//        { action: 'tc_cert_revoke', cert_no }         off the portal, link shows revoked
 //      A mark moves those products to Ready to be shipped (Manual sheet via the
 //      bridge, Shopify/Shopee/Toko recorded and shown until the bridge learns
 //      those tabs), moves the board job to Shipping, and logs one done task on
@@ -101,6 +107,30 @@ export async function readBody(req) {
     });
   }
   try { const j = JSON.parse(text || '{}'); return j && typeof j === 'object' ? j : {}; } catch (e) { return {}; }
+}
+
+/* TailCraft certificate (8 Nov 2026): only these fields reach the database,
+   each checked here first; the database checks them again. */
+export const CERT_NO = /^TC-IP-\d{4}-\d{3,4}$/;
+export function certPayload(c) {
+  c = c && typeof c === 'object' ? c : {};
+  const s = (v, n) => (typeof v === 'string' ? v.trim().slice(0, n) : '');
+  const out = {
+    customer_name: s(c.customer_name, 120), design_name: s(c.design_name, 120),
+    cert_type: c.cert_type, scope: c.scope, territory: s(c.territory, 80),
+    source_ref: s(c.source_ref, 160), invoice_no: s(c.invoice_no, 60),
+    phone: s(c.phone, 30).replace(/[^0-9+]/g, ''), email: s(c.email, 160).toLowerCase(),
+    issue_date: s(c.issue_date, 10), note: s(c.note, 300)
+  };
+  if (typeof c.project_id === 'string' && /^[0-9a-f-]{36}$/i.test(c.project_id)) out.project_id = c.project_id;
+  if (!out.customer_name || !out.design_name) return { error: 'The name and the design name are both needed.' };
+  if (!['one_year', 'permanent'].includes(out.cert_type)) return { error: 'Choose 1 year or lifetime.' };
+  if (!['personal', 'school', 'brand'].includes(out.scope)) return { error: 'Choose personal, school or brand.' };
+  if (!out.territory) return { error: 'Say where the exclusivity applies, for example Worldwide or Indonesia.' };
+  if (out.issue_date && !/^\d{4}-\d{2}-\d{2}$/.test(out.issue_date)) return { error: 'The date is not a date.' };
+  if (out.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(out.email)) return { error: 'That email address does not look right.' };
+  Object.keys(out).forEach((k) => { if (out[k] === '') delete out[k]; });
+  return { cert: out };
 }
 
 async function post(req, res) {
@@ -216,6 +246,39 @@ async function post(req, res) {
     if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not undone.' });
     return res.status(200).json(r);
   }
+  /* TailCraft design certificates (8 Nov 2026). */
+  if (b.action === 'cert_contact') {
+    const row = Number(b.row);
+    if (![SRC.manual, SRC.shopify].includes(b.src) || !Number.isInteger(row) || row < 2 || !String(b.invoice || '').trim()) {
+      return res.status(400).json({ ok: false, error: 'cert_contact needs a Manual or Shopify row and invoice.' });
+    }
+    const r = await pack({ action: 'cert_contact', src: b.src, row, invoice: String(b.invoice).trim() });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Contact not found.' });
+    return res.status(200).json(r);
+  }
+  if (b.action === 'tc_cert_issue') {
+    const v = certPayload(b.cert);
+    if (v.error) return res.status(400).json({ ok: false, error: v.error });
+    const r = await pack({ action: 'tc_cert_issue', cert: v.cert });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not issued.' });
+    return res.status(200).json(r);
+  }
+  if (b.action === 'tc_cert_sent') {
+    const no = String(b.cert_no || '').trim();
+    if (!CERT_NO.test(no) || !['whatsapp', 'email'].includes(b.channel)) {
+      return res.status(400).json({ ok: false, error: 'tc_cert_sent needs a certificate number and whatsapp or email.' });
+    }
+    const r = await pack({ action: 'tc_cert_sent', cert_no: no, channel: b.channel });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not saved.' });
+    return res.status(200).json(r);
+  }
+  if (b.action === 'tc_cert_revoke') {
+    const no = String(b.cert_no || '').trim();
+    if (!CERT_NO.test(no)) return res.status(400).json({ ok: false, error: 'tc_cert_revoke needs a certificate number.' });
+    const r = await pack({ action: 'tc_cert_revoke', cert_no: no });
+    if (!r || r.ok !== true) return res.status(409).json({ ok: false, error: (r && r.error) || 'Not revoked.' });
+    return res.status(200).json(r);
+  }
   /* "In the box" tick for one product line. */
   if (b.action === 'tick') {
     const slot = Number(b.slot);
@@ -262,6 +325,9 @@ export default async function handler(req, res) {
      the database has not got them yet, so the order list never depends on it. */
   if (ov && ov.ok && Array.isArray(ov.work)) f.body.work = ov.work;
   if (ov && ov.ok && Array.isArray(ov.tcwork)) f.body.tcwork = ov.tcwork;
+  /* Certificates (8 Nov 2026): the same way, left out until the database has them. */
+  if (ov && ov.ok && Array.isArray(ov.tccerts)) f.body.tccerts = ov.tccerts;
+  if (ov && ov.ok && Array.isArray(ov.tccand)) f.body.tccand = ov.tccand;
 
   /* Pickup orders are shown only on the Sea Diva dashboard (Befa, 13 Oct). */
   const out = build(f.body, shop.products, new Date(), { hidePickup: true });
