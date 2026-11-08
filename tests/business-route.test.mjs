@@ -305,3 +305,42 @@ test('GET carries My work, with or without the database part', async () => {
   assert.ok(r.body.work.counts.mine > 0, 'the sheet lists still work without the database part');
   assert.equal(r.body.sources.tcwork, undefined, 'and the page can say TailCraft is missing');
 });
+
+test('POST certificates: only checked fields reach the database', async () => {
+  process.env.BIZ_FEED_KEY = 'feed-key-for-tests-0123456789abcdef';
+  calls.length = 0;
+  packAnswer = { tc_cert_issue: { ok: true, cert_no: 'TC-IP-2026-001', url: 'https://x', in_portal: false } };
+  const H = { 'x-os-key': 'os-key' };
+  const good = { customer_name: ' Customer K ', design_name: 'Ocean Opal', cert_type: 'permanent', scope: 'personal',
+    territory: 'Worldwide', source_ref: 'MANUAL (IG & WA) - OL|SDTMay26-99|2', phone: '+62 857-8252-5878', email: 'A@B.CO', evil: 'x' };
+  let r = res(); await handler(req({ method: 'POST', headers: H, body: { action: 'tc_cert_issue', cert: good } }), r);
+  assert.equal(r.code, 200, JSON.stringify(r.body));
+  const sent = calls.find((c) => c.pack === 'tc_cert_issue').body.cert;
+  assert.equal(sent.customer_name, 'Customer K');
+  assert.equal(sent.phone, '+6285782525878');
+  assert.equal(sent.email, 'a@b.co');
+  assert.equal(sent.evil, undefined, 'unknown fields never reach the database');
+  for (const bad of [{ cert_type: 'three_year' }, { scope: 'family' }, { territory: '' }, { email: 'nope' }, { issue_date: '8 Nov' }]) {
+    r = res(); await handler(req({ method: 'POST', headers: H, body: { action: 'tc_cert_issue', cert: Object.assign({}, good, bad) } }), r);
+    assert.equal(r.code, 400, JSON.stringify(bad));
+  }
+  r = res(); await handler(req({ method: 'POST', headers: H, body: { action: 'tc_cert_sent', cert_no: 'TC-IP-2026-001', channel: 'sms' } }), r);
+  assert.equal(r.code, 400);
+  r = res(); await handler(req({ method: 'POST', headers: H, body: { action: 'tc_cert_sent', cert_no: 'TC-IP-2026-001', channel: 'whatsapp' } }), r);
+  assert.equal(r.code, 200);
+  r = res(); await handler(req({ method: 'POST', headers: H, body: { action: 'tc_cert_revoke', cert_no: 'DROP TABLE' } }), r);
+  assert.equal(r.code, 400);
+  r = res(); await handler(req({ method: 'POST', headers: H, body: { action: 'cert_contact', src: 'SHOPEE - OL', row: 5, invoice: 'X' } }), r);
+  assert.equal(r.code, 400, 'marketplace buyers are reached through the marketplace');
+});
+
+test('GET carries certificates once the database has them', async () => {
+  packAnswer = { overlay: { ok: true, ticks: [], shipped: [], notes: [], handoff: [], tccerts: [], tccand: [] } };
+  let r = res(); await handler(req({ headers: { 'x-os-key': 'os-key' } }), r);
+  assert.equal(r.code, 200);
+  assert.equal(r.body.certs.live, true);
+  delete feed.tccerts; delete feed.tccand;
+  packAnswer = { overlay: { ok: true, ticks: [], shipped: [], notes: [], handoff: [] } };
+  r = res(); await handler(req({ headers: { 'x-os-key': 'os-key' } }), r);
+  assert.equal(r.body.certs.live, false);
+});

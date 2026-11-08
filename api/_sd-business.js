@@ -376,7 +376,7 @@ const READY = { ready: 1, shipping: 1 };
    open is flagged "mark DONE", and it does not hold the order out of Ready to
    pack. The list is kept narrow on purpose: "Upgrade" and "Performance
    Support Program" lines are real production and are not on it. */
-export const NON_PHYSICAL = /\b(custom colou?r|custom design fee|design fee|design buy ?out|buy ?out|warranty|garansi|shipping fee|ongkir|insurance|asuransi)\b/i;
+export const NON_PHYSICAL = /\b(custom colou?r|custom design fee|design fee|design buy ?out|buy ?out|exclusiv\w*|ip rights?|warranty|garansi|shipping fee|ongkir|insurance|asuransi)\b/i;
 export function nonPhysical(item) { return NON_PHYSICAL.test(String(item || '')); }
 
 /* Pack marks (13 Oct 2026). Befa or staff clicked "Packed, ready to ship" on
@@ -695,7 +695,60 @@ export function build(feed, products, now, opts) {
      _work_move). Until the feed carries the click list, the page shows the
      lists without buttons and says why. */
   workOut.live = !!(feed && Array.isArray(feed.work));
-  return { ok: true, generatedAt: now.toISOString(), sources, counts, orders, shipped, work: workOut };
+  return { ok: true, generatedAt: now.toISOString(), sources, counts, orders, shipped, work: workOut, certs: buildCerts(all, feed) };
+}
+
+/* ---------------------------------------------------------------------
+   TailCraft design certificates (8 Nov 2026). Befa: "generate the
+   certificate, especially for those who buy out the design ... with their
+   name and then send to their account."
+   Waiting = every order line that buys a design's exclusivity, on an order
+   that has paid something (paid, deposit, an instalment), with no live
+   certificate yet. Sea Diva lines come from the sheet tabs, keyed
+   src|invoice|slot; TailCraft lines come from the database (tccand), keyed
+   TAILCRAFT|invoice|line. Shipped orders still count: the right outlives the
+   parcel.
+--------------------------------------------------------------------- */
+export const CERT_LINE = /\b(buy ?out|exclusiv\w*|ip rights?)\b/i;
+function scopeGuess(t) {
+  const s = low(t);
+  if (/\b(school|sekolah|academy|akademi)\b/.test(s)) return 'school';
+  if (/\b(brand|b2b|business|reseller|studio|commercial)\b/.test(s)) return 'brand';
+  if (/\b(personal|pribadi)\b/.test(s)) return 'personal';
+  return '';
+}
+function buildCerts(all, feed) {
+  const issued = (feed && Array.isArray(feed.tccerts)) ? feed.tccerts : [];
+  const taken = {};
+  issued.forEach((c) => { if (c && c.source_ref && !c.revoked) taken[c.source_ref] = c.cert_no || true; });
+  const waiting = [];
+  all.forEach((o) => {
+    if (o.channel === 'tailcraft') return;
+    if (o.pay !== 'paid' && o.pay !== 'part') return;
+    o.lines.forEach((l) => {
+      if (!CERT_LINE.test(l.item)) return;
+      const ref = o.src + '|' + o.invoice + '|' + l.slot;
+      if (taken[ref]) return;
+      waiting.push({
+        source_ref: ref, channel: o.channel, src: o.src, row: o.row, invoice: o.invoice, customer: o.customer,
+        line: l.title, date: o.date, pay: o.pay, scope: scopeGuess(l.item), design: '',
+        products: o.lines.filter((x) => x !== l && !nonPhysical(x.item)).map((x) => x.title)
+      });
+    });
+  });
+  ((feed && feed.tccand) || []).forEach((c) => {
+    if (!c || !c.source_ref || taken[c.source_ref]) return;
+    const ct = low(c.client_type);
+    waiting.push({
+      source_ref: c.source_ref, channel: 'tailcraft', tc: true, src: TC_SRC, row: 0, invoice: txt(c.invoice_no),
+      project: txt(c.project), project_id: c.project_id || null, customer: txt(c.customer), line: txt(c.line),
+      date: c.date ? String(c.date).slice(0, 10) : null, pay: c.pay === 'paid' ? 'paid' : 'part',
+      scope: ct === 'brand' || ct === 'school' || ct === 'personal' ? ct : scopeGuess(c.line),
+      design: txt(c.design), products: [], phone: txt(c.phone), email: txt(c.email)
+    });
+  });
+  waiting.sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+  return { live: !!(feed && Array.isArray(feed.tccerts)), waiting, issued };
 }
 
 /* The calendar day in Bali for a timestamp, YYYY-MM-DD. */

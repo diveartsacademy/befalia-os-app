@@ -23,6 +23,11 @@
    filler, crown, other things to make) and on the craftspeople (printing,
    sewing). Each line has Done buttons, two taps each, that move it along by
    her rulings; the server holds the list of allowed moves.
+
+   Certificates (8 Nov 2026): every paid design buy out still owed a TailCraft
+   design certificate, a form that draws it live on her artwork
+   (cert-render.js), Issue, and Send by WhatsApp or email. The TailCraft chip
+   shows the same view.
    --------------------------------------------------------------------------- */
 (function () {
   'use strict';
@@ -30,7 +35,7 @@
   var S = { biz: 'seadiva', stage: 'all', ch: 'all', data: null, err: '', loading: false, at: null,
             arm: '', busy: '', flash: {}, addr: {}, noteEdit: '', noteDraft: {}, noteBusy: '', notice: null, visible: [], trackDraft: {},
             view: 'work', wtab: 'all', showLog: false };
-  try { var v0 = localStorage.getItem('biz-view'); if (v0 === 'pack' || v0 === 'work') S.view = v0; } catch (e) { /* storage blocked */ }
+  try { var v0 = localStorage.getItem('biz-view'); if (v0 === 'pack' || v0 === 'work' || v0 === 'certs') S.view = v0; var l0 = localStorage.getItem('biz-cert-lang'); if (l0 === 'en' || l0 === 'id') S.certLang = l0; } catch (e) { /* storage blocked */ }
   var CH = { shopify: 'Shopify', shopee: 'Shopee', toko: 'Tokopedia/TikTok', manual: 'Manual', tailcraft: 'TailCraft' };
 
   var BUSINESSES = [
@@ -215,6 +220,18 @@
       '.biz-wbtn[disabled]{opacity:.55;cursor:wait}' +
       '.biz-unpaid{font:700 10.5px var(--sans);letter-spacing:.4px;text-transform:uppercase;padding:2px 6px;border-radius:6px;background:rgba(255,107,129,.14);color:#ffa3b3}' +
       '.biz-stale{font:11.5px/1.4 var(--sans);color:#ffd99a;margin-top:3px}' +
+      '.biz-cform{border:1px solid rgba(206,160,255,.45);border-radius:14px;padding:12px;margin:10px 2px;background:rgba(206,160,255,.05)}' +
+      '.biz-cform h4{margin:0 0 8px;font:600 15px var(--serif);color:var(--ink)}' +
+      '.biz-cgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:14px}' +
+      '.biz-cfield{display:block;margin:0 0 9px;font:13px var(--sans);color:var(--ink)}' +
+      '.biz-cfield>span{display:block;font:600 11.5px var(--sans);color:var(--muted);margin-bottom:3px}' +
+      '.biz-cfield input[type=text],.biz-cfield input[type=tel],.biz-cfield input[type=email],.biz-cfield input[type=date]{width:100%;box-sizing:border-box;border-radius:9px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);font:14px var(--sans);padding:8px 10px}' +
+      '.biz-cradio{display:inline-flex;align-items:center;gap:5px;margin:2px 12px 2px 0;font:13px var(--sans);cursor:pointer}' +
+      '.biz-cradio.off{opacity:.45;cursor:not-allowed}' +
+      '.biz-ccv{width:100%;height:auto;border-radius:8px;border:1px solid var(--line);background:#10283d;aspect-ratio:2000/1414}' +
+      'a.biz-wbtn{text-decoration:none;display:inline-block}' +
+      '.biz-witem.gone{opacity:.55}' +
+      '@media (max-width:720px){.biz-cgrid{grid-template-columns:1fr}.biz-views{flex-wrap:wrap}.biz-views button{flex:1 1 140px}}' +
       '@media (max-width:420px){.biz-list{grid-template-columns:1fr}.biz-ph{flex-basis:64px;width:64px;height:64px}}';
     document.head.appendChild(s);
   }
@@ -508,8 +525,10 @@
     var views = '<div class="biz-views">' +
       '<button data-view="work" class="' + (S.view === 'work' ? 'on' : '') + '"><b>' + (W ? wc.mine : '?') + '</b>My work' +
         (W && wc.waiting ? ' · ' + wc.waiting + ' waiting on others' : '') + '</button>' +
-      '<button data-view="pack" class="' + (S.view === 'pack' ? 'on' : '') + '"><b>' + (c.ready || 0) + '</b>Pack &amp; ship · ready to pack</button></div>';
+      '<button data-view="pack" class="' + (S.view === 'pack' ? 'on' : '') + '"><b>' + (c.ready || 0) + '</b>Pack &amp; ship · ready to pack</button>' +
+      '<button data-view="certs" class="' + (S.view === 'certs' ? 'on' : '') + '"><b>' + (d.certs ? (d.certs.waiting || []).length : '?') + '</b>Certificates · waiting</button></div>';
     if (S.view === 'work') return h + '<div class="biz-fresh">' + esc(fresh) + '</div>' + warn + notice + views + workHtml(d);
+    if (S.view === 'certs') return h + '<div class="biz-fresh">' + esc(fresh) + '</div>' + warn + notice + views + certsHtml(d);
     return h + '<div class="biz-fresh">' + esc(fresh) + '</div>' + warn + notice + views + tiles + chans + photoLine0 + photoLine + shipBox + body;
   }
 
@@ -636,6 +655,251 @@
     }).catch(function (e) { S.notice = { text: 'Undo failed: ' + (e.message || 'error') }; render(); });
   }
 
+  /* ---------------------------------------------------------------------
+     TailCraft design certificates (8 Nov 2026)
+     Befa: "generate the certificate, especially for those who buy out the
+     design ... with their name and then send to their account." The list of
+     paid buy outs still owed a certificate comes from the server
+     (api/_sd-business.js buildCerts). Issue numbers it TC-IP-YYYY-NNN, saves
+     it, and puts it in the customer's portal when one portal account matches
+     their phone or email. Send opens WhatsApp or email with the link, written
+     for the customer, and stamps the certificate as sent.
+  --------------------------------------------------------------------- */
+  var SCOPES = [['personal', 'Personal'], ['school', 'School'], ['brand', 'Brand (B2B)']];
+  function witaToday() { return new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10); }
+  function certItem(ref) {
+    var C = S.data && S.data.certs;
+    return C ? (C.waiting || []).filter(function (w) { return w.source_ref === ref; })[0] : null;
+  }
+  function issuedCert(no) {
+    var C = S.data && S.data.certs;
+    return C ? (C.issued || []).filter(function (c) { return c.cert_no === no; })[0] : null;
+  }
+  function termLabel(t) { return t === 'one_year' ? '1 year' : 'Lifetime'; }
+  function waNumber(p) {
+    var d = String(p || '').replace(/[^0-9]/g, '');
+    if (/^0/.test(d)) d = '62' + d.slice(1);
+    return d.length >= 9 ? d : '';
+  }
+  /* The message the customer gets. Warm, plain, no dashes (Befa's rule). */
+  function certMessage(c, lang) {
+    var tc = /^TAILCRAFT\|/.test(c.source_ref || '');
+    var brand = tc ? 'TailCraft Studio' : 'Sea Diva';
+    var first = String(c.customer || '').trim().split(/\s+/)[0] || '';
+    var formal = tc || c.scope !== 'personal';
+    if (lang === 'id') {
+      var you = formal ? 'Anda' : 'kamu';
+      return 'Halo ' + first + ', terima kasih ' + (formal ? 'telah' : 'sudah') + ' memilih ' + brand + '. Sertifikat eksklusivitas desain ' + c.design + ' ' + you +
+        ' sudah siap. ' + (formal ? 'Anda dapat' : 'Kamu bisa') + ' melihat dan mengunduhnya di sini:\n' + c.url + '\n\nNomor sertifikat: ' + c.cert_no +
+        (c.in_portal ? '\nSertifikat ini juga tersimpan di akun ' + brand + ' ' + you + '.' : '');
+    }
+    return 'Hi ' + first + ', thank you for choosing ' + brand + '. Your design exclusivity certificate for ' + c.design +
+      ' is ready. You can view and download it here:\n' + c.url + '\n\nCertificate number: ' + c.cert_no +
+      (c.in_portal ? '\nIt is also saved in your ' + brand + ' account.' : '');
+  }
+  function certSubject(c, lang) { return (lang === 'id' ? 'Sertifikat desain ' : 'Your design certificate ') + c.cert_no; }
+  function sendLinks(c) {
+    var lang = S.certLang || 'en', msg = certMessage(c, lang), wa = waNumber(c.phone);
+    var h = '<div class="biz-wbtns">' +
+      '<button class="biz-wbtn" data-cpdf="' + esc(c.cert_no) + '">Download PDF</button>' +
+      (wa ? '<a class="biz-wbtn" target="_blank" rel="noopener" data-csent="' + esc(c.cert_no) + '|whatsapp" href="https://wa.me/' + wa + '?text=' + encodeURIComponent(msg) + '">Send on WhatsApp' + (c.sent_whatsapp_at ? ' again' : '') + '</a>'
+          : '<span class="biz-pnote">No phone on record for WhatsApp.</span>') +
+      (c.email ? '<a class="biz-wbtn" data-csent="' + esc(c.cert_no) + '|email" href="mailto:' + encodeURIComponent(c.email) + '?subject=' + encodeURIComponent(certSubject(c, lang)) + '&body=' + encodeURIComponent(msg) + '">Send by email' + (c.sent_email_at ? ' again' : '') + '</a>'
+          : '<span class="biz-pnote">No email on record.</span>') +
+      '<button class="biz-wbtn alt" data-ccopy="' + esc(c.cert_no) + '">Copy message</button>' +
+      '<a class="biz-wbtn alt" target="_blank" rel="noopener" href="' + esc(c.url) + '">Open the page</a></div>';
+    return h;
+  }
+  function certFormHtml() {
+    var f = S.cform, C = S.data.certs;
+    var radio = function (name, val, label, extra) {
+      return '<label class="biz-cradio"><input type="radio" name="' + name + '" value="' + val + '" data-cf="' + name + '"' + (f[name] === val ? ' checked' : '') + (extra || '') + '> ' + esc(label) + '</label>';
+    };
+    var input = function (k, label, type, ph) {
+      return '<label class="biz-cfield"><span>' + esc(label) + '</span><input type="' + (type || 'text') + '" data-cf="' + k + '" value="' + esc(f[k] || '') + '"' + (ph ? ' placeholder="' + esc(ph) + '"' : '') +
+        (k === 'design_name' ? ' list="biz-cdesigns"' : '') + '></label>';
+    };
+    var designs = '<datalist id="biz-cdesigns">' + (f.products || []).map(function (p) { return '<option value="' + esc(p) + '">'; }).join('') + '</datalist>';
+    var contact = f.contactNote ? '<div class="biz-pnote">' + esc(f.contactNote) + '</div>' : '';
+    var armed = S.arm === 'cissue';
+    return '<div class="biz-cform"><h4>' + (f.source_ref ? 'Certificate for ' + esc(f.invoice || '') + (f.line ? ' · ' + esc(f.line) : '') : 'New certificate by hand') +
+      ' <button class="biz-undo" data-act="cert-close">Close</button></h4>' +
+      '<div class="biz-cgrid"><div>' +
+        input('customer_name', 'Name on the certificate') + input('design_name', 'Design name', 'text', 'For example Ocean Opal') + designs +
+        '<div class="biz-cfield"><span>Term</span>' + radio('cert_type', 'one_year', '1 year') + radio('cert_type', 'permanent', 'Lifetime') +
+          '<label class="biz-cradio off"><input type="radio" disabled> 3 years</label><label class="biz-cradio off"><input type="radio" disabled> 5 years</label>' +
+          '<div class="biz-pnote">3 and 5 years need their own artwork first, like your 1 year and lifetime designs.</div></div>' +
+        '<div class="biz-cfield"><span>Licence</span>' + SCOPES.map(function (s) { return radio('scope', s[0], s[1]); }).join('') + '</div>' +
+        input('territory', 'Where it is exclusive', 'text', 'Worldwide') + input('issue_date', 'Date on the certificate', 'date') +
+        input('phone', 'WhatsApp number', 'tel', '62…') + input('email', 'Email', 'email') + contact +
+      '</div><div><canvas id="biz-cert-cv" class="biz-ccv" width="2000" height="1414"></canvas>' +
+        '<div class="biz-pnote">Preview on your artwork. The number is given when you issue.</div></div></div>' +
+      (C.live ? '<div class="biz-wbtns"><button class="biz-wbtn' + (armed ? ' arm' : '') + '" data-act="cert-issue"' + (S.busy ? ' disabled' : '') + '>' +
+          (armed ? 'Tap again to issue' : 'Issue certificate') + '</button></div>' : '') +
+      (S.flash.cform ? '<div class="biz-flash' + (S.flash.cform.bad ? ' bad' : '') + '">' + esc(S.flash.cform.text) + '</div>' : '') + '</div>';
+  }
+  function certIssuedHtml(c) {
+    var sent = [c.sent_whatsapp_at ? 'WhatsApp ' + when(c.sent_whatsapp_at) : '', c.sent_email_at ? 'email ' + when(c.sent_email_at) : ''].filter(Boolean).join(', ');
+    var armed = S.arm === 'crev:' + c.cert_no;
+    return '<div class="biz-witem tc' + (c.revoked ? ' gone' : '') + '"><div class="biz-it"><div class="t">' + esc(c.cert_no) + ' · ' + esc(c.customer) + '</div>' +
+      '<div class="d">' + esc(c.design) + ' · ' + esc(termLabel(c.cert_type)) + ' · ' + esc((SCOPES.filter(function (s) { return s[0] === c.scope; })[0] || [0, ''])[1]) +
+        (c.territory ? ' · ' + esc(c.territory) : '') + ' · ' + esc(day(String(c.issued_on || '').slice(0, 10))) + (c.ends ? ' until ' + esc(day(String(c.ends).slice(0, 10))) : '') + '</div>' +
+      '<div class="m">' + (c.revoked ? '<span class="biz-unpaid">withdrawn</span> ' : '') + (c.in_portal ? 'In their portal.' : 'Not in a portal: no portal account matched the phone or email.') +
+        (c.invoice_no ? ' Invoice ' + esc(c.invoice_no) + '.' : '') + (sent ? ' Sent: ' + esc(sent) + '.' : ' Not sent yet.') + '</div>' +
+      (c.revoked ? '' : sendLinks(c) + '<div class="biz-wbtns"><button class="biz-wbtn alt' + (armed ? ' arm' : '') + '" data-crevoke="' + esc(c.cert_no) + '">' +
+        (armed ? 'Tap again: withdraw ' + esc(c.cert_no) : 'Withdraw') + '</button></div>') +
+      (S.flash['c:' + c.cert_no] ? '<div class="biz-flash' + (S.flash['c:' + c.cert_no].bad ? ' bad' : '') + '">' + esc(S.flash['c:' + c.cert_no].text) + '</div>' : '') +
+      '</div></div>';
+  }
+  function certsHtml(d) {
+    var C = d.certs;
+    if (!C) return '<div class="biz-err">Certificates could not be worked out from this answer. Tap Refresh.</div>';
+    var out = '';
+    if (!C.live) out += '<div class="biz-warn">Issuing is not switched on yet: the database part (supabase/sql/2026-11-08-tailcraft-certificates.sql) is waiting to be run. The waiting list below is already read from the sheet.</div>';
+    out += '<div class="biz-sub"><span class="biz-pnote">Message language</span>' + [['en', 'English'], ['id', 'Bahasa Indonesia']].map(function (x) {
+      return '<button class="biz-chip' + ((S.certLang || 'en') === x[0] ? ' on' : '') + '" data-clang="' + x[0] + '">' + x[1] + '</button>';
+    }).join('') + '</div>';
+    if (S.cform) out += certFormHtml();
+    var W = C.waiting || [];
+    out += '<div class="biz-wsec"><h4>Waiting for a certificate (' + W.length + ') <button class="biz-undo" data-cmake="hand">New by hand</button></h4>' +
+      '<div class="why">Every order line that buys a design\'s exclusivity, on an order that has paid something. Sea Diva lines from the sheet, TailCraft lines from paid invoices.</div>' +
+      (W.length ? W.map(function (w) {
+        return '<div class="biz-witem' + (w.tc ? ' tc' : '') + '"><div class="biz-it"><div class="t">' + esc(w.line) + '</div>' +
+          (w.products && w.products.length ? '<div class="d">With ' + esc(w.products.join('; ')) + '</div>' : '') +
+          (w.design ? '<div class="d">Design ' + esc(w.design) + '</div>' : '') +
+          '<div class="m"><span class="biz-badge ' + esc(w.channel) + '">' + esc(CH[w.channel] || w.channel) + '</span> <b>' + esc(w.invoice) + '</b>' +
+            (w.customer ? ' · ' + esc(w.customer) : '') + (w.date ? ' · ' + esc(day(w.date)) : '') + (w.pay === 'part' ? ' · part paid' : ' · paid') + '</div>' +
+          '<div class="biz-wbtns"><button class="biz-wbtn" data-cmake="' + esc(w.source_ref) + '">Make certificate</button></div></div></div>';
+      }).join('') : '<div class="biz-empty">No paid buy out is waiting for a certificate.</div>') + '</div>';
+    var I = (C.issued || []).slice().sort(function (a, b) { return (a.revoked ? 1 : 0) - (b.revoked ? 1 : 0); });
+    out += '<div class="biz-wsec"><h4>Issued (' + I.filter(function (c) { return !c.revoked; }).length + ')</h4>' +
+      (I.length ? I.map(certIssuedHtml).join('') : '<div class="biz-empty">No certificate issued yet.</div>') + '</div>';
+    return out;
+  }
+  function tailcraftView() {
+    var h = '<div class="biz-head"><h3>TailCraft · design certificates</h3><button data-act="refresh">' + (S.loading ? 'Loading…' : 'Refresh') + '</button></div>';
+    if (S.err) return h + '<div class="biz-err">' + esc(S.err) + '</div>';
+    if (!S.data) return h + '<div class="biz-fresh">Loading…</div>';
+    return h + (S.notice ? '<div class="biz-notice">' + esc(S.notice.text) + '</div>' : '') + certsHtml(S.data);
+  }
+  var previewTimer = null;
+  function drawPreview() {
+    var cv = document.getElementById('biz-cert-cv'), f = S.cform;
+    if (!cv || !f || !window.TCCert) return;
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(function () {
+      window.TCCert.draw(cv, { kind: f.cert_type === 'one_year' ? 'one_year' : 'lifetime', name: f.customer_name, design: f.design_name,
+        dateText: window.TCCert.dateText(f.issue_date), line: window.TCCert.lineFor({ scope: f.scope, territory: f.territory }) }).catch(function () { /* the form still works */ });
+    }, 120);
+  }
+  function openCertForm(ref) {
+    var w = ref === 'hand' ? null : certItem(ref);
+    S.cform = {
+      source_ref: w ? w.source_ref : '', invoice: w ? w.invoice : '', line: w ? w.line : '', products: w ? w.products : [],
+      customer_name: w ? w.customer : '', design_name: w ? (w.design || '') : '', cert_type: 'permanent', scope: (w && w.scope) || 'personal',
+      territory: 'Worldwide', issue_date: witaToday(), phone: (w && w.phone) || '', email: (w && w.email) || '',
+      project_id: w && w.project_id ? w.project_id : '', contactNote: ''
+    };
+    S.flash.cform = null; S.arm = '';
+    render();
+    var root = document.querySelector('.biz-cform'); if (root && root.scrollIntoView) root.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (w && !w.tc && (w.src === 'MANUAL (IG & WA) - OL' || w.src === 'SHOPIFY-OL') && S.data.certs.live) {
+      S.cform.contactNote = 'Reading the phone and email from the order…'; render();
+      var f0 = S.cform;
+      quiet({ action: 'cert_contact', src: w.src, row: w.row, invoice: w.invoice }).then(function (j) {
+        if (S.cform !== f0) return;
+        if (!f0.phone && j.phone) f0.phone = j.phone;
+        if (!f0.email && j.email) f0.email = j.email;
+        f0.contactNote = (j.phone || j.email) ? 'Filled from the order' + (j.from ? ' (' + j.from + ')' : '') + '. Check before you send.' : 'This order has no phone or email on record. Type one to send and to find their portal.';
+        render();
+      }).catch(function (e) { if (S.cform === f0) { f0.contactNote = 'Could not read the contact: ' + (e.message || 'error') + '. Type it in.'; render(); } });
+    }
+  }
+  function doCertIssue() {
+    var f = S.cform;
+    if (!f) return;
+    var cert = { customer_name: f.customer_name, design_name: f.design_name, cert_type: f.cert_type, scope: f.scope, territory: f.territory || 'Worldwide',
+      issue_date: f.issue_date, phone: f.phone, email: f.email, source_ref: f.source_ref, invoice_no: f.invoice, project_id: f.project_id };
+    post({ action: 'tc_cert_issue', cert: cert }, 'cform').then(function (j) {
+      S.cform = null;
+      S.notice = { text: j.cert_no + ' issued for ' + cert.customer_name + '. ' + (j.in_portal ? 'It is in their portal now.' : 'No portal account matched their phone or email, so send them the link.') + ' Send it from the Issued list below.' };
+      load();
+    }).catch(function (e) { S.flash.cform = { text: 'Not issued: ' + (e.message || 'error'), bad: true }; render(); });
+  }
+  var pdfLib = null;
+  function loadPdfLib() {
+    if (window.jspdf) return Promise.resolve();
+    if (pdfLib) return pdfLib;
+    pdfLib = new Promise(function (ok, bad) {
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.onload = function () { ok(); }; s.onerror = function () { pdfLib = null; bad(new Error('The PDF maker did not load.')); };
+      document.head.appendChild(s);
+    });
+    return pdfLib;
+  }
+  function doCertPdf(no) {
+    var c = issuedCert(no);
+    if (!c || !window.TCCert) return;
+    var cv = document.createElement('canvas');
+    Promise.all([loadPdfLib(), window.TCCert.draw(cv, { kind: c.cert_type === 'one_year' ? 'one_year' : 'lifetime', name: c.customer, design: c.design,
+      dateText: window.TCCert.dateText(c.issued_on), line: window.TCCert.lineFor(c) })])
+      .then(function () { window.TCCert.pdf(cv, 'TailCraft certificate ' + c.cert_no + '.pdf'); })
+      .catch(function (e) { S.flash['c:' + no] = { text: e.message || 'The PDF was not made.', bad: true }; render(); });
+  }
+  document.addEventListener('input', function (e) {
+    var k = e.target && e.target.getAttribute && e.target.getAttribute('data-cf');
+    if (!k || !S.cform) return;
+    S.cform[k] = e.target.value;
+    drawPreview();
+  });
+  document.addEventListener('change', function (e) {
+    var k = e.target && e.target.getAttribute && e.target.getAttribute('data-cf');
+    if (!k || !S.cform) return;
+    S.cform[k] = e.target.value;
+    drawPreview();
+  });
+  /* Certificate clicks, kept apart from the order clicks below. */
+  document.addEventListener('click', function (e) {
+    var root = document.getElementById(ROOT);
+    if (!root || !root.contains(e.target)) return;
+    var b = e.target.closest('[data-cmake],[data-cpdf],[data-csent],[data-ccopy],[data-crevoke],[data-clang],[data-act="cert-close"],[data-act="cert-issue"]');
+    if (!b) return;
+    if (b.dataset.cmake) { openCertForm(b.dataset.cmake); return; }
+    if (b.dataset.act === 'cert-close') { S.cform = null; render(); return; }
+    if (b.dataset.act === 'cert-issue') {
+      if (S.busy) return;
+      if (S.arm !== 'cissue') { S.arm = 'cissue'; render(); setTimeout(function () { if (S.arm === 'cissue') { S.arm = ''; render(); } }, 5000); return; }
+      S.arm = ''; doCertIssue(); return;
+    }
+    if (b.dataset.clang) { S.certLang = b.dataset.clang; try { localStorage.setItem('biz-cert-lang', S.certLang); } catch (e2) { /* storage blocked */ } render(); return; }
+    if (b.dataset.cpdf) { doCertPdf(b.dataset.cpdf); return; }
+    if (b.dataset.ccopy) {
+      var c = issuedCert(b.dataset.ccopy);
+      if (c && navigator.clipboard) navigator.clipboard.writeText(certMessage(c, S.certLang || 'en')).then(function () { b.textContent = 'Copied'; }, function () { b.textContent = 'Copy was blocked'; });
+      return;
+    }
+    if (b.dataset.csent) {
+      /* The link opens WhatsApp or the mail app; the stamp is saved alongside. */
+      var p = b.dataset.csent.split('|');
+      quiet({ action: 'tc_cert_sent', cert_no: p[0], channel: p[1] }).then(function () {
+        var c2 = issuedCert(p[0]); if (c2) c2[p[1] === 'whatsapp' ? 'sent_whatsapp_at' : 'sent_email_at'] = new Date().toISOString();
+        setTimeout(render, 400);
+      }).catch(function (e3) { S.flash['c:' + p[0]] = { text: 'Opened, but the sent stamp was not saved: ' + (e3.message || 'error'), bad: true }; render(); });
+      return;
+    }
+    if (b.dataset.crevoke) {
+      if (S.busy) return;
+      var ra = 'crev:' + b.dataset.crevoke;
+      if (S.arm !== ra) { S.arm = ra; render(); setTimeout(function () { if (S.arm === ra) { S.arm = ''; render(); } }, 5000); return; }
+      S.arm = '';
+      var no = b.dataset.crevoke;
+      post({ action: 'tc_cert_revoke', cert_no: no }, 'crevoke').then(function () {
+        S.notice = { text: no + ' is withdrawn. Its link now says it is no longer valid, and it left the portal.' }; load();
+      }).catch(function (e4) { S.flash['c:' + no] = { text: 'Not withdrawn: ' + (e4.message || 'error'), bad: true }; render(); });
+    }
+  });
+
   function render() {
     var root = document.getElementById(ROOT);
     if (!root) return;
@@ -652,7 +916,8 @@
       window.acadMount();
       return;
     }
-    root.innerHTML = nav() + (S.biz === 'seadiva' ? seadiva() : notYet(name));
+    root.innerHTML = nav() + (S.biz === 'seadiva' ? seadiva() : S.biz === 'tailcraft' ? tailcraftView() : notYet(name));
+    if (S.cform && (S.biz === 'tailcraft' || S.view === 'certs')) drawPreview();
     /* To send cards open their box label by themselves. */
     var need = S.biz === 'seadiva' ? S.visible.filter(function (k) { return !S.addr[k]; }) : [];
     if (need.length) setTimeout(function () { need.forEach(function (k) { if (!S.addr[k]) doAddr(k); }); }, 0);
@@ -920,7 +1185,7 @@
       doUndo(b.dataset.undoClick ? { click_id: b.dataset.undoClick } : { mark_id: Number(b.dataset.undoMark) }, key);
       return;
     }
-    if (b.dataset.biz) { S.biz = b.dataset.biz; render(); if (S.biz === 'seadiva' && !S.data && !S.loading) load(); return; }
+    if (b.dataset.biz) { S.biz = b.dataset.biz; render(); if ((S.biz === 'seadiva' || S.biz === 'tailcraft') && !S.data && !S.loading) load(); return; }
     if (b.dataset.stage) { S.stage = S.stage === b.dataset.stage ? 'all' : b.dataset.stage; render(); return; }
     if (b.dataset.ch) { S.ch = b.dataset.ch; render(); return; }
     if (b.dataset.act === 'show-shipped') { S.showShipped = true; render(); return; }

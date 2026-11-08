@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>TailCraft Design Certificate</title>
+<!--
+  The public certificate page (8 Nov 2026). The link the customer gets by
+  WhatsApp or email, and the one their portal shows:
+    /certificate.html?n=TC-IP-2026-001&k=<24 character secret>
+  It asks the database for that one certificate (public.tc_certificate_view,
+  which answers only when the number and its secret match) and draws it on
+  Befa's own artwork with cert-render.js. Nothing else is readable from here.
+  The key below is the project's publishable key: it is public by design and
+  only reaches what the anon role is granted.
+-->
+<style>
+  :root { --bg:#061726; --card:#0b2236; --ink:#f3ece4; --muted:#9fb3c2; --gold:#d9c7a0; --line:rgba(217,199,160,.25); --bad:#ff9f9f; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:radial-gradient(120% 80% at 50% 0%, #0e3150 0%, var(--bg) 60%); color:var(--ink);
+         font:16px/1.55 Georgia, "Times New Roman", serif; min-height:100vh; }
+  main { max-width:1040px; margin:0 auto; padding:28px 16px 56px; }
+  header { text-align:center; margin-bottom:18px; }
+  header .k { font:600 12px/1 system-ui, sans-serif; letter-spacing:.22em; text-transform:uppercase; color:var(--gold); }
+  header h1 { font-weight:400; font-size:clamp(24px, 4vw, 36px); margin:8px 0 0; }
+  .paper { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px; box-shadow:0 20px 60px rgba(0,0,0,.45); }
+  canvas { width:100%; height:auto; display:block; border-radius:8px; background:#10283d; aspect-ratio:2000/1414; }
+  .facts { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px; margin:18px 0; }
+  .facts div { border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .facts b { display:block; font:600 11px/1.2 system-ui, sans-serif; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+  .actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  button { font:600 15px system-ui, sans-serif; padding:12px 20px; border-radius:999px; border:1px solid var(--gold);
+           background:var(--gold); color:#1b1a17; cursor:pointer; }
+  button.alt { background:transparent; color:var(--gold); }
+  button:disabled { opacity:.5; cursor:wait; }
+  .msg { text-align:center; color:var(--muted); margin:28px 0; }
+  .bad { color:var(--bad); }
+  .revoked { border:1px solid var(--bad); color:var(--bad); border-radius:10px; padding:12px 14px; text-align:center; margin-bottom:14px; }
+  footer { text-align:center; color:var(--muted); font-size:13px; margin-top:28px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="k">TailCraft Studio · Sea Diva Tails</div>
+    <h1>Design Exclusivity Certificate</h1>
+  </header>
+  <div id="out"><p class="msg">Opening your certificate…</p></div>
+  <footer>Questions about this certificate? Write to us on WhatsApp +62 858 5893 5464 or seadiva.id@gmail.com.</footer>
+</main>
+<script>window.TC_CERT_BASE = '';</script>
+<script src="/cert-render.js"></script>
+<script>
+(function () {
+  'use strict';
+  var URL_ = 'https://gszjrsvvpajznwdrtjva.supabase.co/rest/v1/rpc/tc_certificate_view';
+  var KEY = 'sb_publishable_smViPPMU0spvQ8TZisaveQ_aO_Ks7Z1';
+  var out = document.getElementById('out');
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function fail(t) { out.innerHTML = '<p class="msg bad">' + esc(t) + '</p>'; }
+  var q = new URLSearchParams(location.search);
+  var no = (q.get('n') || '').trim(), k = (q.get('k') || '').trim();
+  if (!/^TC-IP-\d{4}-\d{3,4}$/.test(no) || !/^[0-9a-f]{24}$/.test(k)) { fail('This certificate link is not complete. Please open the link exactly as we sent it.'); return; }
+
+  var jspdf = null;
+  function loadPdf() {
+    if (jspdf) return jspdf;
+    jspdf = new Promise(function (ok, bad) {
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.onload = function () { ok(); }; s.onerror = function () { jspdf = null; bad(new Error('The PDF maker did not load. Please try again.')); };
+      document.head.appendChild(s);
+    });
+    return jspdf;
+  }
+
+  fetch(URL_, { method: 'POST', headers: { apikey: KEY, 'content-type': 'application/json' }, body: JSON.stringify({ p_no: no, p_key: k }) })
+    .then(function (r) { return r.json().catch(function () { return null; }).then(function (j) { if (!r.ok) throw new Error('The certificate could not be read right now. Please try again later.'); return j; }); })
+    .then(function (c) {
+      if (!c || c.ok !== true) { fail('We could not find this certificate. Please open the link exactly as we sent it.'); return; }
+      var kind = c.cert_type === 'one_year' ? 'one_year' : 'lifetime';
+      var SCOPE = { personal: 'Personal', school: 'School', brand: 'Brand' };
+      out.innerHTML = (c.revoked ? '<div class="revoked">This certificate has been withdrawn and is no longer valid.</div>' : '') +
+        '<div class="paper"><canvas id="cv" width="2000" height="1414" aria-label="Certificate ' + esc(c.cert_no) + '"></canvas></div>' +
+        '<div class="facts">' +
+          '<div><b>Certificate</b>' + esc(c.cert_no) + '</div>' +
+          '<div><b>Holder</b>' + esc(c.customer) + '</div>' +
+          '<div><b>Design</b>' + esc(c.design) + '</div>' +
+          '<div><b>Licence</b>' + esc(SCOPE[c.scope] || '') + '</div>' +
+          '<div><b>Where</b>' + esc(c.territory || '') + '</div>' +
+          '<div><b>Term</b>' + (kind === 'one_year' ? 'From ' + esc(TCCert.dateText(c.issued_on)) + (c.ends ? ' until ' + esc(TCCert.dateText(c.ends)) : '') : 'Lifetime, from ' + esc(TCCert.dateText(c.issued_on))) + '</div>' +
+        '</div>' +
+        (c.revoked ? '' : '<div class="actions"><button id="pdf">Download PDF</button><button class="alt" id="img">Save as picture</button></div>');
+      var cv = document.getElementById('cv');
+      TCCert.draw(cv, { kind: kind, name: c.customer, design: c.design, dateText: TCCert.dateText(c.issued_on),
+                        line: TCCert.lineFor({ scope: c.scope, territory: c.territory, cert_no: c.cert_no }) })
+        .catch(function (e) { fail(e.message || 'The certificate artwork did not load.'); });
+      var name = 'TailCraft certificate ' + c.cert_no;
+      var b1 = document.getElementById('pdf'), b2 = document.getElementById('img');
+      if (b1) b1.onclick = function () {
+        b1.disabled = true;
+        loadPdf().then(function () { TCCert.pdf(cv, name + '.pdf'); }).then(function () { b1.textContent = 'Download PDF'; }, function (e) { b1.textContent = e.message; }).then(function () { b1.disabled = false; });
+      };
+      if (b2) b2.onclick = function () {
+        var a = document.createElement('a'); a.download = name + '.jpg'; a.href = cv.toDataURL('image/jpeg', 0.92); a.click();
+      };
+    })
+    .catch(function (e) { fail(e.message || 'The certificate could not be read right now.'); });
+})();
+</script>
+</body>
+</html>
