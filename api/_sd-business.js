@@ -67,6 +67,13 @@ function cellRaw(cells, col) {
   return x.v === undefined || x.v === null ? '' : String(x.v);
 }
 function cell(cells, col) { return txt(cellRaw(cells, col)); }
+/* "Rp1,463,000", "$195.67", "#VALUE!" -> 1463000, 195.67, 0 */
+function moneyOf(t) {
+  const m = String(t || '').replace(/[^0-9.,]/g, '');
+  if (!m) return 0;
+  const n = Number(/\.\d{1,2}$/.test(m) ? m.replace(/,/g, '') : m.replace(/[.,]/g, ''));
+  return isFinite(n) ? n : 0;
+}
 
 function colNum(c) { let n = 0; for (let i = 0; i < c.length; i++) n = n * 26 + (c.charCodeAt(i) - 64); return n; }
 function colName(n) { let s = ''; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
@@ -146,6 +153,13 @@ export function readTab(channel, rows, now) {
   const shippedCol = channel === 'manual' ? findHeader(h, 'shipped') : null;
   const countryCol = channel === 'shopify' ? findHeader(h, 'shipping country') : null;
   const shipByCol = MARKETPLACE[channel] ? findHeader(h, 'batas pengiriman') : null;
+  /* Money already in (Befa, 8 Nov 2026): the Manual tab's instalment blocks
+     carry "Jumlah Cicilan transfered (USD)" and "(IDR)". Any amount above zero
+     there means the customer has paid something, even when column A still
+     says WAITING FOR PAYMENT. */
+  const paidCols = channel === 'manual'
+    ? Object.keys(h).filter((col) => h[col].some((t) => /cicilan/.test(t) && /transfer/.test(t)))
+    : [];
   /* Quantity sits in the column straight after each product's item column.
      It is only read if that column's header really says Qty. */
   const slots = c.slots.map((s) => {
@@ -170,6 +184,7 @@ export function readTab(channel, rows, now) {
       days: daysSince(date, now),
       payText: cell(cells, c.pay),
       pay: payKind(channel, cell(cells, c.pay), c.cancelled ? cell(cells, c.cancelled) : ''),
+      paidSome: paidCols.some((col) => moneyOf(cell(cells, col)) > 0),
       fulfil: c.fulfil ? low(cell(cells, c.fulfil)) : '',
       shipped: shippedCol ? /^true$/i.test(cell(cells, shippedCol)) : false,
       country: countryCol ? cell(cells, countryCol) : '',
@@ -190,6 +205,7 @@ export function readTab(channel, rows, now) {
         status, group: groupOf(status)
       });
     });
+    if (o.pay === 'unpaid' && o.paidSome) o.pay = 'part';
     orders.push(o);
   });
   return { ok: true, orders };
@@ -483,6 +499,9 @@ function buildWork(orders, tcwork, now) {
   WORK_MINE.concat(WORK_WAITING).forEach((k) => { items[k] = []; });
   orders.forEach((o) => {
     if (o.stage === 'old_no_status') return;
+    /* Befa, 8 Nov 2026: nothing goes into production work until the
+       customer has paid something (in full, a deposit or one instalment). */
+    if (o.stage === 'unpaid') return;
     o.lines.forEach((l) => {
       const b = workBucket(l);
       if (!b) return;

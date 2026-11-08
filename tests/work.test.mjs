@@ -111,11 +111,27 @@ test("Befa's rulings, 14 Oct: design done goes to Printing, fluke filler and cro
   assert.equal(WORK_MOVES.ordered[0][0], 'Ready to be shipped');
 });
 
-test('not paid yet orders show their work, marked not paid', () => {
-  const w = build(feedWith(), products, NOW).work;
-  const u = find(w, 'SDTOct26-01', 1);
-  assert.deepEqual(u.map((x) => x.bucket), ['design']);
-  assert.equal(u[0].unpaid, true);
+test("Befa, 8 Nov: nothing unpaid is production work; one instalment in is enough", () => {
+  let out = build(feedWith(), products, NOW);
+  assert.equal(find(out.work, 'SDTOct26-01', 1).length, 0, 'WAITING FOR PAYMENT and nothing transferred: not work');
+  assert.equal(out.orders.find((o) => o.invoice === 'SDTOct26-01').stage, 'unpaid', 'still listed under Not paid yet');
+
+  const f = feedWith();
+  const m = f.tabs['MANUAL (IG & WA) - OL'];
+  const hdr = m.find((r) => r.row_no === 4) || (m.push({ row_no: 4, cells: {} }), m[m.length - 1]);
+  hdr.cells.CU = C('Jumlah \nCicilan\n transfered\n(IDR)');
+  hdr.cells.DE = C('Jumlah \nCicilan\n transfered\n(IDR)');
+  const row = m.find((r) => r.cells.B && r.cells.B.d === 'SDTOct26-01');
+  row.cells.DE = C('Rp434,000');
+  out = build(f, products, NOW);
+  const u = find(out.work, 'SDTOct26-01', 1);
+  assert.deepEqual(u.map((x) => x.bucket), ['design'], 'an instalment has come in, so it is work');
+  assert.equal(u[0].unpaid, false);
+  assert.notEqual(out.orders.find((o) => o.invoice === 'SDTOct26-01').stage, 'unpaid');
+
+  row.cells.DE = C('Rp0'); row.cells.CU = C('#VALUE!');
+  out = build(f, products, NOW);
+  assert.equal(find(out.work, 'SDTOct26-01', 1).length, 0, 'zero and errors are not money');
 });
 
 test('TailCraft designs sit in the same Designer list', () => {
