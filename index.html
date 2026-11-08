@@ -469,8 +469,7 @@
   </div>
   <div class="tabpane" id="tab-areas">
     <div class="blurb" style="margin:8px 4px 0;font-style:italic">Private. Add a card per person in Love, Friendship or Family — each with notes and a journal that save to Notion.</div>
-    <div class="section-label">💌 Dating profile</div>
-    <div class="grid" id="dating-profile"></div>
+    <div id="dp-root"></div>
     <div id="rel-root"></div>
   </div>
   <div class="tabpane" id="tab-room">
@@ -628,7 +627,6 @@ const WEEKLY_REVIEW_ID='3a2eb411ed7a816d9760efc4342c5362';
 const FOUNDER_ID='3a2eb411ed7a8167ac9cd4d91d39ece2';
 const CONNECTIONS_ID='3a2eb411ed7a81919ba0c70f35ee974b';
 const MY_PERSONALITY_ID='3a2eb411ed7a81d694b7d9b1dbaa32f6';
-const DATING_PROFILE_ID='412eb411ed7a81aaba7bf068bd96ce91';
 const ARCH='🗄️ ';
 const REL=[
   {key:'love',label:'Love',icon:'💗',parent:CONNECTIONS_ID,hint:"someone you're close with"},
@@ -653,7 +651,7 @@ const ROUTES={
 };
 
 /* ---------- tabs ---------- */
-function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-business'&&typeof window.bizOpen==='function')window.bizOpen();if(id==='tab-finance'&&typeof window.finOpen==='function')window.finOpen();if(id==='tab-finance'&&typeof window.subsOpen==='function')window.subsOpen();if(id==='tab-room'&&typeof window.meOpen==='function')window.meOpen();if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
+function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-business'&&typeof window.bizOpen==='function')window.bizOpen();if(id==='tab-finance'&&typeof window.finOpen==='function')window.finOpen();if(id==='tab-finance'&&typeof window.subsOpen==='function')window.subsOpen();if(id==='tab-room'&&typeof window.meOpen==='function')window.meOpen();if(id==='tab-areas'&&typeof window.dpOpen==='function')window.dpOpen();if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
 function buildTabs(){
   const bar=document.getElementById('tabs');
   [['tab-command','Home'],['tab-todo','To-Do'],['tab-goals','Goals'],['tab-health','Health'],['tab-areas','Relationship'],['tab-room','About Me'],['tab-business','Business'],['tab-finance','Finance'],['tab-social','Social'],['tab-agents','Agents']].forEach((t,i)=>{
@@ -1104,18 +1102,9 @@ function renderAffirm(){const box=document.getElementById('affirm-bubble');if(!b
 function parseChildren(text){const out=[];const re=/<page\s+url="([^"]+)"[^>]*>([^<]*)<\/page>/g;let m;while((m=re.exec(text))!==null){out.push({url:m[1],title:(m[2]||"Untitled").trim()});}return out;}
 function extractContent(text){const m=(text||"").match(/<content>([\s\S]*?)<\/content>/);return m?m[1].trim():(text||"");}
 function renderMini(md){let html="";md.split("\n").forEach(raw=>{const l=raw.trim();if(!l)return;if(l.startsWith("# "))return;const im=l.match(/^!\[([^\]]*)\]\((https:\/\/[^)\s]+)\)$/);if(im){html+='<figure class="feed-img"><img src="'+escapeHtml(im[2])+'" alt="'+escapeHtml(im[1]||'Photo')+'" loading="lazy">'+(im[1]?'<figcaption>'+escapeHtml(im[1])+'</figcaption>':'')+'</figure>';return;}if(l.startsWith("## ")){html+='<div class="feed-h">'+escapeHtml(l.slice(3))+'</div>';return;}let x=escapeHtml(l).replace(/^_(.*)_$/,'<em>$1</em>');html+='<div class="feed-p">'+x+'</div>';});return html;}
-/* Dating profile answers (8 Nov 2026): a Notion page of "Label: answer" lines, bullets and to-dos.
-   The phone bridge sends plain text; the desktop connector sends <b>bold</b>, **bold** and [text](url). */
-function renderProfile(md){let html="";String(md||"").split("\n").forEach(function(raw){let l=raw.trim();if(!l||l.startsWith("# "))return;
-  l=l.replace(/\[([^\]]*)\]\((?:https?:|mailto:)[^)\s]*\)/g,"$1");
-  if(l.startsWith("## ")){html+='<div class="feed-h">'+escapeHtml(l.slice(3).replace(/<\/?b>|\*\*/g,""))+'</div>';return;}
-  let mark="";const td=l.match(/^- \[( |x)\]\s+(.*)$/);if(td){mark=td[1]==="x"?"☑ ":"☐ ";l=td[2];}else if(/^[-*]\s+/.test(l)){mark="• ";l=l.replace(/^[-*]\s+/,"");}
-  const b=l.match(/^(?:<b>|\*\*)(.+?)(?:<\/b>|\*\*)\s*(.*)$/);
-  if(b){html+='<div class="feed-p">'+mark+'<strong>'+escapeHtml(b[1])+'</strong>'+(b[2]?' '+escapeHtml(b[2].replace(/<\/?b>|\*\*/g,"")):'')+'</div>';return;}
-  html+='<div class="feed-p">'+mark+escapeHtml(l.replace(/<\/?b>|\*\*/g,""))+'</div>';});return html||'<div class="note-hint">This page is empty in Notion.</div>';}
 async function fetchNotion(id){const r=await window.cowork.callMcpTool(TOOL,{id});if(r&&r.isError)throw new Error("err");let data;if(r&&r.structuredContent)data=r.structuredContent;else if(r&&r.content&&r.content[0]&&r.content[0].text)data=JSON.parse(r.content[0].text);else throw new Error("no data");return data;}
 function shell(a,extra){const el=document.createElement("div");el.className="card"+(extra?(" "+extra):"");el.innerHTML='<h2><span class="ic">'+a.icon+'</span>'+a.title+'<span class="badge" data-badge>…</span></h2>'+(a.blurb?'<div class="blurb">'+a.blurb+'</div>':'')+'<div data-body class="loading">Loading from Notion…</div>';return el;}
-async function renderFeed(f,cid){const el=shell(f,f.cls);el.querySelector("[data-badge]").remove();document.getElementById(cid||"areas").appendChild(el);const body=el.querySelector("[data-body]");try{const d=await fetchNotion(f.id);let html=(f.render||(f.tiles?renderTiles:renderMini))(extractContent(d.text||""));html+='<div class="foot"><a href="'+(d.url||("https://app.notion.com/p/"+f.id))+'" target="_blank" rel="noopener">Edit this page →</a>'+(f.history?'<a href="'+f.history+'" target="_blank" rel="noopener">Full history →</a>':'')+'</div>';body.className="";body.innerHTML=html;}catch(e){body.className="err";body.textContent="Couldn't load right now. Try Reload.";}}
+async function renderFeed(f,cid){const el=shell(f,f.cls);el.querySelector("[data-badge]").remove();document.getElementById(cid||"areas").appendChild(el);const body=el.querySelector("[data-body]");try{const d=await fetchNotion(f.id);let html=(f.tiles?renderTiles:renderMini)(extractContent(d.text||""));html+='<div class="foot"><a href="'+(d.url||("https://app.notion.com/p/"+f.id))+'" target="_blank" rel="noopener">Edit this page →</a>'+(f.history?'<a href="'+f.history+'" target="_blank" rel="noopener">Full history →</a>':'')+'</div>';body.className="";body.innerHTML=html;}catch(e){body.className="err";body.textContent="Couldn't load right now. Try Reload.";}}
 async function renderArea(a,cid){const el=shell(a,a.sensitive?'sensitive':'');document.getElementById(cid||"areas").appendChild(el);const body=el.querySelector("[data-body]"),badge=el.querySelector("[data-badge]");try{const d=await fetchNotion(a.id);const kids=parseChildren(d.text||"");badge.textContent=kids.length;let html;if(a.sensitive){html='<div class="note-hint">'+kids.length+' private items. Kept in Notion, not shown here.</div>';}else{html='<ul class="notes">';kids.slice(0,30).forEach(k=>{html+='<li><a href="'+k.url+'" target="_blank" rel="noopener">'+escapeHtml(k.title)+'</a></li>';});html+='</ul>';if(kids.length===0)html='<div class="note-hint">No sub-notes yet in this area.</div>';}
   html+='<div class="foot"><a href="'+(d.url||("https://app.notion.com/p/"+a.id))+'" target="_blank" rel="noopener">Open in Notion →</a></div>';if(a.sensitive)html+='<div class="lock">🔒 Sensitive — opened only in Notion</div>';body.className="";body.innerHTML=html;return kids.length;}catch(e){badge.textContent="!";body.className="err";body.textContent="Couldn't load this area right now. Try Reload.";return 0;}}
 function renderTracker(t){const el=document.createElement("div");el.className="card";el.innerHTML='<h2><span class="ic">'+t.icon+'</span>'+t.title+'</h2><div class="blurb">'+t.blurb+'</div><div class="note-hint">Dated entries live here in Notion.</div><div class="foot"><a href="'+t.url+'" target="_blank" rel="noopener">Open tracker →</a></div>';document.getElementById("trackers").appendChild(el);}
@@ -2653,7 +2642,6 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
   buildExtras();
   TRACKERS.forEach(renderTracker);
   buildRelationship();
-  renderFeed({icon:'💌',title:'Dating profile answers',blurb:'Your master answers for matchmaker and dating forms. Edit them in Notion and they show here.',id:DATING_PROFILE_ID,cls:'wide sensitive',render:renderProfile},'dating-profile');
   renderArea({icon:'🌿',title:'Health notes',id:'39eeb411ed7a81b8b7d3ff501f26a72b',sensitive:true},'healthnotes');
   await Promise.all(ROOM.map(r=>renderFeed(r,'room')));
   // Personality, medals, film, numbers, kind words and gallery are drawn by aboutme-panel.js.
@@ -2671,5 +2659,6 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
 <script src="/finance-panel.js"></script>
 <script src="/subscriptions-panel.js"></script>
 <script src="/aboutme-panel.js"></script>
+<script src="/dating-panel.js"></script>
 </body>
 </html>
