@@ -297,7 +297,7 @@
   .td-sec-h .hot{color:#ff9db0;letter-spacing:0;}
   .td-list{list-style:none;margin:0;padding:0;}
   .td-row{display:flex;align-items:flex-start;gap:10px;padding:8px 2px;border-top:1px solid var(--line);font-size:13.5px;}
-  .td-list>.td-row:first-child{border-top:none;}
+  .td-list>.td-row:first-child,.td-list>.td-sub+.td-row{border-top:none;}
   .td-row.kid{padding-left:26px;border-top:1px dashed rgba(46,230,255,.08);}
   .td-row .check{margin-top:1px;}
   .td-row.done .check{background:var(--aqua);border-color:var(--aqua);}
@@ -1333,6 +1333,23 @@ function tdNextOrder(area,sec,parentId){
 function tdIndex(){TD.byId={};TD.tasks.forEach(t=>{TD.byId[t.id]=t;});}
 function tdKids(id){return TD.tasks.filter(t=>t.parent===id);}
 function tdHot(t){return !t.done&&(t.urgent||t.priority||t.status==='Doing'||tdDueToday(t)||tdOverdue(t));}
+// Open Doing. Status is the Notion value "Doing", and the row is not ticked.
+// Parked and Area Focus never reach TD.tasks, so they cannot show up here.
+function tdOpenDoing(t){return !!t&&!t.done&&t.status==='Doing';}
+function tdAttentionOrder(a,b){const la=tdOverdue(a)||tdDueToday(a)?0:1,lb=tdOverdue(b)||tdDueToday(b)?0:1;return la-lb||tdSort(a,b);}
+// Home card: every open Doing task, then the hot rows with those removed.
+// Doing work is not one of the 8 hot slots and is not drawn twice.
+function tdHomeSplit(tasks){
+  const ongoing=tasks.filter(tdOpenDoing).sort(tdAttentionOrder);
+  const hot=tasks.filter(t=>tdHot(t)&&ongoing.indexOf(t)===-1).sort(tdAttentionOrder);
+  return {ongoing:ongoing,hot:hot};
+}
+// Calendar pane, today only: open Doing tasks that day's Scheduled list does
+// not already show, because their date does not cover the day.
+function tdDayOngoing(tasks,day){
+  if(!day||day!==TD.today)return [];
+  return tasks.filter(t=>tdOpenDoing(t)&&tdDays(t).indexOf(day)===-1).sort(tdSort);
+}
 
 async function tdApi(action,payload){
   const r=await fetch('/api/tasks',{method:'POST',headers:osHeaders(),body:JSON.stringify(Object.assign({action:action},payload||{}))});
@@ -1692,6 +1709,8 @@ function tdRenderDay(){
   html+='<div class="td-sub">Scheduled</div>'+(sched.length?'<ul class="td-list">'+sched.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>':'<div class="td-empty">Nothing dated for this day.</div>');
   html+=tdClCardsHTML(day,sched);
   html+='<div class="todo-add" style="margin-top:10px"><input class="fld" id="td-day-in" placeholder="Add to '+tdPretty(day)+'… (add a time like 14:30 at the end)"><button class="gold-btn" data-act="dayadd">+</button></div>';
+  const ongoing=tdDayOngoing(TD.tasks.filter(inArea),day);
+  if(ongoing.length)html+='<div class="td-sub">Ongoing</div><ul class="td-list">'+ongoing.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>';
   html+='<div class="td-sub">Done this day · '+did.length+'</div>'+(did.length?'<ul class="td-list">'+did.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>':'<div class="td-empty">'+(day>(TD.today||'')?'Not yet.':'Nothing ticked on this day.')+'</div>');
   if(TD.area==='All')html+=tdNoteHTML(day);
   el.innerHTML=html;
@@ -1701,13 +1720,15 @@ function tdRenderDay(){
 function tdRenderHome(){
   const ul=document.getElementById('td-home-list');if(!ul)return;const badge=document.getElementById('td-home-count');
   if(!TD.loaded){ul.innerHTML='<li class="'+(TD.err?'err':'loading')+'">'+escapeHtml(TD.err||'Loading…')+'</li>';if(badge)badge.textContent='…';return;}
-  const hot=TD.tasks.filter(tdHot).sort((a,b)=>{const la=tdOverdue(a)||tdDueToday(a)?0:1,lb=tdOverdue(b)||tdDueToday(b)?0:1;return la-lb||tdSort(a,b);});
+  const parts=tdHomeSplit(TD.tasks);const hot=parts.hot,ongoing=parts.ongoing;
   const doneToday=TD.tasks.filter(t=>t.done&&t.completedOn===TD.today);
-  if(badge)badge.textContent=hot.length+' hot · '+doneToday.length+' done';
-  let html=hot.slice(0,8).map(t=>tdRowHTML(t,{showArea:true,noGrip:true})).join('');
+  if(badge)badge.textContent=hot.length+' hot'+(ongoing.length?' · '+ongoing.length+' ongoing':'')+' · '+doneToday.length+' done';
+  const row=t=>tdRowHTML(t,{showArea:true,noGrip:true});
+  let html=hot.slice(0,8).map(row).join('');
   if(hot.length>8)html+='<li class="td-empty">+'+(hot.length-8)+' more in the To-Do tab</li>';
-  if(!hot.length)html='<li class="td-empty">Nothing urgent, flagged or due today.</li>';
-  html+=doneToday.map(t=>tdRowHTML(t,{showArea:true,noGrip:true})).join('');
+  if(!hot.length&&!ongoing.length)html='<li class="td-empty">Nothing urgent, flagged or due today.</li>';
+  if(ongoing.length)html+='<li class="td-sub">Ongoing</li>'+ongoing.map(row).join('');
+  html+=doneToday.map(row).join('');
   ul.innerHTML=html;
 }
 function tdRenderMigrate(){
