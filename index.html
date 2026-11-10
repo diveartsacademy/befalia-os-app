@@ -1350,6 +1350,32 @@ function tdDayOngoing(tasks,day){
   if(!day||day!==TD.today)return [];
   return tasks.filter(t=>tdOpenDoing(t)&&tdDays(t).indexOf(day)===-1).sort(tdSort);
 }
+function tdDedupeId(list){
+  const seen={},out=[];
+  (list||[]).forEach(t=>{if(!t)return;if(t.id&&seen[t.id])return;if(t.id)seen[t.id]=1;out.push(t);});
+  return out;
+}
+function tdNormTitle(s){return String(s||'').replace(/\s+/g,' ').trim().toLowerCase();}
+// Done for that day: the Done box or Status Done, and Completed on is that day.
+function tdDoneOn(t,day){return !!(t&&day&&t.completedOn===day&&(t.done||t.status==='Done'));}
+// One row per page, then one row per title finished on the same day. Order is
+// when the row was last saved (the tick), earliest first. n is how many pages
+// collapsed into the row; the heading counts rows, not pages.
+function tdDoneGroups(list){
+  const rows=tdDedupeId(list).slice().sort((a,b)=>{
+    const ta=a.edited||a.created||'',tb=b.edited||b.created||'';
+    if(ta!==tb)return ta<tb?-1:1;
+    return String(a.id||'')<String(b.id||'')?-1:1;
+  });
+  const out=[];
+  rows.forEach(t=>{
+    const title=tdNormTitle(t.name);
+    const prev=title?out.find(g=>g.title===title&&g.day===(t.completedOn||'')):null;
+    if(prev){prev.n++;return;}
+    out.push({task:t,n:1,title:title,day:t.completedOn||''});
+  });
+  return out;
+}
 
 async function tdApi(action,payload){
   const r=await fetch('/api/tasks',{method:'POST',headers:osHeaders(),body:JSON.stringify(Object.assign({action:action},payload||{}))});
@@ -1536,6 +1562,7 @@ function tdRowHTML(t,opt){
   if(t.sessionId)meta+='<span class="td-pill" title="In the DiveArts books as '+attr(t.sessionId)+'">💸 '+tdRp(t.expenses&&t.expenses.total)+' ✓ in books</span>';
   else if(t.expenses&&t.expenses.costs&&t.expenses.costs.length)meta+='<span class="td-pill" title="Expense draft, not sent yet">💸 '+tdRp(t.expenses.total)+' draft</span>';
   if(t.notes){const nn=t.section==='After class'?String(t.notes).replace(/^postclass:\S+\s*·\s*/,''):t.notes;meta+='<span title="'+attr(nn)+'">📝 '+escapeHtml(nn.length>48?nn.slice(0,48)+'…':nn)+'</span>';}
+  if(opt.dup>1)meta+='<span class="td-pill" title="The same finished task was stored more than once">×'+opt.dup+'</span>';
   const cls='td-row'+(t.done?' done':'')+(t._saving?' saving':'')+(t._err?' err':'')+(t.urgent&&!t.done?' urgent':'')+(opt.kid?' kid':'');
   return '<li class="'+cls+'" data-id="'+t.id+'">'+(opt.noGrip?'':'<span class="td-grip" title="Tap to move to another business or title. Drag onto a day, a title, or another task">⠿</span>')+'<button class="check" data-act="done" title="'+(t.done?'Untick':'Tick done')+'">'+(t.done?'✓':'')+'</button>'
     +'<div class="td-body"><div class="td-name" data-act="edit">'+escapeHtml(t.name||'(no name)')+'</div><div class="td-meta">'+meta+'</div></div>'
@@ -1703,15 +1730,17 @@ function tdRenderDay(){
   const day=TD.sel||TD.today||tdWita();
   const old=document.getElementById('td-day-in');const keep=old?old.value:'';const hadFocus=old&&document.activeElement===old;
   const inArea=t=>TD.area==='All'||t.area===TD.area;
-  const sched=TD.tasks.filter(t=>inArea(t)&&tdDays(t).indexOf(day)!==-1).sort(tdSort);
-  const did=TD.tasks.filter(t=>inArea(t)&&t.done&&t.completedOn===day);
+  const dated=tdDedupeId(TD.tasks.filter(t=>inArea(t)&&tdDays(t).indexOf(day)!==-1)).sort(tdSort);
+  const done=tdDoneGroups(TD.tasks.filter(t=>inArea(t)&&tdDoneOn(t,day)));
+  const sched=dated.filter(t=>!tdDoneOn(t,day));
   let html='<div class="td-day-h">'+(day===TD.today?'Today · ':'')+tdPretty(day,{weekday:'long',year:'numeric'})+'</div>';
   html+='<div class="td-sub">Scheduled</div>'+(sched.length?'<ul class="td-list">'+sched.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>':'<div class="td-empty">Nothing dated for this day.</div>');
-  html+=tdClCardsHTML(day,sched);
+  html+=tdClCardsHTML(day,dated);
   html+='<div class="todo-add" style="margin-top:10px"><input class="fld" id="td-day-in" placeholder="Add to '+tdPretty(day)+'… (add a time like 14:30 at the end)"><button class="gold-btn" data-act="dayadd">+</button></div>';
-  const ongoing=tdDayOngoing(TD.tasks.filter(inArea),day);
+  const ongoing=tdDedupeId(tdDayOngoing(TD.tasks.filter(t=>inArea(t)&&!tdDoneOn(t,day)),day));
   if(ongoing.length)html+='<div class="td-sub">Ongoing</div><ul class="td-list">'+ongoing.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>';
-  html+='<div class="td-sub">Done this day · '+did.length+'</div>'+(did.length?'<ul class="td-list">'+did.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>':'<div class="td-empty">'+(day>(TD.today||'')?'Not yet.':'Nothing ticked on this day.')+'</div>');
+  const doneLabel=(day===TD.today?'Done today (':'Done this day (')+done.length+')';
+  html+='<div class="td-sub">'+doneLabel+'</div>'+(done.length?'<ul class="td-list">'+done.map(g=>tdRowHTML(g.task,{showArea:true,hideDate:true,dup:g.n})).join('')+'</ul>':'<div class="td-empty">'+(day>(TD.today||'')?'Not yet.':'Nothing ticked on this day.')+'</div>');
   if(TD.area==='All')html+=tdNoteHTML(day);
   el.innerHTML=html;
   const nin=document.getElementById('td-day-in');if(nin){nin.value=keep;if(hadFocus)nin.focus();}
@@ -1720,15 +1749,16 @@ function tdRenderDay(){
 function tdRenderHome(){
   const ul=document.getElementById('td-home-list');if(!ul)return;const badge=document.getElementById('td-home-count');
   if(!TD.loaded){ul.innerHTML='<li class="'+(TD.err?'err':'loading')+'">'+escapeHtml(TD.err||'Loading…')+'</li>';if(badge)badge.textContent='…';return;}
-  const parts=tdHomeSplit(TD.tasks);const hot=parts.hot,ongoing=parts.ongoing;
-  const doneToday=TD.tasks.filter(t=>t.done&&t.completedOn===TD.today);
-  if(badge)badge.textContent=hot.length+' hot'+(ongoing.length?' · '+ongoing.length+' ongoing':'')+' · '+doneToday.length+' done';
+  const open=tdDedupeId(TD.tasks.filter(t=>!tdDoneOn(t,TD.today)));
+  const parts=tdHomeSplit(open);const hot=parts.hot,ongoing=parts.ongoing;
+  const done=tdDoneGroups(TD.tasks.filter(t=>tdDoneOn(t,TD.today)));
+  if(badge)badge.textContent=hot.length+' hot'+(ongoing.length?' · '+ongoing.length+' ongoing':'')+' · '+done.length+' done';
   const row=t=>tdRowHTML(t,{showArea:true,noGrip:true});
   let html=hot.slice(0,8).map(row).join('');
   if(hot.length>8)html+='<li class="td-empty">+'+(hot.length-8)+' more in the To-Do tab</li>';
-  if(!hot.length&&!ongoing.length)html='<li class="td-empty">Nothing urgent, flagged or due today.</li>';
+  if(!hot.length&&!ongoing.length&&!done.length)html='<li class="td-empty">Nothing urgent, flagged or due today.</li>';
   if(ongoing.length)html+='<li class="td-sub">Ongoing</li>'+ongoing.map(row).join('');
-  html+=doneToday.map(row).join('');
+  if(done.length)html+='<li class="td-sub">Done today ('+done.length+')</li>'+done.map(g=>tdRowHTML(g.task,{showArea:true,noGrip:true,dup:g.n})).join('');
   ul.innerHTML=html;
 }
 function tdRenderMigrate(){
