@@ -1376,6 +1376,59 @@ function tdDoneGroups(list){
   });
   return out;
 }
+// Due day of an H-1 "Bayar besok (…)" row. Notes win ("Jatuh tempo 10 Nov 2026").
+// Otherwise the date in the title, year taken from the task date, and a
+// December task dated into January rolls the year forward. Display only.
+function bayarMonth(name){
+  return {jan:1,feb:2,mar:3,apr:4,mei:5,may:5,jun:6,jul:7,agu:8,agt:8,aug:8,sep:9,okt:10,oct:10,nov:11,des:12,dec:12}[String(name||'').toLowerCase()]||0;
+}
+function bayarYmd(y,m,d){
+  if(!(y>=1&&m>=1&&m<=12&&d>=1&&d<=31))return null;
+  const dt=new Date(Date.UTC(y,m-1,d));
+  if(dt.getUTCFullYear()!==y||dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d)return null;
+  return y+'-'+String(m).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+function bayarDueDate(t){
+  const notes=String(t&&t.notes||'');
+  const nm=/Jatuh tempo\s+(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/i.exec(notes);
+  if(nm){const due=bayarYmd(+nm[3],bayarMonth(nm[2]),+nm[1]);if(due)return due;}
+  const tm=/^Bayar besok \((\d{1,2})\s+([A-Za-z]+)(?:\s+(\d{4}))?\)/.exec(String(t&&t.name||''));
+  if(!tm)return null;
+  const month=bayarMonth(tm[2]);if(!month)return null;
+  let year;
+  if(tm[3])year=+tm[3];
+  else{
+    const day=t&&t.date&&t.date.start?tdDayOf(t.date.start):'';
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return null;
+    year=+day.slice(0,4);
+    if(month<+day.slice(5,7))year+=1;
+  }
+  return bayarYmd(year,month,+tm[1]);
+}
+function bayarHariIniLabel(name){
+  const m=/^Bayar besok \([^)]*\)\s*:?\s*([\s\S]*)$/.exec(String(name||'').trim());
+  const rest=m?m[1].trim():'';
+  return rest?('Bayar hari ini: '+rest):'Bayar hari ini';
+}
+// Open rows whose bill is due on `today`. Done (paid) rows stay out. Pure.
+function bayarHariIniTasks(tasks,today){
+  const out=[];
+  (tasks||[]).forEach(t=>{
+    if(!t||t.done||t.status==='Done'||t.status==='Parked')return;
+    if(!/^Bayar besok \(/.test(String(t.name||'')))return;
+    if(bayarDueDate(t)===today)out.push(t);
+  });
+  return out;
+}
+// Pinned rows go in front and leave `list`, so a row is drawn once.
+// `cap` limits only the remainder; null keeps every remaining row.
+function bayarPin(list,pinned,cap){
+  const ids={};
+  (pinned||[]).forEach(t=>{if(t&&t.id!=null)ids[t.id]=1;});
+  const rest=(list||[]).filter(t=>!ids[t.id]);
+  const shown=cap==null?rest:rest.slice(0,cap);
+  return {pinned:pinned||[],shown:shown,more:cap==null?0:Math.max(0,rest.length-cap)};
+}
 
 async function tdApi(action,payload){
   const r=await fetch('/api/tasks',{method:'POST',headers:osHeaders(),body:JSON.stringify(Object.assign({action:action},payload||{}))});
@@ -1564,8 +1617,9 @@ function tdRowHTML(t,opt){
   if(t.notes){const nn=t.section==='After class'?String(t.notes).replace(/^postclass:\S+\s*·\s*/,''):t.notes;meta+='<span title="'+attr(nn)+'">📝 '+escapeHtml(nn.length>48?nn.slice(0,48)+'…':nn)+'</span>';}
   if(opt.dup>1)meta+='<span class="td-pill" title="The same finished task was stored more than once">×'+opt.dup+'</span>';
   const cls='td-row'+(t.done?' done':'')+(t._saving?' saving':'')+(t._err?' err':'')+(t.urgent&&!t.done?' urgent':'')+(opt.kid?' kid':'');
-  return '<li class="'+cls+'" data-id="'+t.id+'">'+(opt.noGrip?'':'<span class="td-grip" title="Tap to move to another business or title. Drag onto a day, a title, or another task">⠿</span>')+'<button class="check" data-act="done" title="'+(t.done?'Untick':'Tick done')+'">'+(t.done?'✓':'')+'</button>'
-    +'<div class="td-body"><div class="td-name" data-act="edit">'+escapeHtml(t.name||'(no name)')+'</div><div class="td-meta">'+meta+'</div></div>'
+  const shown=opt.name!=null?opt.name:(t.name||'(no name)');
+  return '<li class="'+cls+'"'+(opt.pin?' data-pin="bayar-hari-ini"':'')+' data-id="'+t.id+'">'+(opt.noGrip?'':'<span class="td-grip" title="Tap to move to another business or title. Drag onto a day, a title, or another task">⠿</span>')+'<button class="check" data-act="done" title="'+(t.done?'Untick':'Tick done')+'">'+(t.done?'✓':'')+'</button>'
+    +'<div class="td-body"><div class="td-name" data-act="edit">'+escapeHtml(shown||'(no name)')+'</div><div class="td-meta">'+meta+'</div></div>'
     +(t.done?'':'<button class="td-flag'+(t.status==='Doing'?' on':'')+'" data-act="doing" title="In progress ▶">▶️</button>')
     +'<button class="td-flag'+(t.priority?' on':'')+'" data-act="pri" title="Priority ⏰">⏰</button>'
     +'<button class="td-flag'+(t.urgent?' on':'')+'" data-act="urg" title="Urgent 🚨">🚨</button>'
@@ -1730,14 +1784,18 @@ function tdRenderDay(){
   const day=TD.sel||TD.today||tdWita();
   const old=document.getElementById('td-day-in');const keep=old?old.value:'';const hadFocus=old&&document.activeElement===old;
   const inArea=t=>TD.area==='All'||t.area===TD.area;
+  const today=TD.today||tdWita();
+  const pinned=day===today?bayarHariIniTasks(TD.tasks.filter(inArea),today):[];
+  const pinIds={};pinned.forEach(t=>{pinIds[t.id]=1;});
   const dated=tdDedupeId(TD.tasks.filter(t=>inArea(t)&&tdDays(t).indexOf(day)!==-1)).sort(tdSort);
   const done=tdDoneGroups(TD.tasks.filter(t=>inArea(t)&&tdDoneOn(t,day)));
-  const sched=dated.filter(t=>!tdDoneOn(t,day));
+  const sched=dated.filter(t=>!tdDoneOn(t,day)&&!pinIds[t.id]);
   let html='<div class="td-day-h">'+(day===TD.today?'Today · ':'')+tdPretty(day,{weekday:'long',year:'numeric'})+'</div>';
+  if(pinned.length)html+='<div class="td-sub">Bayar hari ini</div><ul class="td-list">'+pinned.map(t=>tdRowHTML(t,{showArea:true,hideDate:true,name:bayarHariIniLabel(t.name),pin:true})).join('')+'</ul>';
   html+='<div class="td-sub">Scheduled</div>'+(sched.length?'<ul class="td-list">'+sched.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>':'<div class="td-empty">Nothing dated for this day.</div>');
   html+=tdClCardsHTML(day,dated);
   html+='<div class="todo-add" style="margin-top:10px"><input class="fld" id="td-day-in" placeholder="Add to '+tdPretty(day)+'… (add a time like 14:30 at the end)"><button class="gold-btn" data-act="dayadd">+</button></div>';
-  const ongoing=tdDedupeId(tdDayOngoing(TD.tasks.filter(t=>inArea(t)&&!tdDoneOn(t,day)),day));
+  const ongoing=tdDedupeId(tdDayOngoing(TD.tasks.filter(t=>inArea(t)&&!tdDoneOn(t,day)),day)).filter(t=>!pinIds[t.id]);
   if(ongoing.length)html+='<div class="td-sub">Ongoing</div><ul class="td-list">'+ongoing.map(t=>tdRowHTML(t,{showArea:true,hideDate:true})).join('')+'</ul>';
   const doneLabel=(day===TD.today?'Done today (':'Done this day (')+done.length+')';
   html+='<div class="td-sub">'+doneLabel+'</div>'+(done.length?'<ul class="td-list">'+done.map(g=>tdRowHTML(g.task,{showArea:true,hideDate:true,dup:g.n})).join('')+'</ul>':'<div class="td-empty">'+(day>(TD.today||'')?'Not yet.':'Nothing ticked on this day.')+'</div>');
@@ -1750,13 +1808,20 @@ function tdRenderHome(){
   const ul=document.getElementById('td-home-list');if(!ul)return;const badge=document.getElementById('td-home-count');
   if(!TD.loaded){ul.innerHTML='<li class="'+(TD.err?'err':'loading')+'">'+escapeHtml(TD.err||'Loading…')+'</li>';if(badge)badge.textContent='…';return;}
   const open=tdDedupeId(TD.tasks.filter(t=>!tdDoneOn(t,TD.today)));
-  const parts=tdHomeSplit(open);const hot=parts.hot,ongoing=parts.ongoing;
+  const parts=tdHomeSplit(open);
+  const pinned=bayarHariIniTasks(open,TD.today);
+  const placed=bayarPin(parts.hot,pinned,8);
+  const pinIds={};pinned.forEach(t=>{pinIds[t.id]=1;});
+  const ongoing=parts.ongoing.filter(t=>!pinIds[t.id]);
   const done=tdDoneGroups(TD.tasks.filter(t=>tdDoneOn(t,TD.today)));
-  if(badge)badge.textContent=hot.length+' hot'+(ongoing.length?' · '+ongoing.length+' ongoing':'')+' · '+done.length+' done';
+  const hotCount=placed.shown.length+placed.more;
+  if(badge)badge.textContent=hotCount+' hot'+(ongoing.length?' · '+ongoing.length+' ongoing':'')+' · '+done.length+' done';
   const row=t=>tdRowHTML(t,{showArea:true,noGrip:true});
-  let html=hot.slice(0,8).map(row).join('');
-  if(hot.length>8)html+='<li class="td-empty">+'+(hot.length-8)+' more in the To-Do tab</li>';
-  if(!hot.length&&!ongoing.length&&!done.length)html='<li class="td-empty">Nothing urgent, flagged or due today.</li>';
+  const pinRow=t=>tdRowHTML(t,{showArea:true,noGrip:true,hideDate:true,name:bayarHariIniLabel(t.name),pin:true});
+  let html=placed.pinned.map(pinRow).join('');
+  html+=placed.shown.map(row).join('');
+  if(placed.more)html+='<li class="td-empty">+'+placed.more+' more in the To-Do tab</li>';
+  if(!placed.shown.length&&!ongoing.length&&!placed.pinned.length&&!done.length)html='<li class="td-empty">Nothing urgent, flagged or due today.</li>';
   if(ongoing.length)html+='<li class="td-sub">Ongoing</li>'+ongoing.map(row).join('');
   if(done.length)html+='<li class="td-sub">Done today ('+done.length+')</li>'+done.map(g=>tdRowHTML(g.task,{showArea:true,noGrip:true,dup:g.n})).join('');
   ul.innerHTML=html;

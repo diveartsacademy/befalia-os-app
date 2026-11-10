@@ -33,7 +33,7 @@ function extractFn(src, name) {
   throw new Error('unclosed function ' + name);
 }
 
-const NAMES = ['tdWita', 'tdIsDT', 'tdDayOf', 'tdTimeOf', 'tdUTC', 'tdAdd', 'tdDays', 'tdLast', 'tdOverdue', 'tdDueToday', 'tdRank', 'tdSort', 'tdHot', 'tdOpenDoing', 'tdAttentionOrder', 'tdHomeSplit', 'tdDayOngoing', 'tdDedupeId', 'tdNormTitle', 'tdDoneOn', 'tdDoneGroups', 'tdRowHTML', 'tdRenderDay', 'tdRenderHome'];
+const NAMES = ['tdWita', 'tdIsDT', 'tdDayOf', 'tdTimeOf', 'tdUTC', 'tdAdd', 'tdDays', 'tdLast', 'tdOverdue', 'tdDueToday', 'tdRank', 'tdSort', 'tdHot', 'tdOpenDoing', 'tdAttentionOrder', 'tdHomeSplit', 'tdDayOngoing', 'tdDedupeId', 'tdNormTitle', 'tdDoneOn', 'tdDoneGroups', 'bayarMonth', 'bayarYmd', 'bayarDueDate', 'bayarHariIniLabel', 'bayarHariIniTasks', 'bayarPin', 'tdRowHTML', 'tdRenderDay', 'tdRenderHome'];
 const home = { innerHTML: '' };
 const badge = { textContent: '' };
 const day = { innerHTML: '', contains() { return false; } };
