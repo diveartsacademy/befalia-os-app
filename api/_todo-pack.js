@@ -65,6 +65,22 @@ async function notion(path, opts) {
   return d;
 }
 
+/* A pack already written for this name on this day. Title match is exact,
+   the same string taskFor builds, so a different order is not reused. */
+export async function findPackPage(t) {
+  if (!t || !t.name || !t.completedOn) return null;
+  const d = await notion('/databases/' + TASKS_DB + '/query', { method: 'POST', body: {
+    page_size: 5,
+    filter: { and: [
+      { property: 'Name', title: { equals: t.name } },
+      { property: 'Completed on', date: { equals: t.completedOn } },
+      { property: 'Done', checkbox: { equals: true } },
+      { property: 'Area', select: { equals: 'Sea Diva' } },
+    ] },
+  } });
+  return (d.results || []).find((p) => p && !p.archived && !p.in_trash) || null;
+}
+
 /* pack(action) calls seadiva.befalia_pack through the edge function. */
 export async function logPacks(pack, today) {
   if (!process.env.NOTION_TOKEN) return { logged: 0, error: 'NOTION_TOKEN is not set, so packs were not logged on the To-Do.' };
@@ -76,7 +92,11 @@ export async function logPacks(pack, today) {
     try {
       const t = taskFor(click);
       if (t.completedOn && today && t.completedOn > today) t.completedOn = today;
-      const pg = await notion('/pages', { method: 'POST', body: { parent: { database_id: TASKS_DB }, properties: buildProps(t, today) } });
+      // A claim with no page id is handed out again after 10 minutes, and the
+      // list route stops waiting after 4 seconds. If the page was created and
+      // todo_set never landed, reuse that page instead of writing another.
+      const have = await findPackPage(t);
+      const pg = have || await notion('/pages', { method: 'POST', body: { parent: { database_id: TASKS_DB }, properties: buildProps(t, today) } });
       done.push({ click_id: click.click_id, page_id: nid(pg.id) });
     } catch (e) {
       failed.push(click.click_id);

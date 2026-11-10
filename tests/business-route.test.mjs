@@ -108,14 +108,15 @@ test('POST mark: database first, then one done task on the To-Do, then the link 
   await handler(req({ method: 'POST', headers: { 'x-os-key': 'os-key' }, body: JSON.stringify({ action: 'mark', src: 'MANUAL (IG & WA) - OL', row: 275, invoice: 'SDTMar26-2', slots: [2, 4] }) }), r);
   assert.equal(r.code, 200, JSON.stringify(r.body));
   assert.equal(r.body.todo.logged, 1);
-  assert.deepEqual(calls.map((c) => c.pack || (c.method + ' ' + c.notion)), ['mark', 'todo_claim', 'POST /pages', 'todo_set']);
+  assert.deepEqual(calls.map((c) => c.pack || (c.method + ' ' + c.notion)), ['mark', 'todo_claim', 'POST /databases/ac45a1773bfc4e3c96652745a1ea4c46/query', 'POST /pages', 'todo_set']);
   assert.deepEqual(calls[0].body.slots, [2, 4]);
-  const props = calls[2].body.properties;
+  const props = calls[3].body.properties;
   assert.equal(props.Name.title[0].text.content, 'Packed SDTMar26-2 · Customer I');
   assert.equal(props.Area.select.name, 'Sea Diva');
   assert.equal(props.Done.checkbox, true);
   assert.equal(props['Completed on'].date.start, '2026-10-13');
-  assert.deepEqual(calls[3].body.items, [{ click_id: '44444444-4444-4444-4444-444444444444', page_id: 'aaaabbbb' }]);
+  assert.equal(calls[2].body.filter.and[0].title.equals, 'Packed SDTMar26-2 · Customer I');
+  assert.deepEqual(calls[4].body.items, [{ click_id: '44444444-4444-4444-4444-444444444444', page_id: 'aaaabbbb' }]);
 });
 
 test('POST mark refused by the database writes nothing to the To-Do', async () => {
