@@ -33,7 +33,7 @@ function extractFn(src, name) {
   throw new Error('unclosed function ' + name);
 }
 
-const NAMES = ['tdWita', 'tdIsDT', 'tdDayOf', 'tdTimeOf', 'tdUTC', 'tdAdd', 'tdDays', 'tdLast', 'tdOverdue', 'tdDueToday', 'tdRank', 'tdSort', 'tdHot', 'tdOpenDoing', 'tdAttentionOrder', 'tdHomeSplit', 'tdDayOngoing', 'bayarMonth', 'bayarYmd', 'bayarDueDate', 'bayarHariIniLabel', 'bayarHariIniTasks', 'bayarPin', 'tdRowHTML', 'tdRenderDay', 'tdRenderHome'];
+const NAMES = ['tdWita', 'tdIsDT', 'tdDayOf', 'tdTimeOf', 'tdUTC', 'tdAdd', 'tdDays', 'tdLast', 'tdOverdue', 'tdDueToday', 'tdRank', 'tdSort', 'tdHot', 'tdOpenDoing', 'tdAttentionOrder', 'tdHomeSplit', 'tdDayOngoing', 'tdDedupeId', 'tdNormTitle', 'tdDoneOn', 'tdDoneGroups', 'bayarMonth', 'bayarYmd', 'bayarDueDate', 'bayarHariIniLabel', 'bayarHariIniTasks', 'bayarPin', 'tdRowHTML', 'tdRenderDay', 'tdRenderHome'];
 const page = NAMES.map((name) => extractFn(SRC, name)).join('\n');
 
 const home = { innerHTML: '' };
@@ -164,7 +164,7 @@ test('today’s calendar lists Doing tasks that are not already scheduled', () =
   tdRenderDay();
   assert.match(day.innerHTML, /Today · /);
   const scheduled = between(day.innerHTML, '<div class="td-sub">Scheduled</div>', '<div class="todo-add"');
-  const ongoing = between(day.innerHTML, '<div class="td-sub">Ongoing</div>', '<div class="td-sub">Done this day');
+  const ongoing = between(day.innerHTML, '<div class="td-sub">Ongoing</div>', '<div class="td-sub">Done today');
   assert.deepEqual(ids(scheduled).sort(), [todayDoing.id, spanDoing.id].sort());
   assert.deepEqual(ids(ongoing), [overdueDoing, futureDoing, undatedDoing, otherDoing].map((t) => t.id));
   assert.equal(ids(ongoing).includes(todayDoing.id), false);
@@ -175,7 +175,7 @@ test('today’s calendar lists Doing tasks that are not already scheduled', () =
 
   TD.area = 'Personal';
   tdRenderDay();
-  const personal = between(day.innerHTML, '<div class="td-sub">Ongoing</div>', '<div class="td-sub">Done this day');
+  const personal = between(day.innerHTML, '<div class="td-sub">Ongoing</div>', '<div class="td-sub">Done today');
   assert.equal(ids(personal).includes(otherDoing.id), false);
   assert.equal(ids(personal).includes(undatedDoing.id), true);
   TD.area = 'All';

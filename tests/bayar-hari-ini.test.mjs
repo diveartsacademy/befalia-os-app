@@ -33,7 +33,7 @@ function extractFn(src, name) {
   throw new Error('unclosed function ' + name);
 }
 
-const NAMES = ['tdWita', 'tdIsDT', 'tdDayOf', 'tdTimeOf', 'tdUTC', 'tdAdd', 'tdDays', 'tdLast', 'tdOverdue', 'tdDueToday', 'tdRank', 'tdSort', 'tdHot', 'tdOpenDoing', 'tdAttentionOrder', 'tdHomeSplit', 'tdDayOngoing', 'bayarMonth', 'bayarYmd', 'bayarDueDate', 'bayarHariIniLabel', 'bayarHariIniTasks', 'bayarPin', 'tdRowHTML', 'tdRenderDay', 'tdRenderHome'];
+const NAMES = ['tdWita', 'tdIsDT', 'tdDayOf', 'tdTimeOf', 'tdUTC', 'tdAdd', 'tdDays', 'tdLast', 'tdOverdue', 'tdDueToday', 'tdRank', 'tdSort', 'tdHot', 'tdOpenDoing', 'tdAttentionOrder', 'tdHomeSplit', 'tdDayOngoing', 'tdDedupeId', 'tdNormTitle', 'tdDoneOn', 'tdDoneGroups', 'bayarMonth', 'bayarYmd', 'bayarDueDate', 'bayarHariIniLabel', 'bayarHariIniTasks', 'bayarPin', 'tdRowHTML', 'tdRenderDay', 'tdRenderHome'];
 const page = NAMES.map((name) => extractFn(SRC, name)).join('\n');
 
 const home = { innerHTML: '' };
@@ -136,6 +136,29 @@ test('only an open row due today is selected, and the task is not rewritten', ()
   assert.equal(JSON.stringify(again.map((t) => t.id)), JSON.stringify(['open']));
 });
 
+test('a bill paid today is only in Done today', () => {
+  const paid = task({ id: 'paid-today', done: true, status: 'Done', completedOn: TODAY, date: { start: '2026-11-09' }, edited: '2026-11-10T02:21:00Z' });
+  const open = task({ id: 'still-open', name: 'Bayar besok (10 Nov): Internet Rp233.000', notes: NOTES('10 Nov 2026'), date: { start: '2026-11-09' } });
+  TD.tasks = [paid, open];
+  TD.today = TODAY;
+  TD.loaded = true;
+  TD.area = 'All';
+  TD.sel = null;
+  tdRenderHome();
+  const homePins = [...home.innerHTML.matchAll(/data-pin="bayar-hari-ini"[^>]*data-id="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(homePins, ['still-open']);
+  assert.match(home.innerHTML, /Done today \(1\)/);
+  assert.deepEqual(ids(between(home.innerHTML, '<li class="td-sub">Done today (1)</li>', '')), ['paid-today']);
+  assert.equal(ids(home.innerHTML).filter((id) => id === 'paid-today').length, 1);
+  assert.match(home.innerHTML, /Bayar hari ini: Internet Rp233\.000/);
+  tdRenderDay();
+  const dayPins = [...day.innerHTML.matchAll(/data-pin="bayar-hari-ini"[^>]*data-id="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(dayPins, ['still-open']);
+  assert.match(day.innerHTML, /Done today \(1\)/);
+  assert.deepEqual(ids(between(day.innerHTML, '<div class="td-sub">Done today (1)</div>', '')), ['paid-today']);
+  assert.equal(ids(day.innerHTML).filter((id) => id === 'paid-today').length, 1);
+});
+
 test('pin puts the due-day rows in front and the cap applies only to the rest', () => {
   const bill = task({ id: 'bill' });
   const hot = [];
@@ -203,7 +226,7 @@ test('the calendar today pane pins the bill and still lists every other schedule
   assert.match(day.innerHTML, /Today · /);
   const bayar = between(day.innerHTML, '<div class="td-sub">Bayar hari ini</div>', '<div class="td-sub">Scheduled</div>');
   const scheduled = between(day.innerHTML, '<div class="td-sub">Scheduled</div>', '<div class="todo-add"');
-  const ongoing = between(day.innerHTML, '<div class="td-sub">Ongoing</div>', '<div class="td-sub">Done this day');
+  const ongoing = between(day.innerHTML, '<div class="td-sub">Ongoing</div>', '<div class="td-sub">Done today');
   assert.deepEqual(ids(bayar), ['bill', 'ontoday', 'doing']);
   assert.match(bayar, /Bayar hari ini: Kredivo Rp306\.310/);
   assert.match(bayar, /data-pin="bayar-hari-ini"/);
@@ -227,6 +250,7 @@ function between(html, start, end) {
   const s = html.indexOf(start);
   assert.notEqual(s, -1, 'missing ' + start);
   const from = s + start.length;
+  if (!end) return html.slice(from);
   const e = html.indexOf(end, from);
   assert.notEqual(e, -1, 'missing ' + end);
   return html.slice(from, e);
