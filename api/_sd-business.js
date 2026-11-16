@@ -31,6 +31,18 @@
 //     The marketplace has the buyer's money, so they always count as paid, as
 //     in the Sea Diva Overview. An order whose products all have no status is
 //     only listed for its first 45 days. Ship-by date (Batas Pengiriman) shown.
+//     A title typed in the Qty column, with the Item cell blank, is still the
+//     product (16 Nov 2026, SHOPEE - OL: the only open Shopee order was hidden
+//     that way, so the Shopee chip showed 0).
+//
+//   Ready to Buy (16 Nov 2026). Lines Befa still has to buy: Status Produksi
+//     in the third_todo group, plus Mahina lines (resold, no stock of our own;
+//     supplier Ocean King, or Freedive Collective) and Shopee or Tokopedia
+//     pre-order lines that are not DONE and not packed. Unpaid manual orders
+//     stay out of production work. The Bought button is only offered when
+//     WORK_FROM already allows Ordered. Otherwise the line is listed with a
+//     hint to set the status. Ordered lines stay on the existing third_ordered
+//     list, with Arrived, ready to pack.
 //
 //   "click ready to ship ... once I pack the order"
 //     Pack marks from the database (seadiva.pack_marks) are laid over the
@@ -127,6 +139,20 @@ function qtyOf(v) {
   return isFinite(n) && n > 0 ? n : null;
 }
 
+/* "Pre-Order Starfish Arm Cuff Variasi: gold" is one cell on Shopee. The
+   words after Variasi are the variant, so the row can show them apart. */
+function splitTitle(raw) {
+  const ls = lines(raw);
+  let title = ls[0] || txt(raw);
+  const detail = ls.slice(1);
+  const m = /^(.*\S)\s+variasi\s*:\s*(.+)$/i.exec(title);
+  if (m) {
+    title = m[1].trim();
+    detail.unshift('Variasi: ' + m[2].trim());
+  }
+  return { title, detail };
+}
+
 /* parseDate gives a Date at local midnight, so read it back with local getters. */
 function ymd(d) {
   if (!d) return null;
@@ -194,15 +220,32 @@ export function readTab(channel, rows, now) {
       lines: []
     };
     slots.forEach((s, i) => {
-      const raw = cellRaw(cells, s.item);
-      const item = txt(raw);
+      let raw = cellRaw(cells, s.item);
+      let item = txt(raw);
+      let qty = s.qty ? qtyOf(cellRaw(cells, s.qty)) : null;
+      let qtyTitle = false;
+      /* The product was typed under Qty, and the number under the next
+         column. Seen on SHOPEE - OL, 16 Nov 2026: Item blank, Qty held
+         "Pre-Order Starfish Arm Cuff Variasi: gold", the next cell held 1.
+         A real quantity is a number, so words in Qty are the product.
+         The save still reads the Item cell, so the line is flagged. */
+      if (!item && s.qty) {
+        const qraw = cellRaw(cells, s.qty);
+        const qtxt = txt(qraw);
+        if (qtxt && qtyOf(qraw) == null) {
+          raw = qraw;
+          item = qtxt;
+          qtyTitle = true;
+          const n = qtyOf(cellRaw(cells, colName(colNum(s.qty) + 1)));
+          qty = n != null && n <= 99 ? n : null;
+        }
+      }
       if (!item) return;
       const status = cell(cells, s.status);
-      const ls = lines(raw);
+      const parts = splitTitle(raw);
       o.lines.push({
-        slot: i + 1, item, title: ls[0] || item, detail: ls.slice(1),
-        qty: s.qty ? qtyOf(cellRaw(cells, s.qty)) : null,
-        status, group: groupOf(status)
+        slot: i + 1, item, title: parts.title, detail: parts.detail,
+        qty, qtyTitle, status, group: groupOf(status)
       });
     });
     if (o.pay === 'unpaid' && o.paidSome) o.pay = 'part';
@@ -447,6 +490,30 @@ export const WORK_MINE = ['design', 'order', 'ordered', 'fluke', 'crown', 'make'
 export const WORK_WAITING = ['printing', 'sewing'];
 export const TC_WORK_MOVES = [['design_sent', 'Design done, sent to customer'], ['lost', 'Not going ahead']];
 
+/* Mahina mermaid fins are resold. There is no stock of our own, so an open
+   Mahina line is something to buy. Ocean King is the usual supplier. */
+export const MAHINA = /\bmahina\b/i;
+export const PREORDER = /pre-?\s*order/i;
+const BUY_HINT = 'Set Status Produksi to Order from 3rd party to mark it bought from here.';
+
+function lineText(l) {
+  return [l && l.title, l && l.item].concat((l && l.detail) || []).filter(Boolean).join(' ');
+}
+/* Ready to Buy: the third_todo statuses, plus Mahina and marketplace
+   pre-orders that are not done, not packed and not already ordered. */
+export function wantsBuy(o, l) {
+  if (!o || !l || l.physical === false || l.packed || l.inBox) return false;
+  if (l.group === 'done' || l.group === 'ignore' || l.group === 'third_ordered') return false;
+  if (l.group === 'third_todo') return true;
+  const text = lineText(l);
+  if (MAHINA.test(text)) return true;
+  if (MARKETPLACE[o.channel] && PREORDER.test(text)) return true;
+  return false;
+}
+function supplierOf(l) {
+  return MAHINA.test(lineText(l)) ? { name: 'Ocean King', alt: 'Freedive Collective' } : { name: '', alt: '' };
+}
+
 export function workBucket(l) {
   /* Ticked "in the box" means it is made and in hand, whatever the sheet
      still says (Befa, 14 Oct 22:42: SDTJun26-23 was in the box and still
@@ -508,11 +575,14 @@ function buildWork(orders, tcwork, now) {
       const allowed = WORK_FROM[low(l.status)] || [];
       let moves = WORK_MOVES[b].filter((m) => allowed.includes(m[0]));
       if (!moves.length) return;
+      const sup = supplierOf(l);
       items[b].push({
         key: o.src + '|' + o.invoice + '|' + l.slot, src: o.src, row: o.row, invoice: o.invoice, slot: l.slot,
         channel: o.channel, customer: o.customer, days: o.days, date: o.date, unpaid: o.stage === 'unpaid',
+        shipBy: o.shipBy || null, shipByDays: o.shipByDays == null ? null : o.shipByDays,
         title: l.title, detail: l.detail, qty: l.qty, status: l.status, sheetStatus: l.sheetStatus || '',
         photo: l.photo, note: l.note, work: l.work || null,
+        supplier: sup.name, supplierAlt: sup.alt,
         moves: moves.map((m) => ({ to: m[0], label: m[1] }))
       });
     });
@@ -528,8 +598,41 @@ function buildWork(orders, tcwork, now) {
       photo: null, note: null, work: null, moves: TC_WORK_MOVES.map((m) => ({ to: m[0], label: m[1] }))
     });
   });
+  /* Ready to Buy is wider than "To order": third_todo, plus Mahina and
+     marketplace pre-orders whose status does not offer the move. Those are
+     still listed, with a hint instead of a button. Unpaid manual orders and
+     the old no-status tile stay out, same as the other production lists. */
+  items.buy = [];
+  orders.forEach((o) => {
+    if (o.stage === 'old_no_status' || o.stage === 'unpaid') return;
+    o.lines.forEach((l) => {
+      if (!wantsBuy(o, l)) return;
+      const sup = supplierOf(l);
+      const allowed = WORK_FROM[low(l.status)] || [];
+      /* A title recovered from the Qty column is not in the Item cell, and
+         _work_move refuses an empty Item cell. No button until it is moved. */
+      const moves = l.qtyTitle ? [] : WORK_MOVES.order.filter((m) => allowed.includes(m[0]));
+      const hint = l.qtyTitle
+        ? 'The title is in the Qty column. Move it to Item / Description, and set Status Produksi to Order from 3rd party, before this can be marked bought from here.'
+        : (moves.length ? '' : BUY_HINT);
+      items.buy.push({
+        key: o.src + '|' + o.invoice + '|' + l.slot, src: o.src, row: o.row, invoice: o.invoice, slot: l.slot,
+        channel: o.channel, customer: o.customer, days: o.days, date: o.date,
+        shipBy: o.shipBy || null, shipByDays: o.shipByDays == null ? null : o.shipByDays,
+        title: l.title, detail: l.detail, qty: l.qty, status: l.status, sheetStatus: l.sheetStatus || '',
+        photo: l.photo, note: l.note, work: l.work || null,
+        supplier: sup.name, supplierAlt: sup.alt,
+        reason: l.group === 'third_todo' ? 'status' : (sup.name ? 'mahina' : 'preorder'),
+        hint,
+        moves: moves.map((m) => ({ to: m[0], label: m[1] }))
+      });
+    });
+  });
+  /* Ship-by first: the one that must leave soonest is the one to buy. */
+  items.buy.sort((a, b) => ((a.shipByDays == null ? 9999 : a.shipByDays) - (b.shipByDays == null ? 9999 : b.shipByDays)) ||
+    ((b.days == null ? -1 : b.days) - (a.days == null ? -1 : a.days)));
   /* Oldest first: the longest wait is the most urgent. */
-  Object.keys(items).forEach((k) => items[k].sort((a, b) => (b.days == null ? -1 : b.days) - (a.days == null ? -1 : a.days)));
+  Object.keys(items).forEach((k) => { if (k !== 'buy') items[k].sort((a, b) => (b.days == null ? -1 : b.days) - (a.days == null ? -1 : a.days)); });
   const counts = {};
   Object.keys(items).forEach((k) => { counts[k] = items[k].length; });
   counts.mine = WORK_MINE.reduce((n, k) => n + items[k].length, 0);
@@ -641,7 +744,7 @@ export function build(feed, products, now, opts) {
       shipBy: o.shipBy, shipByText: o.shipByText, shipByDays: o.shipByDays,
       doneCount: o.lines.length - open.length, lineCount: o.lines.length,
       lines: show.map((l) => ({
-        slot: l.slot, title: l.title, detail: l.detail, qty: l.qty, status: l.status || '', group: l.group,
+        slot: l.slot, title: l.title, detail: l.detail, qty: l.qty, qtyTitle: !!l.qtyTitle, status: l.status || '', group: l.group,
         sheetStatus: l.sheetStatus || '', work: l.work || null,
         markDone: o.pay !== 'unpaid' && l.group !== 'done' && nonPhysical(l.item),
         physical: !nonPhysical(l.item),

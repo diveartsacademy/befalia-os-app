@@ -177,3 +177,72 @@ test('TailCraft: a feed without TailCraft still builds (older feeds)', () => {
   assert.equal(r.counts.tailcraft, 0);
   assert.equal(r.sources.tailcraft, undefined);
 });
+
+/* 16 Nov 2026. The live SHOPEE - OL headers still match. The open pre-order
+   was invisible because its title sat in the Qty column and Item was blank. */
+function cell(v) { return { d: String(v), v: String(v) }; }
+function shopeeRow(row_no, o) {
+  return { row_no, cells: Object.fromEntries(Object.entries(o).map(([k, v]) => [k, cell(v)])) };
+}
+
+test('a Shopee title typed in the Qty column is still read, and the tab is not refused', () => {
+  const f = JSON.parse(JSON.stringify(feed));
+  f.tabs['SHOPEE - OL'].push(shopeeRow(310, {
+    A: 'TRUE', B: 'SHP-PREORDER', C: 'buyer', D: '5-Oct-26', E: '13-Oct-26',
+    J: 'Pre-Order Starfish Arm Cuff Variasi: gold', K: '1'
+  }));
+  const r = build(f, products, NOW);
+  assert.equal(r.sources.shopee.ok, true, r.sources.shopee.error);
+  const o = r.orders.find((x) => x.invoice === 'SHP-PREORDER');
+  assert.ok(o, 'the order is on the list');
+  assert.equal(o.channel, 'shopee');
+  assert.notEqual(o.stage, 'old_no_status');
+  assert.equal(o.lines[0].title, 'Pre-Order Starfish Arm Cuff');
+  assert.deepEqual(o.lines[0].detail, ['Variasi: gold']);
+  assert.equal(o.lines[0].qty, 1);
+  assert.equal(o.lines[0].slot, 1);
+  const buy = r.work.items.buy.find((x) => x.invoice === 'SHP-PREORDER');
+  assert.ok(buy);
+  assert.equal(buy.reason, 'preorder');
+  assert.equal(buy.supplier, '');
+  assert.equal(o.lines[0].qtyTitle, true);
+  assert.deepEqual(buy.moves, []);
+  assert.match(buy.hint, /Qty column/);
+  assert.match(buy.hint, /Order from 3rd party/);
+  assert.ok(r.counts.shopee > out.counts.shopee);
+});
+
+test('Ready to Buy: Mahina and third-party lines, not unpaid, done, packed or already ordered', () => {
+  const f = JSON.parse(JSON.stringify(feed));
+  f.tabs['SHOPEE - OL'].push(
+    shopeeRow(311, { A: 'TRUE', B: 'SHP-MAHINA', C: 'buyer', D: '1-Oct-26', E: '20-Oct-26', F: 'Order from 3rd Party', I: 'Mahina Mermaid Fin Variasi: Black', J: '1' }),
+    shopeeRow(312, { A: 'TRUE', B: 'SHP-MAHINA-DONE', C: 'buyer', D: '1-Oct-26', F: 'DONE', I: 'Mahina Mermaid Fin Variasi: Gold', J: '1' }),
+    shopeeRow(313, { A: 'TRUE', B: 'SHP-ORDERED', C: 'buyer', D: '1-Oct-26', E: '18-Oct-26', F: 'Ordered', I: 'Mahina Mermaid Fin Variasi: Blue', J: '1' }),
+    shopeeRow(314, { A: 'TRUE', B: 'SHP-PACKED', C: 'buyer', D: '2-Oct-26', J: 'Pre-Order Shell Cuff Variasi: silver', K: '2' })
+  );
+  f.marks = (f.marks || []).concat([{ id: 80, click_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', src: 'SHOPEE - OL', invoice: 'SHP-PACKED', slot: 1, row: 314,
+    at: '2026-10-13T01:00:00Z', by: 'Befa', via: 'seadiva', write: 'waiting_bridge' }]);
+  const man = f.tabs['MANUAL (IG & WA) - OL'].find((row) => row.cells.B && row.cells.B.d === 'SDTOct26-01');
+  man.cells.T = cell('Order from 3rd Party');
+  man.cells.W = cell('Mahina Mermaid Fin');
+  man.cells.X = cell('1');
+  const r = build(f, products, NOW);
+  const byInv = (inv) => r.work.items.buy.filter((x) => x.invoice === inv);
+  const mahina = byInv('SHP-MAHINA');
+  assert.equal(mahina.length, 1);
+  assert.equal(mahina[0].supplier, 'Ocean King');
+  assert.equal(mahina[0].supplierAlt, 'Freedive Collective');
+  assert.equal(mahina[0].title, 'Mahina Mermaid Fin');
+  assert.deepEqual(mahina[0].detail, ['Variasi: Black']);
+  assert.deepEqual(mahina[0].moves, [{ to: 'Ordered', label: 'Bought, now ordered' }]);
+  assert.equal(mahina[0].hint, '');
+  assert.equal(byInv('SHP-MAHINA-DONE').length, 0);
+  assert.equal(byInv('SHP-PACKED').length, 0, 'packed pre-orders are not still to buy');
+  assert.equal(byInv('SHP-ORDERED').length, 0);
+  assert.equal(byInv('SDTOct26-01').length, 0, 'an unpaid manual order does not enter Ready to Buy');
+  const waiting = r.work.items.ordered.find((x) => x.invoice === 'SHP-ORDERED');
+  assert.ok(waiting);
+  assert.equal(waiting.supplier, 'Ocean King');
+  assert.deepEqual(waiting.moves, [{ to: 'Ready to be shipped', label: 'Arrived, ready to pack' }]);
+  assert.ok(r.work.items.order.some((x) => x.invoice === 'SHP-MAHINA'), 'the existing third-party list still has the move');
+});
