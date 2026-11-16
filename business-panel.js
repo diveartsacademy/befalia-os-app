@@ -214,6 +214,16 @@
       '.biz-witem .m{font:12px/1.4 var(--sans);color:var(--muted);margin-top:3px}' +
       '.biz-witem .m b{color:var(--ink)}' +
       '.biz-wbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}' +
+      '.biz-buy{margin:4px 2px 14px}' +
+      '.biz-buy h4{margin:14px 0 2px;font:600 14px var(--sans);color:var(--ink)}' +
+      '.biz-buy .why{font:12.5px/1.4 var(--sans);color:var(--muted);margin:0 0 4px}' +
+      '.biz-brow{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-top:1px solid var(--line)}' +
+      '.biz-brow .biz-ph{flex-basis:44px;width:44px;height:44px;border-radius:8px}' +
+      '.biz-brow .t{font:600 13.5px/1.3 var(--sans);color:var(--ink)}' +
+      '.biz-brow .d{font:12px/1.35 var(--sans);color:var(--muted)}' +
+      '.biz-brow .meta{font:12px/1.4 var(--sans);color:var(--muted);margin-top:3px}' +
+      '.biz-brow .sup{font:600 11.5px var(--sans);color:var(--aquasoft)}' +
+      '.biz-bhint{font:12px/1.35 var(--sans);color:#ffd99a;margin-top:4px}' +
       '.biz-wbtn{font:700 12.5px var(--sans);border-radius:10px;padding:9px 12px;cursor:pointer;border:1px solid rgba(126,224,160,.55);background:rgba(126,224,160,.14);color:#c9f3d6}' +
       '.biz-wbtn.alt{border-color:var(--line);background:none;color:var(--muted)}' +
       '.biz-wbtn.arm{background:#ffd27f;color:#04121f;border-color:#ffd27f}' +
@@ -450,6 +460,42 @@
       '</div>';
   }
 
+  /* Compact row for Ready to Buy and Ordered, waiting to arrive. */
+  function buyRow(x) {
+    var ph = x.photo && x.photo.url
+      ? '<a class="biz-ph" href="' + esc(x.photo.url) + '" target="_blank" rel="noopener"><img loading="lazy" referrerpolicy="no-referrer" alt="" src="' + esc(x.photo.url) + '" onerror="this.parentNode.outerHTML=\'<div class=&quot;biz-ph&quot;>no photo</div>\'"></a>'
+      : '<div class="biz-ph">no photo</div>';
+    var detail = (x.detail || []).map(function (t) { return '<div class="d">' + esc(t) + '</div>'; }).join('');
+    var sup = x.supplier
+      ? '<div class="sup">' + esc(x.supplier) + (x.supplierAlt ? ' <span class="d">or ' + esc(x.supplierAlt) + '</span>' : '') + '</div>'
+      : '<div class="sup">Unknown</div>';
+    var live = S.data && S.data.work && S.data.work.live;
+    var btns = (live && (x.moves || []).length) ? '<div class="biz-wbtns">' + x.moves.map(function (m, i) {
+      var id = x.key + '|' + i;
+      return '<button class="biz-wbtn' + (S.arm === 'w:' + id ? ' arm' : '') + '" data-work="' + esc(id) + '"' + (S.busy ? ' disabled' : '') + '>' +
+        (S.arm === 'w:' + id ? 'Tap again: ' + esc(m.label) : esc(m.label)) + '</button>';
+    }).join('') + '</div>' : '';
+    var hint = x.hint ? '<div class="biz-bhint">' + esc(x.hint) + '</div>' : '';
+    var fl = S.flash[x.key] ? '<div class="biz-flash' + (S.flash[x.key].bad ? ' bad' : '') + '">' + esc(S.flash[x.key].text) + '</div>' : '';
+    return '<div class="biz-brow">' + ph + '<div class="biz-it"><div class="t">' + esc(x.title) + (x.qty ? ' <span class="biz-q">× ' + esc(x.qty) + '</span>' : '') + '</div>' +
+      detail + sup +
+      '<div class="meta"><span class="biz-badge ' + esc(x.channel) + '">' + esc(CH[x.channel] || x.channel) + '</span> ' +
+      esc(x.invoice) + (x.customer ? ' · ' + esc(x.customer) : '') + dueHtml(x) +
+      (x.status ? ' · ' + esc(x.status) : '') + '</div>' + hint + btns + fl + '</div></div>';
+  }
+  function buySection(d) {
+    var W = (d && d.work) || {}, items = W.items || {};
+    var on = function (x) { return S.ch === 'all' || x.channel === S.ch; };
+    var buy = (items.buy || []).filter(on), ord = (items.ordered || []).filter(on);
+    var rows = function (list) { return list.length ? list.map(buyRow).join('') : '<div class="biz-empty">Nothing here.</div>'; };
+    return '<div class="biz-buy"><h4>Ready to Buy (' + buy.length + ')</h4>' +
+      '<div class="why">Buy or pre-order these so they can be packed. Mahina fins come from Ocean King, or Freedive Collective.</div>' +
+      rows(buy) +
+      '<h4>Ordered, waiting to arrive (' + ord.length + ')</h4>' +
+      '<div class="why">Already bought. When it arrives, tap Arrived, ready to pack.</div>' +
+      rows(ord) + '</div>';
+  }
+
   function seadiva() {
     var h = '<div class="biz-head"><h3>Sea Diva · orders to finish</h3><button data-act="refresh">' + (S.loading ? 'Loading…' : 'Refresh') + '</button></div>';
     if (S.err) return h + '<div class="biz-err">' + esc(S.err) + '</div>';
@@ -475,12 +521,14 @@
     if (d.photosNote) warn += '<div class="biz-warn">' + esc(d.photosNote) + ' Orders are complete, only some photos are missing.</div>';
 
     var c = d.counts || {}, photoLine0 = '';
-    if (S.stage !== 'all' && !c[S.stage]) S.stage = 'all';
+    if (S.stage !== 'all' && S.stage !== 'buy' && !c[S.stage]) S.stage = 'all';
+    var buyN = (d.work && d.work.counts && d.work.counts.buy) || 0;
     var tiles = '<div class="biz-tiles">' + STAGES.map(function (s) {
       var n = s[0] === 'all' ? c.all : c[s[0]];
       if (s[0] !== 'all' && !n) return '';
       return '<button class="biz-tile' + (S.stage === s[0] ? ' on' : '') + '" data-stage="' + s[0] + '"><b>' + (n || 0) + '</b><span>' + esc(s[1]) + '</span></button>';
-    }).join('') + '</div>';
+    }).join('') +
+      '<button class="biz-tile' + (S.stage === 'buy' ? ' on' : '') + '" data-stage="buy"><b>' + buyN + '</b><span>Ready to Buy</span></button></div>';
     var chans = '<div class="biz-sub">' + [['all', 'All shops'], ['shopify', 'Shopify'], ['shopee', 'Shopee'], ['toko', 'Tokopedia/TikTok'], ['manual', 'Manual'], ['tailcraft', 'TailCraft']].map(function (x) {
       var n = x[0] === 'all' ? c.all : c[x[0]];
       if (x[0] !== 'all' && !n) return '';
@@ -506,8 +554,9 @@
             (k.src === 'SHOPIFY-OL' ? ' Also mark it fulfilled in Shopify.' : '') + '</span>' : '') + '</div>';
       }).join('') + '</div>';
     }
-    var body = list.length ? '<div class="biz-list">' + list.map(cardHtml).join('') + '</div>'
-      : '<div class="biz-empty">' + (c.all ? 'Nothing in this filter.' : 'No paid order is waiting. Every paid order in the sheet is done or shipped.') + '</div>';
+    var body = S.stage === 'buy' ? buySection(d)
+      : (list.length ? '<div class="biz-list">' + list.map(cardHtml).join('') + '</div>'
+      : '<div class="biz-empty">' + (c.all ? 'Nothing in this filter.' : 'No paid order is waiting. Every paid order in the sheet is done or shipped.') + '</div>');
     if (c.packedToday) photoLine0 = '<div class="biz-fresh">Packed today: ' + c.packedToday + (c.packedToday === 1 ? ' product.' : ' products.') + ' Each pack is a done task on your To-Do.</div>';
     var photoLine = c.lines ? '<div class="biz-fresh">' + c.photos + ' of ' + c.lines + ' products have a photo, all from seadivatails.com. ' +
       'A photo marked "check colour and size" shows the right product, but maybe not the colour ordered. Custom pieces and items not on the shop have no photo.</div>' : '';
