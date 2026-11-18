@@ -1284,6 +1284,10 @@ function addCardTools(){
    Rules, matching the Apple Note habit:
    - Ticked tasks stay on the list, crossed out, until the WITA day changes.
      After that they live only in History, grouped by the day they were done.
+   - The list is today only, in Asia/Makassar: due today, overdue, and undated.
+     isFuture(task, today) is the one rule. A task whose date starts after today
+     is hidden on this list and left out of every count. The calendar still
+     shows it. Nothing is deleted.
    - The server stamps "Completed on" in WITA, so the day is never off by one.
    - Every change shows on screen at once, then is replaced by what Notion
      actually stored. If Notion refuses, the change is rolled back and you see
@@ -1314,6 +1318,22 @@ function tdLast(t){const ds=tdDays(t);return ds.length?ds[ds.length-1]:null;}
 function tdOnList(t){if(t.type==='Event'&&!t.done){const l=tdLast(t);if(l&&l<TD.today)return false;}return !t.done||t.completedOn===TD.today;}
 function tdOverdue(t){if(t.done||t.type==='Event')return false;const l=tdLast(t);return !!l&&l<TD.today;}
 function tdDueToday(t){return !t.done&&tdDays(t).indexOf(TD.today)!==-1;}
+// One rule for the list and every count. True when the scheduled start is
+// after `today` (YYYY-MM-DD in Asia/Makassar). Date-only values are calendar
+// days. Datetimes are that clock time in Makassar, not the UTC date. Undated
+// tasks, a range that covers today, and overdue tasks are not future.
+// Same answer as api/_todo-today.js. tests/todo-today.test.mjs locks the two.
+function isFuture(task, today){
+  const day=today||TD.today||tdWita();
+  if(!task||!day)return false;
+  const start=task.date&&task.date.start?tdDayOf(task.date.start):null;
+  return !!start&&start>day;
+}
+// Open work that belongs on today's list. Done rows and future rows are out.
+function tdTodayOpen(t){return !!t&&!t.done&&!isFuture(t,TD.today);}
+// List membership. A tick from today stays until the WITA day changes, even
+// if the task was dated later. Future open tasks do not.
+function tdShowOnList(t){if(!tdOnList(t))return false;if(t.done)return true;return !isFuture(t,TD.today);}
 function tdColor(a){const x=TD_AREAS.find(z=>z.key===a);return x?x.color:'#8fb6cc';}
 function tdIcon(a){const x=TD_AREAS.find(z=>z.key===a);return x?x.icon:'•';}
 function tdRank(t){return (t.urgent?0:4)+(t.priority?0:2)+(t.status==='Doing'?0:1);}
@@ -1638,14 +1658,14 @@ function tdMatches(t){
 function tdRenderStats(){
   const el=document.getElementById('td-stats');if(!el)return;
   const inArea=t=>TD.area==='All'||t.area===TD.area;
-  const open=TD.tasks.filter(t=>!t.done&&inArea(t));
+  const open=TD.tasks.filter(t=>tdTodayOpen(t)&&inArea(t));
   const n={open:open.length,urgent:open.filter(t=>t.urgent).length,priority:open.filter(t=>t.priority).length,doing:open.filter(t=>t.status==='Doing').length,late:open.filter(tdOverdue).length,donetoday:TD.tasks.filter(t=>t.done&&t.completedOn===TD.today&&inArea(t)).length};
   const tiles=[['','Open',n.open],['urgent','🚨 Urgent',n.urgent],['priority','⏰ Priority',n.priority],['doing','▶ Doing',n.doing],['late','⚠ Overdue',n.late],['donetoday','✓ Done today',n.donetoday]];
   el.innerHTML=tiles.map(x=>'<button class="td-stat'+(TD.flag===x[0]&&x[0]?' on':'')+(x[0]==='late'&&x[2]?' warn':'')+'" data-flag="'+x[0]+'"><b>'+x[2]+'</b><span>'+x[1]+'</span></button>').join('');
 }
 function tdRenderChips(){
   const el=document.getElementById('td-chips');if(!el)return;
-  const cnt=a=>TD.tasks.filter(t=>!t.done&&(a==='All'||t.area===a)).length;
+  const cnt=a=>TD.tasks.filter(t=>tdTodayOpen(t)&&(a==='All'||t.area===a)).length;
   el.innerHTML=['All'].concat(TD_AREAS.map(a=>a.key).filter(a=>cnt(a)||TD.area===a)).map(a=>'<button class="td-chip'+(TD.area===a?' on':'')+'" data-area="'+attr(a)+'" style="--chip:'+(a==='All'?'var(--aqua)':tdColor(a))+'">'+(a==='All'?'All':tdIcon(a)+' '+escapeHtml(a))+' <i>'+cnt(a)+'</i></button>').join('');
 }
 function tdSectionOrder(name){if(!name)return 9999;const i=TD.sections.indexOf(name);return i===-1?5000:i;}
@@ -1654,7 +1674,7 @@ function tdTitlesFor(a){return (TD.titles[a]||[]).slice();}
 function tdSaveTitles(){LS.set('td_titles',TD.titles);}
 function tdDropTitle(a,s){if(!TD.titles[a])return;TD.titles[a]=TD.titles[a].filter(x=>x!==s);if(!TD.titles[a].length)delete TD.titles[a];tdSaveTitles();}
 // The task a new sub-task would go under: the last open top-level task in that title.
-function tdIndentParent(a,s){const top=TD.tasks.filter(t=>(a==='*'||(t.area||null)===(a||null))&&(t.section||'')===(s||'')&&!t.parent&&tdOnList(t)&&String(t.id).indexOf('tmp')!==0).sort(tdOrd);const open=top.filter(t=>!t.done);return (open.length?open:top).slice(-1)[0]||null;}
+function tdIndentParent(a,s){const top=TD.tasks.filter(t=>(a==='*'||(t.area||null)===(a||null))&&(t.section||'')===(s||'')&&!t.parent&&tdShowOnList(t)&&String(t.id).indexOf('tmp')!==0).sort(tdOrd);const open=top.filter(t=>!t.done);return (open.length?open:top).slice(-1)[0]||null;}
 function tdInlineHTML(a,s){
   const key=tdSecKey(a,s);const ind=!!TD.indent[key];const par=ind?tdIndentParent(a,s):null;
   const ph=ind&&par?'↳ Sub-task of "'+(par.name.length>34?par.name.slice(0,34)+'…':par.name)+'"':'+ Add to '+(s||(a||'No area'))+(a==='*'?' ('+(LS.get('td_lastArea','')||'Personal')+')':'');
@@ -1669,7 +1689,7 @@ function tdRenderList(){
   const flat=!!(TD.flag||TD.q);
   // Classes synced from Google Calendar are not lines in her note: they live on
   // the calendar and Home, and only join the list in a filter or search.
-  const vis=TD.tasks.filter(t=>tdOnList(t)&&tdMatches(t)&&(flat||!(t.type==='Event'&&t.section==='Classes')));
+  const vis=TD.tasks.filter(t=>tdShowOnList(t)&&tdMatches(t)&&(flat||!(t.type==='Event'&&t.section==='Classes')));
   const visIds={};vis.forEach(t=>{visIds[t.id]=1;});
   let html='';
   if(flat){html+='<div class="td-filterbar">Showing '+vis.length+' '+(TD.q?'matching "'+escapeHtml(TD.q)+'"':'')+(TD.flag?' · '+({urgent:'🚨 urgent',priority:'⏰ priority',doing:'▶ in progress',late:'⚠ overdue',donetoday:'✓ done today'}[TD.flag]):'')+' · <button class="link-btn" data-act="clearfilter">clear</button></div>';}
