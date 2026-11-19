@@ -308,7 +308,7 @@
   }
 
   function post(action, payload) {
-    return fetch('/api/social', { method: 'POST', headers: headers(), body: JSON.stringify(Object.assign({ action: action }, payload || {})) })
+    return fetch('/api/notion?social=1', { method: 'POST', headers: headers(), body: JSON.stringify(Object.assign({ social: true, action: action }, payload || {})) })
       .then(function (r) {
         if (r.status === 401) { if (typeof osUnauthorised === 'function') osUnauthorised(); throw new Error('key'); }
         return r.json().then(function (j) { return { status: r.status, j: j || {} }; });
@@ -436,7 +436,7 @@
     bind(root);
     S.loading = true;
     if (!S.data) root.innerHTML = '<div class="card" data-no-tools><div class="loading">Loading your accounts…</div></div>';
-    fetch('/api/social', { headers: headers() }).then(function (r) {
+    fetch('/api/notion?social=1', { headers: headers() }).then(function (r) {
       if (r.status === 401) { if (typeof osUnauthorised === 'function') osUnauthorised(); throw new Error('key'); }
       return r.json().then(function (j) { return { ok: r.ok, j: j || {} }; });
     }).then(function (x) {

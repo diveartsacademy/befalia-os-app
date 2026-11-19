@@ -13,7 +13,7 @@ delete process.env.ZERNIO_API_BASE;
 
 const social = await import('../api/_social.js');
 const zernio = await import('../api/_zernio-sync.js');
-const { default: handler, resetDbCache } = await import('../api/social.js');
+const { default: handler, resetDbCache } = await import('../api/_social-route.js');
 
 let n = 0;
 const t = async (name, fn) => { await fn(); n++; console.log('ok', n, name); };
@@ -391,6 +391,26 @@ await t('a configured sync is GET only, skips a month already logged, and hides 
   leaked(r.j);
   const again = await run('POST', { action: 'sync' });
   assert.equal(again.j.saved, 0);
+});
+
+await t('the desk shares the notion function, and a plain notion call is not a social write', async () => {
+  const routed = fs.readdirSync(new URL('../api/', import.meta.url)).filter((f) => f.endsWith('.js') && !f.startsWith('_'));
+  assert.ok(routed.length <= 12, routed.join(', '));
+  assert.equal(routed.includes('social.js'), false);
+  assert.equal(routed.includes('notion.js'), true);
+  reset();
+  const { default: notion, isSocialRequest } = await import('../api/notion.js');
+  assert.equal(isSocialRequest({ query: { social: '1', check: '1' }, url: '/api/notion?social=1' }), true);
+  assert.equal(isSocialRequest({ query: {}, url: '/api/notion', body: { name: 'notion-fetch', args: { id: 'x' } } }), false);
+  const check = { s: 0, j: null, h: {}, setHeader() {}, status(s) { this.s = s; return this; }, json(j) { this.j = j; return this; } };
+  await notion({ method: 'GET', headers: {}, query: { social: '1', check: '1' }, url: '/api/notion?social=1&check=1' }, check);
+  assert.equal(check.s, 200, JSON.stringify(check.j));
+  assert.equal(check.j.accounts, 4);
+  assert.equal(check.j.snapshots, 0);
+  const plain = { s: 0, j: null, h: {}, setHeader() {}, status(s) { this.s = s; return this; }, json(j) { this.j = j; return this; } };
+  await notion({ method: 'POST', headers: { 'x-os-key': 'os-key' }, query: {}, url: '/api/notion', body: { action: 'snapshot', account: 'instagram:@befalia', grain: 'Month', date: today, followers: 1 } }, plain);
+  assert.equal(plain.s, 400);
+  assert.equal(pages.length, 0);
 });
 
 await t('the page shows the personal accounts, an honest empty log, and a disabled Zernio control', () => {

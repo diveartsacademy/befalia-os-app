@@ -1,5 +1,10 @@
 // Personal social desk (19 Nov 2026).
 //
+// This file starts with an underscore so Vercel does not deploy it as its
+// own serverless function. The Hobby plan allows 12, and this app already
+// had 12. api/notion.js calls it when the request is marked social=1.
+// /api/social is a rewrite to that, in vercel.json.
+//
 //   GET ?check=1   counts only, no key, no numbers, no handles. Does not
 //                  create the database.
 //   GET            the desk: personal accounts, logged snapshots, ideas,
