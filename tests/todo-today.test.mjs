@@ -37,7 +37,7 @@ function extractFn(src, name) {
 
 const NAMES = [
   'tdWita', 'tdIsDT', 'tdDayOf', 'tdTimeOf', 'tdUTC', 'tdPretty', 'tdAdd', 'tdDays', 'tdLast',
-  'tdOnList', 'tdOverdue', 'tdDueToday', 'isFuture', 'tdTodayOpen', 'tdShowOnList',
+  'tdOnList', 'tdOverdue', 'tdDueToday', 'isFuture', 'tdDaily', 'tdDailyHidden', 'tdTodayOpen', 'tdShowOnList',
   'tdColor', 'tdIcon', 'tdRank', 'tdSort', 'tdOrd', 'tdMinOrd', 'tdMatches',
   'tdSecKey', 'tdTitlesFor', 'tdSectionOrder', 'tdInlineHTML', 'tdIndentParent', 'tdRowHTML',
   'tdRenderStats', 'tdRenderChips', 'tdRenderList', 'tdMonth', 'tdRenderCal',
@@ -237,6 +237,42 @@ test('the calendar still shows future tasks, and its renderers do not use isFutu
   assert.equal(scheduled.includes('data-id="f4"'), false, '20 Nov is not the 19th');
   assert.match(day.innerHTML, /Spans today/, 'a range that covers the 19th is still on that day');
   TD.sel = null;
+});
+
+test('today\'s daily copy counts once, and the template does not', () => {
+  const copy = task({
+    id: 'daily1', name: 'Take pills', section: 'Daily',
+    notes: 'daily:take-pills:' + TODAY, date: { start: TODAY },
+  });
+  const template = task({
+    id: 'tpl', name: 'Take pills', section: 'Daily', status: 'To do',
+    notes: 'daily-template:take-pills',
+  });
+  const retired = task({ id: 'ret', name: 'Old daily', notes: 'daily-retired:old-one' });
+  const counted = todayCounts(tasks.concat([copy, template, retired]), TODAY);
+  assert.equal(counted.open, 8, 'the seven of today plus the one copy');
+  assert.equal(counted.areas.Personal, 6);
+
+  TD.tasks = tasks.concat([copy, template, retired]);
+  TD.area = 'All';
+  TD.flag = '';
+  TD.q = '';
+  TD.sel = null;
+  TD.today = TODAY;
+  tdRenderStats();
+  tdRenderChips();
+  tdRenderList();
+  assert.equal(stat(stats.innerHTML, ''), 8, 'Open');
+  assert.equal(chip(chips.innerHTML, 'All'), 8, 'All');
+  assert.equal(chip(chips.innerHTML, 'Personal'), 6);
+  const shown = ids(list.innerHTML);
+  assert.equal(shown.filter((id) => id === 'daily1').length, 1);
+  assert.equal(shown.includes('tpl'), false, 'the template is not a second row');
+  assert.equal(shown.includes('ret'), false);
+  assert.match(list.innerHTML, /↻ Daily/);
+  assert.equal(list.innerHTML.includes('daily:take-pills'), false, 'the marker is not shown as a note');
+  for (const id of HIDDEN) assert.equal(shown.includes(id), false, id + ' stays hidden');
+  TD.tasks = tasks;
 });
 
 test('health-check counts ignore parked, done, and future, and keep an undated focus row', () => {

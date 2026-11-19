@@ -13,6 +13,9 @@ import { requireKey } from './_auth.js';
 import { loadArchive } from './_archive.js';
 import { logPacks, packCall } from './_todo-pack.js';
 import { todayCounts } from './_todo-today.js';
+import {
+  DAILY_AREA, DAILY_ORDER_BASE, DAILY_SECTION, dailyRetiredNotes, newDailyId, parseDaily, planDaily, stripDailyCopyPatch,
+} from './_daily.js';
 
 export const TASKS_DB = (process.env.TASKS_DB_ID || 'ac45a1773bfc4e3c96652745a1ea4c46').replace(/-/g, '');
 const NOTION = 'https://api.notion.com/v1';
@@ -215,6 +218,159 @@ async function assertTask(id, H) {
   return pg;
 }
 
+async function loadMapped(H) {
+  const all = await listAll(H);
+  return {
+    complete: all.complete,
+    pages: all.pages.filter((p) => !p.archived && !p.in_trash).map(mapPage),
+  };
+}
+
+async function writeDailyPlan(plan, today, H) {
+  for (const c of plan.creates) {
+    const props = buildProps({
+      name: c.name,
+      area: DAILY_AREA,
+      section: DAILY_SECTION,
+      type: 'Task',
+      status: c.status,
+      done: false,
+      notes: c.notes,
+      order: c.order,
+      date: c.date || null,
+    }, today);
+    await notion('/pages', H, { method: 'POST', body: { parent: { database_id: TASKS_DB }, properties: props } });
+  }
+  for (const id of plan.park) {
+    const props = buildProps({ status: 'Parked', done: false }, today);
+    await notion('/pages/' + nid(id), H, { method: 'PATCH', body: { properties: props } });
+  }
+  for (const id of plan.archive) {
+    try {
+      await notion('/pages/' + nid(id), H, { method: 'PATCH', body: { archived: true } });
+    } catch (e) {
+      const pg = await notion('/pages/' + nid(id), H).catch(() => null);
+      if (!pg || (!pg.archived && !pg.in_trash)) throw e;
+    }
+  }
+}
+
+// One pass creates what is missing. A second pass only archives and parks,
+// so two overlapping runs (the cron and a phone opening the list) cannot
+// leave two copies: the later read keeps one page and archives the other.
+export async function runDaily(H, today) {
+  const loaded = await loadMapped(H);
+  if (!loaded.complete) {
+    return {
+      ok: false, complete: false, today, created: 0, archived: 0, templates: [], pages: loaded.pages,
+      error: 'Only part of the list loaded, so daily tasks were left as they are.',
+    };
+  }
+  try {
+    let pages = loaded.pages;
+    let created = 0;
+    let archived = 0;
+    for (let pass = 0; pass < 2; pass++) {
+      const plan = planDaily(pages, today);
+      const creates = pass === 0 ? plan.creates : [];
+      if (!creates.length && !plan.archive.length && !plan.park.length) break;
+      await writeDailyPlan({ creates, archive: plan.archive, park: plan.park }, today, H);
+      created += creates.filter((c) => c.role === 'copy').length;
+      archived += plan.archive.length;
+      const again = await loadMapped(H);
+      if (!again.complete) {
+        return {
+          ok: false, complete: false, today, created, archived, templates: plan.templates, pages,
+          error: 'Only part of the list loaded, so daily tasks were left as they are.',
+        };
+      }
+      pages = again.pages;
+    }
+    const view = planDaily(pages, today);
+    return { ok: true, complete: true, today, created, archived, templates: view.templates, pages, error: null };
+  } catch (e) {
+    const fallback = await loadMapped(H).catch(() => loaded);
+    return {
+      ok: false, complete: !!fallback.complete, today, created: 0, archived: 0, templates: [], pages: fallback.pages,
+      error: String(e.message || e),
+    };
+  }
+}
+
+function activeTemplates(pages) {
+  return (pages || []).filter((t) => {
+    const m = parseDaily(t.notes);
+    return m && m.kind === 'template';
+  });
+}
+
+function dailyName(v) {
+  return String(v || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+}
+
+// Template edits. Today's copy, when it already exists, is not rewritten:
+// the next runDaily creates a copy only for a template that does not have one.
+async function mutateDaily(pages, body, today, H) {
+  const op = String(body.op || 'list');
+  const bad = (m) => { const e = new Error(m); e.status = 400; throw e; };
+  if (op === 'list') return;
+  const active = activeTemplates(pages);
+  if (op === 'add') {
+    const name = dailyName(body.name);
+    if (!name) bad('A daily task needs a name');
+    const taken = new Set(pages.map((t) => (parseDaily(t.notes) || {}).id).filter(Boolean));
+    let id = newDailyId();
+    while (taken.has(id)) id = newDailyId();
+    const max = active.reduce((m, t) => Math.max(m, typeof t.order === 'number' ? t.order : DAILY_ORDER_BASE), DAILY_ORDER_BASE);
+    const props = buildProps({
+      name, area: DAILY_AREA, section: DAILY_SECTION, type: 'Task', status: 'Parked', done: false,
+      notes: 'daily-template:' + id, order: max + 10, date: null,
+    }, today);
+    await notion('/pages', H, { method: 'POST', body: { parent: { database_id: TASKS_DB }, properties: props } });
+    return;
+  }
+  const id = String(body.id || '');
+  const row = active.find((t) => parseDaily(t.notes).id === id);
+  if (op === 'rename') {
+    if (!row) bad('That daily task is not on the list');
+    const name = dailyName(body.name);
+    if (!name) bad('A daily task needs a name');
+    const props = buildProps({ name }, today);
+    await notion('/pages/' + nid(row.id), H, { method: 'PATCH', body: { properties: props } });
+    return;
+  }
+  if (op === 'remove') {
+    if (!row) bad('That daily task is not on the list');
+    const props = buildProps({ notes: dailyRetiredNotes(id), status: 'Parked', done: false }, today);
+    await notion('/pages/' + nid(row.id), H, { method: 'PATCH', body: { properties: props } });
+    return;
+  }
+  if (op === 'reorder') {
+    const ids = Array.isArray(body.ids) ? body.ids.map((x) => String(x)) : [];
+    const have = active.map((t) => parseDaily(t.notes).id).sort();
+    const got = ids.slice().sort();
+    if (have.length !== got.length || have.some((x, i) => x !== got[i])) bad('Reorder needs every daily task, once');
+    for (let i = 0; i < ids.length; i++) {
+      const t = active.find((x) => parseDaily(x.notes).id === ids[i]);
+      const order = DAILY_ORDER_BASE + (i + 1) * 10;
+      if (t.order === order) continue;
+      const props = buildProps({ order }, today);
+      await notion('/pages/' + nid(t.id), H, { method: 'PATCH', body: { properties: props } });
+    }
+    return;
+  }
+  bad('Unknown daily action');
+}
+
+function dailyPayload(ran) {
+  return {
+    templates: ran.templates || [],
+    created: ran.created || 0,
+    archived: ran.archived || 0,
+    error: ran.ok ? null : (ran.error || 'Daily tasks were left as they are'),
+  };
+}
+
 export default async function handler(req, res) {
   // GET is a free health check, like GET /api/vision. It proves the token can
   // read the Tasks database and returns counts only: no task names, notes or
@@ -231,6 +387,8 @@ export default async function handler(req, res) {
       // open and areas are today's work only (due today, overdue, undated).
       // Future-dated tasks stay in `total` and in the list payload, so the
       // calendar can still show them. Same isFuture rule as the page.
+      // A daily template is not open work. Today's copy is, once. This route
+      // does not create copies; the list and the morning job do.
       const today = todayCounts(t, day);
       const out = { ok: true, today: day, keyGate: !!process.env.OS_KEY, complete: all.complete, total: t.length, open: today.open, parked: t.filter((x) => !x.done && x.status === 'Parked').length, areas: today.areas, doneToday: t.filter((x) => x.done && x.completedOn === day).length, untitled: t.filter((x) => !x.name).length };
       // Counts only for the 2026 archive too: proves the key page and the
@@ -262,8 +420,21 @@ export default async function handler(req, res) {
       if (process.env.BIZ_FEED_KEY) {
         try { await Promise.race([logPacks(packCall, today), new Promise((r) => setTimeout(r, 4000))]); } catch (e) { /* the list matters more */ }
       }
-      const [all, sections] = await Promise.all([listAll(H), sectionOptions(H)]);
-      res.status(200).json({ today, tz: TZ, complete: all.complete, sections, areas: AREAS, tasks: all.pages.filter((p) => !p.archived && !p.in_trash).map(mapPage) });
+      const [ran, sections] = await Promise.all([runDaily(H, today), sectionOptions(H)]);
+      res.status(200).json({
+        today, tz: TZ, complete: ran.complete !== false, sections, areas: AREAS,
+        tasks: ran.pages || [], daily: dailyPayload(ran),
+      });
+      return;
+    }
+    if (body.action === 'daily') {
+      const op = String(body.op || 'list');
+      const first = await runDaily(H, today);
+      if (!first.ok) { res.status(502).json({ error: first.error || 'Daily tasks were left as they are' }); return; }
+      if (op !== 'list') await mutateDaily(first.pages, body, today, H);
+      const ran = op === 'list' ? first : await runDaily(H, today);
+      if (!ran.ok) { res.status(502).json({ error: ran.error || 'Daily tasks were left as they are', templates: first.templates }); return; }
+      res.status(200).json({ today, templates: ran.templates, created: ran.created, archived: ran.archived });
       return;
     }
     if (body.action === 'history') {
@@ -282,7 +453,16 @@ export default async function handler(req, res) {
     }
     if (body.action === 'update') {
       if (!body.id || !body.patch || typeof body.patch !== 'object') { res.status(400).json({ error: 'update needs id and patch' }); return; }
-      await assertTask(body.id, H);
+      const existing = mapPage(await assertTask(body.id, H));
+      const mark = parseDaily(existing.notes);
+      if (mark && (mark.kind === 'template' || mark.kind === 'retired')) {
+        res.status(400).json({ error: 'Change a daily task from Manage daily list' });
+        return;
+      }
+      if (mark && mark.kind === 'copy') {
+        body.patch = stripDailyCopyPatch(body.patch);
+        if (!Object.keys(body.patch).length) { res.status(200).json({ today, task: existing, dailyLocked: true }); return; }
+      }
       if (body.patch.parent) {
         if (nid(body.patch.parent) === nid(body.id)) { res.status(400).json({ error: 'A task cannot be its own parent' }); return; }
         await assertTask(body.patch.parent, H);
@@ -297,7 +477,18 @@ export default async function handler(req, res) {
     }
     if (body.action === 'archive') {
       if (!body.id) { res.status(400).json({ error: 'archive needs id' }); return; }
-      await assertTask(body.id, H);
+      const existing = mapPage(await assertTask(body.id, H));
+      const mark = parseDaily(existing.notes);
+      if (mark && mark.kind === 'copy') {
+        res.status(400).json({ error: 'This is a daily task. Remove it from Manage daily list to stop it after today. Today\'s copy stays until you tick it.' });
+        return;
+      }
+      if (mark && mark.kind === 'template') {
+        const props = buildProps({ notes: dailyRetiredNotes(mark.id), status: 'Parked', done: false }, today);
+        await notion('/pages/' + nid(body.id), H, { method: 'PATCH', body: { properties: props } });
+        res.status(200).json({ today, id: nid(body.id), retired: true });
+        return;
+      }
       const pg = await notion('/pages/' + nid(body.id), H, { method: 'PATCH', body: { archived: true } });
       res.status(200).json({ today, id: nid(pg.id), archived: !!pg.archived });
       return;
