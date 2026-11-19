@@ -33,7 +33,7 @@ function extractFn(src, name) {
   throw new Error('unclosed function ' + name);
 }
 
-const NAMES = ['tdWita', 'tdIsDT', 'tdDayOf', 'tdTimeOf', 'tdUTC', 'tdAdd', 'tdDays', 'tdLast', 'tdOverdue', 'tdDueToday', 'tdRank', 'tdSort', 'tdHot', 'tdOpenDoing', 'tdAttentionOrder', 'tdHomeSplit', 'tdDayOngoing', 'tdDedupeId', 'tdNormTitle', 'tdDoneOn', 'tdDoneGroups', 'bayarMonth', 'bayarYmd', 'bayarDueDate', 'bayarHariIniLabel', 'bayarHariIniTasks', 'bayarPin', 'tdRowHTML', 'tdRenderDay', 'tdRenderHome'];
+const NAMES = ['tdWita', 'tdIsDT', 'tdDayOf', 'tdTimeOf', 'tdUTC', 'tdAdd', 'tdDays', 'tdLast', 'tdOverdue', 'tdDueToday', 'tdDaily', 'tdDailyHidden', 'tdRank', 'tdSort', 'tdHot', 'tdOpenDoing', 'tdAttentionOrder', 'tdHomeSplit', 'tdDayOngoing', 'tdDedupeId', 'tdNormTitle', 'tdDoneOn', 'tdDoneGroups', 'bayarMonth', 'bayarYmd', 'bayarDueDate', 'bayarHariIniLabel', 'bayarHariIniTasks', 'bayarPin', 'tdRowHTML', 'tdRenderDay', 'tdRenderHome'];
 const page = NAMES.map((name) => extractFn(SRC, name)).join('\n');
 
 const home = { innerHTML: '' };
@@ -197,7 +197,7 @@ test('another day does not grow an Ongoing section', () => {
 });
 
 test('Parked and Focus are dropped before the To-Do lists are drawn', () => {
-  assert.match(SRC, /TD\.tasks=all\.filter\(t=>t\.status!=='Parked'&&t\.area!=='Focus'\)/);
+  assert.match(SRC, /TD\.tasks=all\.filter\(t=>t\.status!=='Parked'&&t\.area!=='Focus'&&!tdDailyHidden\(t\)\)/);
   assert.match(extractFn(SRC, 'tdHot'), /t\.status==='Doing'/);
 });
 

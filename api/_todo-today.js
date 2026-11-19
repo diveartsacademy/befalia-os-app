@@ -1,6 +1,7 @@
 // Today's to-do, as a pure rule. The page in index.html (isFuture, the list,
 // and every count) must agree with this file. tests/todo-today.test.mjs checks
 // that. Nothing here writes a task.
+import { isDailyTemplate } from './_daily.js';
 //
 // "Today" is a YYYY-MM-DD calendar day in Asia/Makassar. A date-only value is
 // that calendar day. A datetime is the clock time in Makassar, never the UTC
@@ -36,7 +37,9 @@ export function todayCounts(tasks, today) {
   const areas = {};
   let open = 0;
   for (const x of tasks || []) {
-    if (!x || x.done || x.status === 'Parked' || isFuture(x, today)) continue;
+    // A daily template is the repeating line, not a task to do today. The
+    // copy dated today is a normal row and counts once. A retired line does not.
+    if (!x || x.done || x.status === 'Parked' || isFuture(x, today) || isDailyTemplate(x.notes)) continue;
     open += 1;
     const k = x.area || 'none';
     areas[k] = (areas[k] || 0) + 1;

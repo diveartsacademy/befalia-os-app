@@ -316,6 +316,16 @@
   .td-pill.late{border-color:#ff8fa6;color:#ffb3c2;}
   .td-pill.ev{border-color:#ff8fa6;color:#ffc6d2;cursor:default;}
   .td-pill.area{cursor:default;color:#04121f;font-weight:700;border:0;}
+  .td-pill.daily{border-color:var(--aqua);color:var(--aqua);cursor:default;letter-spacing:.02em;}
+  .td-daily-blurb{font-size:13px;color:var(--muted);line-height:1.45;margin:4px 0 12px;}
+  .td-daily-list{list-style:none;margin:0;padding:0;}
+  .td-daily-row{display:flex;align-items:center;gap:6px;padding:8px 0;border-top:1px solid var(--line);}
+  .td-daily-row:first-child{border-top:none;}
+  .td-daily-n{flex:none;width:18px;color:var(--dim);font-size:11px;font-variant-numeric:tabular-nums;}
+  .td-daily-name{flex:1;min-width:0;color:var(--ink);font-size:14px;line-height:1.35;word-break:break-word;}
+  .td-daily-row .td-mini{min-height:32px;}
+  .td-daily-row .td-mini:disabled{opacity:.35;cursor:default;}
+  .td-daily-edit{flex:1;min-width:0;height:36px;}
   .td-flag{flex:none;border:0;background:transparent;font-size:14px;cursor:pointer;opacity:.18;filter:grayscale(1);padding:2px;line-height:1;}
   .td-flag.on{opacity:1;filter:none;}
   .td-flag:hover{opacity:.8;filter:none;}
@@ -1288,6 +1298,9 @@ function addCardTools(){
      isFuture(task, today) is the one rule. A task whose date starts after today
      is hidden on this list and left out of every count. The calendar still
      shows it. Nothing is deleted.
+   - Daily tasks repeat from Manage daily list. Each morning one copy is dated
+     today and marked ↻ Daily. Ticking it finishes that copy only. The template
+     stays parked in Notion, so it is not a second row in any count.
    - The server stamps "Completed on" in WITA, so the day is never off by one.
    - Every change shows on screen at once, then is replaced by what Notion
      actually stored. If Notion refuses, the change is rolled back and you see
@@ -1299,7 +1312,7 @@ const TD_TZ='Asia/Makassar';
 const TD_NOTION_URL='https://app.notion.com/p/3eceb411ed7a81ee967bd6d40f7c4ee4';
 const TD={tasks:[],byId:{},sections:[],today:null,loaded:false,loading:false,err:'',lastSync:null,
   arch:null,archLoading:false,archErr:'',titles:LS.get('td_titles',{}),indent:{},newTitleFor:null,renaming:null,focusKey:null,view:LS.get('td_view','list'),area:LS.get('td_area','All'),flag:'',q:'',month:null,sel:null,histLimit:21,
-  closed:LS.get('td_closed',{}),newPri:false,newUrg:false};
+  closed:LS.get('td_closed',{}),newPri:false,newUrg:false,daily:null,dailyEdit:null,dailyArm:null,dailyBusy:false};
 /* 19 Oct 2026: the debt reminders moved to their own title, "Pembayaran Hutang",
    because Befa wants to fold them away. It starts folded once on each device;
    after that a tap on the title opens or folds it as usual. */
@@ -1329,11 +1342,22 @@ function isFuture(task, today){
   const start=task.date&&task.date.start?tdDayOf(task.date.start):null;
   return !!start&&start>day;
 }
-// Open work that belongs on today's list. Done rows and future rows are out.
-function tdTodayOpen(t){return !!t&&!t.done&&!isFuture(t,TD.today);}
+// Today's copy of a daily task. The marker in Notes is not shown as a note.
+function tdDaily(t){
+  const m=/^daily:([a-z0-9][a-z0-9-]{0,62}):(\d{4}-\d{2}-\d{2})$/.exec(String(t&&t.notes||'').trim());
+  return m?{id:m[1],day:m[2]}:null;
+}
+// The repeating line, and one she has removed. Neither is a task on the list,
+// so neither can add a second count beside today's copy.
+function tdDailyHidden(t){
+  return /^(daily-template|daily-retired):[a-z0-9][a-z0-9-]{0,62}$/.test(String(t&&t.notes||'').trim());
+}
+// Open work that belongs on today's list. Done rows, future rows and the
+// daily template are out.
+function tdTodayOpen(t){return !!t&&!t.done&&!isFuture(t,TD.today)&&!tdDailyHidden(t);}
 // List membership. A tick from today stays until the WITA day changes, even
 // if the task was dated later. Future open tasks do not.
-function tdShowOnList(t){if(!tdOnList(t))return false;if(t.done)return true;return !isFuture(t,TD.today);}
+function tdShowOnList(t){if(!t||tdDailyHidden(t))return false;if(!tdOnList(t))return false;if(t.done)return true;return !isFuture(t,TD.today);}
 function tdColor(a){const x=TD_AREAS.find(z=>z.key===a);return x?x.color:'#8fb6cc';}
 function tdIcon(a){const x=TD_AREAS.find(z=>z.key===a);return x?x.icon:'•';}
 function tdRank(t){return (t.urgent?0:4)+(t.priority?0:2)+(t.status==='Doing'?0:1);}
@@ -1464,10 +1488,13 @@ async function tdLoad(silent){
     // Parked = open tasks that are no longer in her note. Kept in Notion, never shown.
     TD.parked=all.filter(t=>t.status==='Parked');
     // Focus rows belong to the Goals tab checklist, never to the To-Do list or calendar.
-    TD.focus=all.filter(t=>t.area==='Focus'&&t.status!=='Parked');TD.tasks=all.filter(t=>t.status!=='Parked'&&t.area!=='Focus');TD.today=j.today||tdWita();if(Array.isArray(j.sections)&&j.sections.length)TD.sections=j.sections;
+    TD.focus=all.filter(t=>t.area==='Focus'&&t.status!=='Parked');TD.tasks=all.filter(t=>t.status!=='Parked'&&t.area!=='Focus'&&!tdDailyHidden(t));TD.today=j.today||tdWita();if(Array.isArray(j.sections)&&j.sections.length)TD.sections=j.sections;
+    if(j.daily&&Array.isArray(j.daily.templates))TD.daily=j.daily.templates;
+    if(j.daily&&j.daily.created)showToast(j.daily.created+' daily task'+(j.daily.created===1?' is':'s are')+' on today\'s list',true);
+    if(j.daily&&j.daily.error)showToast('Daily list: '+j.daily.error,false);
     TD.loaded=true;TD.complete=j.complete;TD.err=j.complete===false?'Only part of the list loaded. Tell Claude, the list has outgrown one load.':'';TD.lastSync=new Date();tdIndex();setTimeout(()=>pcSync(false),0);setTimeout(tdHutangMove,0);setTimeout(tdFlightPrep,0);}
   catch(e){TD.err=String(e.message||e);}
-  finally{TD.loading=false;tdRenderAll();if(typeof fcRender==='function')fcRender();if(TD.loaded&&!TD.arch&&!TD.archErr)tdLoadArchive();}
+  finally{TD.loading=false;tdRenderAll();if(document.getElementById('td-daily-modal'))tdDailyRender();if(typeof fcRender==='function')fcRender();if(TD.loaded&&!TD.arch&&!TD.archErr)tdLoadArchive();}
 }
 // The 2026 Apple Note history (1 Jan to 9 Oct) is a read-only archive served
 // by /api/tasks 'history'. Loaded once, in the background, after the list.
@@ -1634,11 +1661,13 @@ function tdRowHTML(t,opt){
   if(kids.length&&!opt.nested)meta+='<span>'+openKids+' of '+kids.length+' sub-tasks open</span>';
   if(t.sessionId)meta+='<span class="td-pill" title="In the DiveArts books as '+attr(t.sessionId)+'">💸 '+tdRp(t.expenses&&t.expenses.total)+' ✓ in books</span>';
   else if(t.expenses&&t.expenses.costs&&t.expenses.costs.length)meta+='<span class="td-pill" title="Expense draft, not sent yet">💸 '+tdRp(t.expenses.total)+' draft</span>';
-  if(t.notes){const nn=t.section==='After class'?String(t.notes).replace(/^postclass:\S+\s*·\s*/,''):t.notes;meta+='<span title="'+attr(nn)+'">📝 '+escapeHtml(nn.length>48?nn.slice(0,48)+'…':nn)+'</span>';}
+  const daily=tdDaily(t);
+  if(daily)meta+='<span class="td-pill daily" title="Daily. Ticking finishes today only.">↻ Daily</span>';
+  if(t.notes&&!daily){const nn=t.section==='After class'?String(t.notes).replace(/^postclass:\S+\s*·\s*/,''):t.notes;meta+='<span title="'+attr(nn)+'">📝 '+escapeHtml(nn.length>48?nn.slice(0,48)+'…':nn)+'</span>';}
   if(opt.dup>1)meta+='<span class="td-pill" title="The same finished task was stored more than once">×'+opt.dup+'</span>';
   const cls='td-row'+(t.done?' done':'')+(t._saving?' saving':'')+(t._err?' err':'')+(t.urgent&&!t.done?' urgent':'')+(opt.kid?' kid':'');
   const shown=opt.name!=null?opt.name:(t.name||'(no name)');
-  return '<li class="'+cls+'"'+(opt.pin?' data-pin="bayar-hari-ini"':'')+' data-id="'+t.id+'">'+(opt.noGrip?'':'<span class="td-grip" title="Tap to move to another business or title. Drag onto a day, a title, or another task">⠿</span>')+'<button class="check" data-act="done" title="'+(t.done?'Untick':'Tick done')+'">'+(t.done?'✓':'')+'</button>'
+  return '<li class="'+cls+'"'+(opt.pin?' data-pin="bayar-hari-ini"':'')+' data-id="'+t.id+'">'+(opt.noGrip||daily?'':'<span class="td-grip" title="Tap to move to another business or title. Drag onto a day, a title, or another task">⠿</span>')+'<button class="check" data-act="done" title="'+(t.done?'Untick':'Tick done')+'">'+(t.done?'✓':'')+'</button>'
     +'<div class="td-body"><div class="td-name" data-act="edit">'+escapeHtml(shown||'(no name)')+'</div><div class="td-meta">'+meta+'</div></div>'
     +(t.done?'':'<button class="td-flag'+(t.status==='Doing'?' on':'')+'" data-act="doing" title="In progress ▶">▶️</button>')
     +'<button class="td-flag'+(t.priority?' on':'')+'" data-act="pri" title="Priority ⏰">⏰</button>'
@@ -1657,7 +1686,7 @@ function tdMatches(t){
 }
 function tdRenderStats(){
   const el=document.getElementById('td-stats');if(!el)return;
-  const inArea=t=>TD.area==='All'||t.area===TD.area;
+  const inArea=t=>(TD.area==='All'||t.area===TD.area)&&!tdDailyHidden(t);
   const open=TD.tasks.filter(t=>tdTodayOpen(t)&&inArea(t));
   const n={open:open.length,urgent:open.filter(t=>t.urgent).length,priority:open.filter(t=>t.priority).length,doing:open.filter(t=>t.status==='Doing').length,late:open.filter(tdOverdue).length,donetoday:TD.tasks.filter(t=>t.done&&t.completedOn===TD.today&&inArea(t)).length};
   const tiles=[['','Open',n.open],['urgent','🚨 Urgent',n.urgent],['priority','⏰ Priority',n.priority],['doing','▶ Doing',n.doing],['late','⚠ Overdue',n.late],['donetoday','✓ Done today',n.donetoday]];
@@ -1728,7 +1757,7 @@ function tdRenderList(){
 function tdRenderHistory(){
   const el=document.getElementById('td-list');if(!el)return;
   if(!TD.loaded){el.innerHTML='<div class="'+(TD.err?'err':'loading')+'">'+escapeHtml(TD.err||'Loading…')+'</div>';return;}
-  const done=TD.tasks.filter(t=>t.done&&(TD.area==='All'||t.area===TD.area)&&(!TD.q||((t.name||'')+' '+(t.section||'')).toLowerCase().indexOf(TD.q.toLowerCase())!==-1));
+  const done=TD.tasks.filter(t=>t.done&&!tdDailyHidden(t)&&(TD.area==='All'||t.area===TD.area)&&(!TD.q||((t.name||'')+' '+(t.section||'')).toLowerCase().indexOf(TD.q.toLowerCase())!==-1));
   const by={};done.forEach(t=>{const d=t.completedOn||'unknown';(by[d]=by[d]||[]).push(t);});
   // The Apple Note archive has no areas, so it shows under "All" only.
   const showArch=TD.area==='All'&&!!TD.arch;
@@ -1757,7 +1786,7 @@ function tdRenderCal(){
   const el=document.getElementById('td-cal');if(!el)return;
   const ym=tdMonth();const first=ym+'-01';const fd=tdUTC(first);const dow=(fd.getUTCDay()+6)%7;let start=tdAdd(first,-dow);
   const label=fd.toLocaleDateString('en-GB',{month:'long',year:'numeric',timeZone:'UTC'});
-  const inArea=t=>TD.area==='All'||t.area===TD.area;
+  const inArea=t=>(TD.area==='All'||t.area===TD.area)&&!tdDailyHidden(t);
   const byDay={};TD.tasks.filter(inArea).forEach(t=>{tdDays(t).forEach(d=>{(byDay[d]=byDay[d]||[]).push(t);});});
   const doneBy={};TD.tasks.filter(t=>t.done&&t.completedOn&&inArea(t)).forEach(t=>{doneBy[t.completedOn]=(doneBy[t.completedOn]||0)+1;});
   let html='<div class="td-cal-h"><button class="td-nav" data-act="prev">‹</button><span class="m">'+label+'</span><button class="ctool" data-act="thismonth">Today</button><button class="td-nav" data-act="next">›</button></div>';
@@ -1803,7 +1832,7 @@ function tdRenderDay(){
   const ae=document.activeElement;if(ae&&el.contains(ae)&&ae.closest&&ae.closest('#tde-cl')&&/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName))return;
   const day=TD.sel||TD.today||tdWita();
   const old=document.getElementById('td-day-in');const keep=old?old.value:'';const hadFocus=old&&document.activeElement===old;
-  const inArea=t=>TD.area==='All'||t.area===TD.area;
+  const inArea=t=>(TD.area==='All'||t.area===TD.area)&&!tdDailyHidden(t);
   const today=TD.today||tdWita();
   const pinned=day===today?bayarHariIniTasks(TD.tasks.filter(inArea),today):[];
   const pinIds={};pinned.forEach(t=>{pinIds[t.id]=1;});
@@ -1827,13 +1856,13 @@ function tdRenderDay(){
 function tdRenderHome(){
   const ul=document.getElementById('td-home-list');if(!ul)return;const badge=document.getElementById('td-home-count');
   if(!TD.loaded){ul.innerHTML='<li class="'+(TD.err?'err':'loading')+'">'+escapeHtml(TD.err||'Loading…')+'</li>';if(badge)badge.textContent='…';return;}
-  const open=tdDedupeId(TD.tasks.filter(t=>!tdDoneOn(t,TD.today)));
+  const open=tdDedupeId(TD.tasks.filter(t=>!tdDoneOn(t,TD.today)&&!tdDailyHidden(t)));
   const parts=tdHomeSplit(open);
   const pinned=bayarHariIniTasks(open,TD.today);
   const placed=bayarPin(parts.hot,pinned,8);
   const pinIds={};pinned.forEach(t=>{pinIds[t.id]=1;});
   const ongoing=parts.ongoing.filter(t=>!pinIds[t.id]);
-  const done=tdDoneGroups(TD.tasks.filter(t=>tdDoneOn(t,TD.today)));
+  const done=tdDoneGroups(TD.tasks.filter(t=>tdDoneOn(t,TD.today)&&!tdDailyHidden(t)));
   const hotCount=placed.shown.length+placed.more;
   if(badge)badge.textContent=hotCount+' hot'+(ongoing.length?' · '+ongoing.length+' ongoing':'')+' · '+done.length+' done';
   const row=t=>tdRowHTML(t,{showArea:true,noGrip:true});
@@ -1874,7 +1903,8 @@ function tdOpenEditor(id){
   if(TD.clOpen&&CL){if(CL.dirty&&!(TD.byId[CL.id]||{}).sessionId)tdClDraft(CL.id,true);CL=null;}
   tdCloseEditor();TD_EDIT=id;const dayEl=document.getElementById('td-day');if(dayEl&&dayEl.querySelector('#tde-cl'))dayEl.querySelector('#tde-cl').remove();
   const sd=t.date&&t.date.start?tdDayOf(t.date.start):'';const st=t.date&&t.date.start?tdTimeOf(t.date.start):'';const ed=t.date&&t.date.end?tdDayOf(t.date.end):'';
-  const lk=tdClLinked(t),ro=lk?' disabled title="Use Cancel or reschedule, so the calendar changes too"':'';
+  const daily=!!tdDaily(t);
+  const lk=tdClLinked(t),ro=lk?' disabled title="Use Cancel or reschedule, so the calendar changes too"':(daily?' disabled title="A daily task stays on today. Change the repeating line from Manage daily list."':'');
   const w=document.createElement('div');w.className='td-modal';w.id='td-modal';
   w.innerHTML='<div class="card td-sheet" data-no-tools><h2><span class="ic">✏️</span>Edit task<button class="link-btn" data-act="close" style="margin-left:auto;font-size:20px">×</button></h2>'
    +'<div class="td-form">'
@@ -1887,13 +1917,14 @@ function tdOpenEditor(id){
    +'<label>Time (WITA, optional)<input class="fld" type="time" id="tde-time" value="'+st+'"'+ro+'></label>'
    +'<label>Until (optional)<input class="fld" type="date" id="tde-end" value="'+ed+'"'+ro+'></label>'
    +(lk?'<div class="full td-clx-hint">This class comes from the DiveArts '+tdClCal(t)+' calendar. Its day and time change with Cancel or reschedule below, so the calendar, the sheet and this list stay the same.</div>':'')
+   +(daily?'<div class="full td-clx-hint">This is today\'s copy of a daily task. Ticking it finishes today only. Rename, reorder or remove the repeating line from Manage daily list.</div>':'')
    +(t.done?'<label>Done on<input class="fld" type="date" id="tde-doneon" max="'+(TD.today||tdWita())+'" value="'+(t.completedOn||'')+'"></label>':'')
    +'<label>Flags<span style="display:flex;gap:8px"><button class="td-tog'+(t.priority?' on':'')+'" id="tde-pri" type="button">⏰ Priority</button><button class="td-tog'+(t.urgent?' on':'')+'" id="tde-urg" type="button">🚨 Urgent</button></span></label>'
    +(String(id).indexOf('tmp')===0?'':'<label class="full">Follow up<span style="display:flex;gap:8px;flex-wrap:wrap"><button class="td-ghost" type="button" data-act="fu" data-days="1">↻ Besok</button><button class="td-ghost" type="button" data-act="fu" data-days="3">+3 hari</button><button class="td-ghost" type="button" data-act="fu" data-days="7">+1 minggu</button></span></label>')
-   +'<label class="full">Notes<textarea class="fld" id="tde-notes" rows="3">'+escapeHtml(t.notes||'')+'</textarea></label>'
+   +'<label class="full">Notes<textarea class="fld" id="tde-notes" rows="3"'+(daily?' disabled':'')+'>'+escapeHtml(daily?'':(t.notes||''))+'</textarea></label>'
    +'</div>'+(tdIsClass(t)?'<div class="cl-box" id="tde-cl"></div>':'')+'<div class="td-sub">Sub-tasks</div><ul class="td-list" id="tde-subs"></ul>'
    +'<div class="todo-add" style="margin-top:8px"><input class="fld" id="tde-subin" placeholder="Add a sub-task…"><button class="gold-btn" data-act="subadd">+</button></div>'
-   +'<div class="td-actions"><button class="gold-btn" data-act="save">Save</button><button class="td-ghost" data-act="close">Cancel</button>'+(t.url?'<a class="ctool" href="'+safeHref(t.url)+'" target="_blank" rel="noopener">Notion ↗</a>':'')+(lk?(tdClChangeable(t)?'<button class="td-danger" data-act="clx">Cancel or reschedule</button>':''):'<button class="td-danger" data-act="del">Delete</button>')+'</div></div>';
+   +'<div class="td-actions"><button class="gold-btn" data-act="save">Save</button><button class="td-ghost" data-act="close">Cancel</button>'+(t.url?'<a class="ctool" href="'+safeHref(t.url)+'" target="_blank" rel="noopener">Notion ↗</a>':'')+(lk?(tdClChangeable(t)?'<button class="td-danger" data-act="clx">Cancel or reschedule</button>':''):(daily?'':'<button class="td-danger" data-act="del">Delete</button>'))+'</div></div>';
   document.body.appendChild(w);tdRenderModalSubs();
   if(tdIsClass(t))tdClOpen(t);
   ['tde-pri','tde-urg'].forEach(x=>{const b=document.getElementById(x);b.onclick=()=>b.classList.toggle('on');});
@@ -2196,9 +2227,10 @@ function tdSaveEditor(){
   const date=day?{start:tdDateVal(day,time),end:end&&end!==day?end:null}:null;
   const next={name:name,area:v('tde-area')||null,section:v('tde-sec').trim()||null,status:v('tde-status'),type:v('tde-type'),notes:v('tde-notes'),priority:document.getElementById('tde-pri').classList.contains('on'),urgent:document.getElementById('tde-urg').classList.contains('on')};
   const patch={};Object.keys(next).forEach(k=>{if((t[k]==null?'':t[k])!==(next[k]==null?'':next[k]))patch[k]=next[k];});
+  if(tdDaily(t)){delete patch.notes;delete patch.date;delete patch.area;delete patch.section;delete patch.type;}
   const curDate=t.date?JSON.stringify({s:tdDayOf(t.date.start)+'|'+tdTimeOf(t.date.start),e:t.date.end?tdDayOf(t.date.end):null}):'null';
   const newDate=date?JSON.stringify({s:day+'|'+time,e:date.end}):'null';
-  if(curDate!==newDate&&!tdClLinked(t))patch.date=date;
+  if(curDate!==newDate&&!tdClLinked(t)&&!tdDaily(t))patch.date=date;
   if('status' in patch){if(patch.status==='Done'&&!t.done){patch.done=true;delete patch.status;}else if(patch.status!=='Done'&&t.done){patch.done=false;}}
   const don=document.getElementById('tde-doneon');if(don&&t.done&&!('done' in patch)&&don.value&&don.value!==t.completedOn){if(don.value>(TD.today||tdWita())){showToast('Pick today or an earlier day',false);return;}patch.completedOn=don.value;}
   const clPay=(CL&&CL.id===t.id&&CL.dirty&&!t.sessionId)?tdClPayload():null;const clId=t.id;
@@ -2232,7 +2264,8 @@ async function tdInlineEnter(inp){
     const i=key.indexOf('|');const ar=key.slice(0,i),old=key.slice(i+1);const name=v.replace(/,/g,' ').slice(0,100);
     TD.renaming=null;
     if(!name||name===old){tdRenderList();return;}
-    const list=TD.tasks.filter(t=>(t.area||'')===ar&&(t.section||'')===old&&String(t.id).indexOf('tmp')!==0);
+    const list=TD.tasks.filter(t=>(t.area||'')===ar&&(t.section||'')===old&&String(t.id).indexOf('tmp')!==0&&!tdDaily(t));
+    if(!list.length&&TD.tasks.some(t=>tdDaily(t)&&(t.section||'')===old)){TD.renaming=null;tdRenderList();showToast('Rename daily tasks from Manage daily list.',false);return;}
     tdRenderList();let ok=0;
     for(const t of list){if(await tdPatch(t.id,{section:name}))ok++;}
     if(TD.closed[key]){delete TD.closed[key];}
@@ -2723,13 +2756,97 @@ function buildGoals(){
 /* Called by the Journal box for any "Task:" line. */
 function tdCaptureFromJournal(text){return tdCreate({name:text,area:'Personal'});}
 
+function tdDailyPanelHTML(list, state){
+  state=state||{};
+  const rows=(list||[]).map(function(t,i){
+    const last=i===(list.length-1);
+    const editing=state.edit===t.id;
+    const name=editing
+      ?'<input class="fld td-daily-edit" data-d="name" value="'+attr(t.name)+'" enterkeyhint="done" aria-label="Rename">'
+      :'<span class="td-daily-name">'+escapeHtml(t.name)+'</span>';
+    return '<li class="td-daily-row" data-id="'+attr(t.id)+'">'
+      +'<span class="td-daily-n">'+(i+1)+'</span>'+name
+      +'<button type="button" class="td-mini" data-d="up"'+(i===0?' disabled':'')+' aria-label="Move up">↑</button>'
+      +'<button type="button" class="td-mini" data-d="down"'+(last?' disabled':'')+' aria-label="Move down">↓</button>'
+      +'<button type="button" class="td-mini" data-d="rename">'+(editing?'Save':'Rename')+'</button>'
+      +'<button type="button" class="td-mini" data-d="remove">'+(state.arm===t.id?'Remove?':'Remove')+'</button></li>';
+  }).join('');
+  return rows||'<li class="td-empty">Nothing on the daily list yet. Add one below.</li>';
+}
+function tdDailyRender(){
+  const el=document.getElementById('td-daily-rows');if(!el)return;
+  const keep=document.activeElement;
+  const editing=keep&&keep.getAttribute&&keep.getAttribute('data-d')==='name'?{id:keep.closest('.td-daily-row').getAttribute('data-id'),v:keep.value,c:keep.selectionStart}:null;
+  el.innerHTML=tdDailyPanelHTML(TD.daily||[],{edit:TD.dailyEdit,arm:TD.dailyArm});
+  if(editing){const inp=el.querySelector('.td-daily-row[data-id="'+editing.id+'"] [data-d="name"]');if(inp){inp.value=editing.v;inp.focus();try{inp.setSelectionRange(editing.c,editing.c);}catch(e){}}}
+  else if(TD.dailyEdit){const inp=el.querySelector('[data-d="name"]');if(inp)inp.focus();}
+}
+function tdDailyClose(){const m=document.getElementById('td-daily-modal');if(m)m.remove();TD.dailyEdit=null;TD.dailyArm=null;}
+function tdDailyMsg(text,bad){const el=document.getElementById('td-daily-msg');if(!el)return;el.textContent=text||'';el.classList.toggle('bad',!!bad);}
+async function tdDailySend(op, extra){
+  if(TD.dailyBusy)return;
+  TD.dailyBusy=true;tdDailyMsg('Saving…',false);
+  try{
+    const j=await tdApi('daily',Object.assign({op:op},extra||{}));
+    TD.daily=j.templates||[];TD.dailyEdit=null;TD.dailyArm=null;tdDailyRender();tdDailyMsg('',false);
+    if(op!=='list')showToast('Daily list saved',true);
+    tdLoad(true);
+  }catch(e){tdDailyMsg(String(e.message||e),true);}
+  finally{TD.dailyBusy=false;}
+}
+function tdDailyOpen(){
+  if(document.getElementById('td-daily-modal')){tdDailyClose();return;}
+  const w=document.createElement('div');w.className='td-modal';w.id='td-daily-modal';
+  w.innerHTML='<div class="card td-sheet" data-no-tools><h2><span class="ic">↻</span>Daily list<button class="link-btn" data-d="close" type="button" style="margin-left:auto;font-size:20px" aria-label="Close">×</button></h2>'
+    +'<div class="td-daily-blurb">These repeat every morning in Bali. Ticking one on the list finishes today only. A change here starts tomorrow, and it also starts today when today\'s copy is not on the list yet.</div>'
+    +'<ul class="td-daily-list" id="td-daily-rows"></ul>'
+    +'<div class="todo-add" style="margin-top:12px"><input class="fld" id="td-daily-in" placeholder="Add a daily task" enterkeyhint="done"><button class="gold-btn" type="button" data-d="add">Add</button></div>'
+    +'<div class="td-clx-msg" id="td-daily-msg" role="status"></div></div>';
+  document.body.appendChild(w);
+  tdDailyRender();
+  w.addEventListener('click',tdDailyClick);
+  w.addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&e.target.getAttribute&&e.target.getAttribute('data-d')==='name'){e.preventDefault();const row=e.target.closest('.td-daily-row');const name=(e.target.value||'').trim();if(!name||!row){tdDailyMsg('A daily task needs a name',true);return;}tdDailySend('rename',{id:row.getAttribute('data-id'),name:name});return;}
+    if(e.key==='Escape'){if(TD.dailyEdit){TD.dailyEdit=null;TD.dailyArm=null;tdDailyRender();}else tdDailyClose();}
+  });
+  document.getElementById('td-daily-in').addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();tdDailyAdd();}});
+  if(!TD.daily)tdDailySend('list');
+}
+function tdDailyAdd(){
+  const inp=document.getElementById('td-daily-in');if(!inp)return;
+  const name=(inp.value||'').trim();if(!name)return;
+  inp.value='';tdDailySend('add',{name:name});
+}
+function tdDailyClick(e){
+  const w=document.getElementById('td-daily-modal');
+  if(e.target===w){tdDailyClose();return;}
+  const btn=e.target.closest('[data-d]');if(!btn||!w||!w.contains(btn))return;
+  const act=btn.getAttribute('data-d');
+  if(act==='close'){tdDailyClose();return;}
+  if(act==='add'){tdDailyAdd();return;}
+  const row=btn.closest('.td-daily-row');if(!row)return;
+  const id=row.getAttribute('data-id');
+  const list=(TD.daily||[]).slice();
+  const i=list.findIndex(function(t){return t.id===id;});
+  if(i<0)return;
+  if(act==='up'&&i>0){const swapped=list.slice();const tmp=swapped[i-1];swapped[i-1]=swapped[i];swapped[i]=tmp;tdDailySend('reorder',{ids:swapped.map(function(t){return t.id;})});return;}
+  if(act==='down'&&i<list.length-1){const swapped=list.slice();const tmp=swapped[i+1];swapped[i+1]=swapped[i];swapped[i]=tmp;tdDailySend('reorder',{ids:swapped.map(function(t){return t.id;})});return;}
+  if(act==='rename'){
+    if(TD.dailyEdit===id){const inp=row.querySelector('[data-d="name"]');const name=inp?(inp.value||'').trim():'';if(!name){tdDailyMsg('A daily task needs a name',true);return;}tdDailySend('rename',{id:id,name:name});return;}
+    TD.dailyEdit=id;TD.dailyArm=null;tdDailyRender();return;
+  }
+  if(act==='remove'){
+    if(TD.dailyArm!==id){TD.dailyArm=id;TD.dailyEdit=null;tdDailyRender();return;}
+    tdDailySend('remove',{id:id});
+  }
+}
 function buildTodo(){
   const root=document.getElementById('todo-root');if(!root)return;
   const lastArea=LS.get('td_lastArea','Personal');
   const headMin=LS.get('td_head_min',false);
   root.innerHTML='<div class="td-layout"><div class="td-col"><div class="card td-head'+(headMin?' min':'')+'" id="td-head" data-no-tools>'
    +'<div class="td-headrow"><h2><span class="ic">✅</span>To-Do</h2><div class="td-seg" id="td-seg"><button data-view="list">List</button><button data-view="history">History</button></div>'
-   +'<span class="td-sync" id="td-sync"></span><button class="ctool" id="td-refresh" title="Reload from Notion">↻ Refresh</button><a class="ctool" href="'+TD_NOTION_URL+'" target="_blank" rel="noopener">Notion ↗</a><button class="ctool td-min" id="td-min" type="button" aria-expanded="true">▴ Minimize</button></div>'
+   +'<span class="td-sync" id="td-sync"></span><button class="ctool" id="td-daily" type="button">Manage daily list</button><button class="ctool" id="td-refresh" title="Reload from Notion">↻ Refresh</button><a class="ctool" href="'+TD_NOTION_URL+'" target="_blank" rel="noopener">Notion ↗</a><button class="ctool td-min" id="td-min" type="button" aria-expanded="true">▴ Minimize</button></div>'
    +'<div class="td-headbody"><div class="td-add"><input class="fld" id="td-new-name" placeholder="New task… then Enter">'
    +'<select class="fld" id="td-new-area" title="Business"><option value="">No area</option>'+TD_AREAS.map(a=>'<option'+(lastArea===a.key?' selected':'')+'>'+a.key+'</option>').join('')+'</select>'
    +'<input class="fld" id="td-new-sec" list="td-sec-list" placeholder="Section">'
@@ -2742,6 +2859,7 @@ function buildTodo(){
   root.addEventListener('click',tdHandleClick);
   document.getElementById('td-seg').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;TD.view=b.getAttribute('data-view');LS.set('td_view',TD.view);TD.sel=null;tdRenderAll();});
   document.getElementById('td-refresh').onclick=()=>tdLoad(false);
+  document.getElementById('td-daily').onclick=()=>tdDailyOpen();
   // The add-a-task form folds away to its header line and stays folded on this device.
   const tdMinSet=m=>{const h=document.getElementById('td-head'),b=document.getElementById('td-min');if(!h||!b)return;h.classList.toggle('min',m);b.textContent=m?'▾ New task':'▴ Minimize';b.setAttribute('aria-expanded',m?'false':'true');LS.set('td_head_min',m);};
   tdMinSet(headMin);
