@@ -1,4 +1,7 @@
 {
+  "rewrites": [
+    { "source": "/api/social", "destination": "/api/notion?social=1" }
+  ],
   "crons": [
     {
       "path": "/api/daily",

@@ -503,8 +503,8 @@
   </div>
   <div class="tabpane" id="tab-social">
     <div class="section-label">Social Media</div>
-    <div class="blurb" style="margin:8px 4px 0;font-style:italic">Your whole social presence in one place — accounts, ideas, trends, monthly numbers, and how each platform earns. Numbers are ones you log (there is no live analytics connector here).</div>
-    <div class="grid" id="social"></div>
+    <div class="blurb" style="margin:8px 4px 0;font-style:italic">Your personal accounts. Scout, Sonar and Muse keep this desk. A number shows up here only after you log it.</div>
+    <div id="soc-root"></div>
   </div>
   <div class="tabpane" id="tab-agents">
     <div class="section-label">Agent Control Center</div>
@@ -661,7 +661,7 @@ const ROUTES={
 };
 
 /* ---------- tabs ---------- */
-function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-business'&&typeof window.bizOpen==='function')window.bizOpen();if(id==='tab-finance'&&typeof window.finOpen==='function')window.finOpen();if(id==='tab-finance'&&typeof window.subsOpen==='function')window.subsOpen();if(id==='tab-room'&&typeof window.meOpen==='function')window.meOpen();if(id==='tab-areas'&&typeof window.dpOpen==='function')window.dpOpen();if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);}
+function showTab(id){const b=document.querySelector('.tab[data-pane="'+id+'"]');const p=document.getElementById(id);if(!b||!p)return;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));document.querySelectorAll('.tabpane').forEach(x=>x.classList.remove('active'));b.classList.add('active');p.classList.add('active');window.scrollTo({top:0,behavior:'smooth'});if(id==='tab-business'&&typeof window.bizOpen==='function')window.bizOpen();if(id==='tab-finance'&&typeof window.finOpen==='function')window.finOpen();if(id==='tab-finance'&&typeof window.subsOpen==='function')window.subsOpen();if(id==='tab-room'&&typeof window.meOpen==='function')window.meOpen();if(id==='tab-areas'&&typeof window.dpOpen==='function')window.dpOpen();if(id==='tab-goals'&&typeof glLoad==='function'&&!GL.loaded&&!GL.loading)glLoad();if(id==='tab-todo'&&typeof tdLoad==='function'&&TD.loaded&&(!TD.lastSync||Date.now()-TD.lastSync.getTime()>60000))tdLoad(true);if(id==='tab-social'&&typeof window.socOpen==='function')window.socOpen();}
 function buildTabs(){
   const bar=document.getElementById('tabs');
   [['tab-command','Home'],['tab-todo','To-Do'],['tab-goals','Goals'],['tab-health','Health'],['tab-areas','Relationship'],['tab-room','About Me'],['tab-business','Business'],['tab-finance','Finance'],['tab-social','Social'],['tab-agents','Agents']].forEach((t,i)=>{
@@ -708,12 +708,6 @@ const GOALS_ID='3a3eb411ed7a81ff8bceddada1bdc996';
 const INTERVIEW_ID='3a3eb411ed7a8145946cfad1eaef97e5';
 const THEO_CHAT_ID='3a4eb411ed7a81aca48be5ac160c73bf';
 const LEARN_FOCUS_ID='3a3eb411ed7a81c58536d6aeea938cdc';
-const SOCIAL_ID='3a1eb411ed7a81dca2c4f1f711083f41';
-const SM_IG_ID='3a1eb411ed7a810cbbd4efd16b9126c6';
-const SM_TT_ID='3a1eb411ed7a818bbf95e9d85f8d3ea7';
-const SM_YT_ID='3a1eb411ed7a818f9c21f5f7737d3fac';
-const SM_FB_ID='3a1eb411ed7a8173825cf806a563a742';
-let SM_IDEAS_ID='3a3eb411ed7a81db81fad03bc31258cd';let SM_MONEY_ID='3a3eb411ed7a81af8db0ee520467b0fc';
 function buildCommand(){
   const wrap=document.getElementById('command');
   const clk=document.createElement('div');clk.className='card';
@@ -1187,49 +1181,11 @@ const ORG=[
  {icon:'🧠',dept:'Learning',chief:'Sage — Chief Learning Officer',aim:'Everything you watch becomes retained mastery.',status:'live',beat:'07:00 · 20:15 · 20:30',subs:[['Curator','5 real picks each morning','live'],['Note Master','ticked videos → Knowledge notes','live'],['Recap Writer','the day in 3–6 takeaways','live'],['Librarian','monthly archiving','live']]},
  {icon:'💗',dept:'Relationship',chief:'Amara — Chief Relationship Officer',aim:'Your people understood, remembered, protected.',status:'oncall',beat:'',subs:[['Love Analyst','honest compatibility reads','oncall'],['Friendship Keeper','friends & who needs you','oncall'],['Family Keeper','family circle, docs stay private','oncall'],['Person Memory','dated notes via 10 boxes','live']]},
  {icon:'💰',dept:'Finance',chief:'Ledger — Chief Personal-Finance Officer',aim:'You always know your cash, spend, runway.',status:'planned',beat:'Waiting on your finance sheet',subs:[['Ledger Keeper','monthly money summary','planned'],['Runway Watcher','subscriptions, trials & renewals (Finance tab)','live']]},
- {icon:'📣',dept:'Social Media',chief:'Marlin — Chief Social Officer',aim:'Every platform grows and earns, on-brand, without you posting manually.',status:'oncall',beat:'',subs:[['Trend Researcher','what to post now in your niche','oncall'],['Content Creator','hooks, scripts, captions per platform','oncall'],['Analytics Keeper','monthly numbers you log','planned'],['Monetization Strategist','turn reach into tail sales & bookings','oncall']]},
+ {icon:'📣',dept:'Social Media',chief:'Marlin — Chief Social Officer',aim:'Personal accounts are Scout, Sonar and Muse on the Social tab. DiveArts and Sea Diva stay with Marlin.',status:'oncall',beat:'',subs:[['Scout','personal trends, by name and mood','oncall'],['Muse','personal hooks, scripts and captions','oncall'],['Sonar','personal numbers you log, never invented','oncall'],['Marlin','DiveArts and Sea Diva brand voice','oncall']]},
  {icon:'🏛️',dept:'Memory & Archives',chief:'Keeper — Chief Memory Officer',aim:'Nothing you build or learn is ever lost.',status:'live',beat:'Archive · 1st 06:00',subs:[['Archivist','archive-first, trim-second','live'],['Brain Keeper','Claude’s Notes + ID registry','oncall'],['Room Curator','achievements current','oncall']]},
  {icon:'🛡️',dept:'Quality & Safety',chief:'Sentinel — Chief Quality Officer',aim:'The OS never lies, loses data, or ships broken.',status:'live',beat:'Every ship + every prompt',subs:[['Auditor','audits & pre-ship checks','oncall'],['Privacy Warden','sensitive tiers & redaction','live'],['Honesty Guard','no invented data, ever','live']]},
 ];
-/* ---------- Social Media tab ---------- */
-const SM_ACCOUNTS=[
- {name:'Instagram',url:'https://instagram.com/seadivatails',handle:'@seadivatails'},
- {name:'TikTok',url:'https://www.tiktok.com/@seadiva.official',handle:'@seadiva.official'},
- {name:'TikTok (DiveArts)',url:'https://www.tiktok.com/@divearts',handle:'@divearts'},
- {name:'YouTube',url:'',handle:'add your channel'},
-];
-function buildSocial(){const wrap=document.getElementById('social');if(!wrap)return;
-  // 1. Accounts & links
-  const acc=document.createElement('div');acc.className='card feature';
-  let links=SM_ACCOUNTS.map(a=>{const h=safeHref(a.url);return h?('<a href="'+h+'" target="_blank" rel="noopener">'+escapeHtml(a.name)+'</a>'):('<a style="opacity:.55;cursor:default">'+escapeHtml(a.name)+' · '+escapeHtml(a.handle)+'</a>');}).join('');
-  acc.innerHTML='<h2><span class="ic">📣</span>Your accounts</h2><div class="blurb">One tap to every platform. Marlin, your Chief Social Officer, runs this desk.</div><div class="sm-links">'+links+'</div><div class="note-hint" style="margin-top:10px">Tell me your Instagram and YouTube handles and I\'ll wire the exact links.</div>';
-  wrap.appendChild(acc);
-  // 2. Content Studio
-  const stu=document.createElement('div');stu.className='card';
-  stu.innerHTML='<h2><span class="ic">🎬</span>Content Studio</h2><div class="blurb">Give the Content Creator a topic and it drafts hooks, a short script and a caption for each platform, saved to your Content Ideas in Notion.</div><div class="todo-add"><input class="fld" id="sm-idea" placeholder="e.g. mermaid tail care, freediving for beginners..."><button class="gold-btn" id="sm-idea-go">Create</button></div><div class="caption" id="sm-idea-hint" style="margin-top:6px"></div><div class="foot"><a href="https://app.notion.com/p/'+SM_IDEAS_ID+'" target="_blank" rel="noopener">All ideas &amp; drafts →</a></div>';
-  wrap.appendChild(stu);
-  const ig=document.getElementById('sm-idea'),igb=document.getElementById('sm-idea-go');
-  const mkIdea=async()=>{const v=(ig.value||'').trim();if(!v)return;const hint=document.getElementById('sm-idea-hint');
-    try{await window.cowork.callMcpTool(UPDATE_TOOL,{page_id:SM_IDEAS_ID,command:'insert_content',position:{type:'start'},content:'## '+today()+' · '+v+'\n(brief queued — ask Claude in chat to draft it)'});showToast('Idea saved to Notion ✓',true);}catch(e){showToast('Could not save idea',false);}
-    if(hint)hint.textContent='Saved. For full drafts now, ask me in chat: “make social content about '+v+'”.';
-    try{if(window.sendPrompt)window.sendPrompt('Act as my Content Creator (Chief Social Officer Marlin). Topic: '+v+'. For Instagram Reel, TikTok, and YouTube Short, draft: 3 scroll-stopping hooks, a 20-30s script, and an on-brand caption with hashtags. Brand: DiveArts / Sea Diva — warm, expert, premium; sell transformation not discounts; no dash punctuation in customer-facing copy. Save it to my Notion Content Ideas page (id '+SM_IDEAS_ID+') as a dated entry at the top.');}catch(e){}
-    ig.value='';};
-  igb.onclick=mkIdea;ig.addEventListener('keydown',e=>{if(e.key==='Enter')mkIdea();});
-  // 3. Trend Researcher
-  const tr=document.createElement('div');tr.className='card';
-  tr.innerHTML='<h2><span class="ic">🔎</span>Trend Researcher</h2><div class="blurb">What is working right now in your niche — formats, sounds, angles you can do.</div><button class="gold-btn" id="sm-trend" style="margin-top:4px">Research trends →</button><div class="caption" id="sm-trend-hint" style="margin-top:8px"></div>';
-  wrap.appendChild(tr);
-  document.getElementById('sm-trend').onclick=()=>{const h=document.getElementById('sm-trend-hint');if(h)h.textContent='Ask me in chat: “research social trends for me” — I find current formats and angles in mermaid, freediving and ocean creator content, then drop them into Content Ideas.';try{if(window.sendPrompt)window.sendPrompt('Act as my Social Trend Researcher. Research current trending formats, sounds, hooks and content angles in my niches (mermaid & underwater performance, freediving, ocean lifestyle, custom mermaid tails) that I can realistically create. Give 5 concrete, current ideas with why each is working, and save them to my Notion Content Ideas page (id '+SM_IDEAS_ID+'). Never invent numbers or sources.');}catch(e){}};
-  // 4. Reports
-  const rp=document.createElement('div');rp.className='card';
-  rp.innerHTML='<h2><span class="ic">📊</span>Monthly numbers</h2><div class="blurb">Log each platform\'s monthly numbers here — there is no live analytics feed in this dashboard.</div><div class="sm-links"><a href="https://app.notion.com/p/'+SM_IG_ID+'" target="_blank" rel="noopener">Instagram</a><a href="https://app.notion.com/p/'+SM_TT_ID+'" target="_blank" rel="noopener">TikTok</a><a href="https://app.notion.com/p/'+SM_YT_ID+'" target="_blank" rel="noopener">YouTube</a><a href="https://app.notion.com/p/'+SM_FB_ID+'" target="_blank" rel="noopener">Facebook</a></div>';
-  wrap.appendChild(rp);
-  // 5. Monetization
-  const mo=document.createElement('div');mo.className='card';
-  mo.innerHTML='<h2><span class="ic">💵</span>Monetization plan<button class="link-btn" id="sm-money-open" style="margin-left:auto">Open →</button></h2><div class="blurb">How each platform turns into income — tail sales, course bookings, creator programs.</div><div data-body id="sm-money-body" class="loading">Loading…</div>';
-  wrap.appendChild(mo);document.getElementById('sm-money-open').onclick=()=>window.open('https://app.notion.com/p/'+SM_MONEY_ID,'_blank');
-  (async()=>{const body=document.getElementById('sm-money-body');try{const d=await fetchNotion(SM_MONEY_ID);const c=extractContent(d.text||'');let inner=renderMini(c);if(inner.length>1600)inner=inner.slice(0,1600)+'…';body.className='';body.innerHTML=inner+'<div class="foot"><a href="https://app.notion.com/p/'+SM_MONEY_ID+'" target="_blank" rel="noopener">Full plan →</a></div>';}catch(e){body.className='err';body.textContent='Could not load. Try Reload.';}})();
-}
+/* Personal social desk is social-panel.js (Scout, Sonar, Muse). */
 const CHIEF_CHAT={Pearl:'3a3eb411ed7a813296f1e7604b075261',Compass:'3a3eb411ed7a81208888ec8f56c38c58',Coral:'3a3eb411ed7a8139acb1fbb05a9f6a1a',Sage:'3a3eb411ed7a81c7ad57c638186baff7',Amara:'3a3eb411ed7a817ea370f6cc374aae8c',Ledger:'3a3eb411ed7a81e5bff8c5618dabe43b',Marlin:'3a3eb411ed7a8120a51eedf9e8e58fc7',Keeper:'3a3eb411ed7a81f3b439fa7618396a98',Sentinel:'3a3eb411ed7a81e7a141cf6f107e1e89'};
 function stampNow(){const d=new Date();return (d.getMonth()+1)+'-'+d.getDate()+' '+d.toTimeString().slice(0,5);}
 async function openChiefChat(who,chat,panel){panel.style.display='block';panel.innerHTML='<div class="loading" data-body>Loading…</div>';
@@ -2889,7 +2845,6 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
   buildCommand();
   buildTodo();
   buildGoals();
-  buildSocial();
   buildAgents();
   renderAffirm();
   buildToday();
@@ -2914,5 +2869,6 @@ function watchCards(){addCardTools();try{new MutationObserver(scheduleCardTools)
 <script src="/subscriptions-panel.js"></script>
 <script src="/aboutme-panel.js"></script>
 <script src="/dating-panel.js"></script>
+<script src="/social-panel.js"></script>
 </body>
 </html>

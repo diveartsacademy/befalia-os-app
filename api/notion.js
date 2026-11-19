@@ -3,8 +3,22 @@
 //   (A) MCP-emulation: { name, args } — mirrors the dashboard's Cowork connector so the SAME dashboard code runs on the phone.
 //   (B) Simple actions: { action, ... } — kept for the earlier phone build during transition.
 import { requireKey } from './_auth.js';
+import socialHandler from './_social-route.js';
+
+// The personal social desk shares this function. Hobby allows 12 functions
+// and this app is already at 12, so /api/social is a rewrite to here.
+export function isSocialRequest(req) {
+  const q = (req && req.query) || {};
+  if (q.social === '1' || q.social === 1 || q.social === true) return true;
+  const url = String((req && req.url) || '');
+  if (url.indexOf('/api/social') !== -1 || url.indexOf('social=1') !== -1) return true;
+  let body = req && req.body;
+  if (typeof body === 'string') { try { body = JSON.parse(body || '{}'); } catch (e) { body = null; } }
+  return !!(body && body.social === true);
+}
 
 export default async function handler(req, res) {
+  if (isSocialRequest(req)) return socialHandler(req, res);
   if (req.method !== 'POST') { res.status(405).json({ error: 'POST only' }); return; }
   // This route holds the Notion token for the whole personal OS. Unauthenticated
   // it lets anyone with the URL read and write every page the token can reach.
