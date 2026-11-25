@@ -223,6 +223,9 @@
       '.biz-brow .d{font:12px/1.35 var(--sans);color:var(--muted)}' +
       '.biz-brow .meta{font:12px/1.4 var(--sans);color:var(--muted);margin-top:3px}' +
       '.biz-brow .sup{font:600 11.5px var(--sans);color:var(--aquasoft)}' +
+      '.biz-origin{font:700 11.5px var(--sans);color:var(--aqua);margin-left:6px}' +
+      '.biz-paytag{font:700 10.5px var(--sans);letter-spacing:.3px;text-transform:uppercase;padding:2px 6px;border-radius:6px;background:rgba(255,210,127,.16);color:#ffe2a8}' +
+      '.biz-stock{font:12.5px/1.4 var(--sans);color:var(--aquasoft);margin-top:4px}' +
       '.biz-bhint{font:12px/1.35 var(--sans);color:#ffd99a;margin-top:4px}' +
       '.biz-wbtn{font:700 12.5px var(--sans);border-radius:10px;padding:9px 12px;cursor:pointer;border:1px solid rgba(126,224,160,.55);background:rgba(126,224,160,.14);color:#c9f3d6}' +
       '.biz-wbtn.alt{border-color:var(--line);background:none;color:var(--muted)}' +
@@ -322,7 +325,8 @@
         (l.inBox ? 'In the box' + (l.inBox.by ? ' (ticked by ' + esc(l.inBox.by) + ')' : '') + '. Tap to untick.' : 'Tap when this is in the box') +
         '" aria-pressed="' + (l.inBox ? 'true' : 'false') + '">' + (l.inBox ? '✓' : '') + '</button>';
     }
-    return '<div class="biz-line' + (l.inBox ? ' inbox' : '') + '">' + box + ph + '<div class="biz-it"><div class="t">' + esc(l.title) + '</div>' + detail +
+    var decideNote = l.needsDecision ? '<div class="biz-bhint">Choose where this comes from under My work, Decide.</div>' : '';
+    return '<div class="biz-line' + (l.inBox ? ' inbox' : '') + '">' + box + ph + '<div class="biz-it"><div class="t">' + esc(l.title) + '</div>' + detail + decideNote +
       '<div class="row">' + (l.qty ? '<span class="biz-q">× ' + esc(l.qty) + '</span>' : '<span class="biz-q">qty not written</span>') +
       (l.packed ? '' : '<span class="biz-s ' + esc(l.group) + '">' + esc(l.status || 'no status') + '</span>') +
       (l.markDone ? '<span class="biz-s mark">not a physical item, mark DONE</span>' : '') + pnote + pack + '</div></div></div>';
@@ -448,6 +452,8 @@
     }
     var stageLabel = (STAGES.filter(function (s) { return s[0] === o.stage; })[0] || [0, 'No products'])[1];
     var pay = o.channel === 'manual' && o.pay === 'part' ? ' · ' + esc(o.payText) : '';
+    if (o.paymentNotConfirmed) pay += ' <span class="biz-paytag">payment not confirmed</span>';
+    var stockNote = o.fromReadyStock ? '<div class="biz-note">From ready stock in Tabanan. Pack it, then the only thing left to type is the tracking number.</div>' : '';
     return '<div class="biz-card sensitive st-' + esc(o.stage) + '" data-key="' + esc(key) + '">' +
       '<div class="biz-top"><span class="biz-inv">' + esc(o.invoice) + '</span>' +
       '<span class="biz-badge ' + esc(o.channel) + '">' + esc(CH[o.channel] || o.channel) + '</span>' +
@@ -455,6 +461,7 @@
       '<div class="biz-who">' + esc(o.customer || 'no name') + '</div>' +
       '<div class="biz-meta">' + esc(dated) + (o.country ? ' · ships to ' + esc(o.country) : '') + pay + dueHtml(o) + '</div>' +
       (STAGE_NOTE[o.stage] && o.stage !== 'production' ? '<div class="biz-note">' + esc(STAGE_NOTE[o.stage] + after) + '</div>' : '') +
+      stockNote +
       o.lines.map(function (l) { return lineHtml(o, l, ready.length === packable.length ? packable.length : 2); }).join('') + act +
       (o.doneCount ? '<div class="biz-foot">' + o.doneCount + ' of ' + o.lineCount + ' products on this invoice are already DONE and hidden.</div>' : '') +
       '</div>';
@@ -466,9 +473,13 @@
       ? '<a class="biz-ph" href="' + esc(x.photo.url) + '" target="_blank" rel="noopener"><img loading="lazy" referrerpolicy="no-referrer" alt="" src="' + esc(x.photo.url) + '" onerror="this.parentNode.outerHTML=\'<div class=&quot;biz-ph&quot;>no photo</div>\'"></a>'
       : '<div class="biz-ph">no photo</div>';
     var detail = (x.detail || []).map(function (t) { return '<div class="d">' + esc(t) + '</div>'; }).join('');
-    var sup = x.supplier
-      ? '<div class="sup">' + esc(x.supplier) + (x.supplierAlt ? ' <span class="d">or ' + esc(x.supplierAlt) + '</span>' : '') + '</div>'
+    var origin = x.originUrl
+      ? '<a class="biz-origin" href="' + esc(x.originUrl) + '" target="_blank" rel="noopener">Origin</a>'
+      : '';
+    var sup = (x.supplier || origin)
+      ? '<div class="sup">' + esc(x.supplier || 'Supplier') + (x.supplierAlt ? ' <span class="d">or ' + esc(x.supplierAlt) + '</span>' : '') + origin + '</div>'
       : '<div class="sup">Unknown</div>';
+    var payTag = x.paymentNotConfirmed ? ' <span class="biz-paytag">payment not confirmed</span>' : '';
     var live = S.data && S.data.work && S.data.work.live;
     var btns = (live && (x.moves || []).length) ? '<div class="biz-wbtns">' + x.moves.map(function (m, i) {
       var id = x.key + '|' + i;
@@ -481,7 +492,7 @@
       detail + sup +
       '<div class="meta"><span class="biz-badge ' + esc(x.channel) + '">' + esc(CH[x.channel] || x.channel) + '</span> ' +
       esc(x.invoice) + (x.customer ? ' · ' + esc(x.customer) : '') + dueHtml(x) +
-      (x.status ? ' · ' + esc(x.status) : '') + '</div>' + hint + btns + fl + '</div></div>';
+      (x.status ? ' · ' + esc(x.status) : '') + payTag + '</div>' + hint + btns + fl + '</div></div>';
   }
   function buySection(d) {
     var W = (d && d.work) || {}, items = W.items || {};
@@ -523,12 +534,14 @@
     var c = d.counts || {}, photoLine0 = '';
     if (S.stage !== 'all' && S.stage !== 'buy' && !c[S.stage]) S.stage = 'all';
     var buyN = (d.work && d.work.counts && d.work.counts.buy) || 0;
+    var decideN = (d.work && d.work.counts && d.work.counts.decide) || 0;
     var tiles = '<div class="biz-tiles">' + STAGES.map(function (s) {
       var n = s[0] === 'all' ? c.all : c[s[0]];
       if (s[0] !== 'all' && !n) return '';
       return '<button class="biz-tile' + (S.stage === s[0] ? ' on' : '') + '" data-stage="' + s[0] + '"><b>' + (n || 0) + '</b><span>' + esc(s[1]) + '</span></button>';
     }).join('') +
-      '<button class="biz-tile' + (S.stage === 'buy' ? ' on' : '') + '" data-stage="buy"><b>' + buyN + '</b><span>Ready to Buy</span></button></div>';
+      '<button class="biz-tile' + (S.stage === 'buy' ? ' on' : '') + '" data-stage="buy"><b>' + buyN + '</b><span>Ready to Buy</span></button>' +
+      '<button class="biz-tile' + (S.view === 'work' && S.wtab === 'decide' ? ' on' : '') + '" data-view="work" data-wtab="decide"><b>' + decideN + '</b><span>Decide</span></button></div>';
     var chans = '<div class="biz-sub">' + [['all', 'All shops'], ['shopify', 'Shopify'], ['shopee', 'Shopee'], ['toko', 'Tokopedia/TikTok'], ['manual', 'Manual'], ['tailcraft', 'TailCraft']].map(function (x) {
       var n = x[0] === 'all' ? c.all : c[x[0]];
       if (x[0] !== 'all' && !n) return '';
@@ -585,12 +598,13 @@
      My work (14 Oct 2026)
   --------------------------------------------------------------------- */
   var WORK_TILES = [
+    ['decide', 'Decide', 'New paid lines. Ready stock Tabanan writes Ready Stock and logs an out on STOCK LOG - STUDIO. It does not change the ready-stock counts. Other source is ready to ship. Make new sends a custom piece, or one that is out of stock, to the designer. Buy from third party sends it to Ready to Buy. After ready stock, Pack and ship only needs the tracking number.'],
     ['design', 'Designer', 'Sea Diva and TailCraft designs to make. Done sends a Sea Diva design to Printing; a TailCraft design to Design options sent.'],
     ['order', 'To order, 3rd party', 'Paid products bought from a supplier. Once you have ordered, tap Bought, now ordered.'],
     ['ordered', 'Ordered, arriving', 'Ordered from the supplier. When it arrives, tap Arrived and it moves to Pack and ship.'],
     ['fluke', 'Fluke filler', 'Fluke fillers to make. Done moves the product to Ready to be shipped.'],
     ['crown', 'Crown', 'Crowns to make. Done moves the product to Ready to be shipped.'],
-    ['make', 'Other to make', 'Status Need to Create or In the Making. Done moves the product to Ready to be shipped.']
+    ['make', 'Other to make', 'Status In the Making. Done moves the product to Ready to be shipped. Need to Create waits under Decide.']
   ];
   var WAIT_TILES = [
     ['printing', 'Printing · Timur Jaya', 'At the printer. When the print is back, send it to sewing or straight to ready.'],
@@ -622,6 +636,16 @@
     var st = '<span class="biz-s ' + (x.tc ? 'design_todo' : '') + '">' + esc(x.status) + '</span>' +
       (x.qty ? ' <span class="biz-q">× ' + esc(x.qty) + '</span>' : '');
     if (x.sheetStatus && x.sheetStatus.toLowerCase() !== String(x.status).toLowerCase()) st += ' <span class="biz-pnote">sheet still says ' + esc(x.sheetStatus) + '</span>';
+    if (x.paymentNotConfirmed) st += ' <span class="biz-paytag">payment not confirmed</span>';
+    var stockLine = '';
+    if (x.decide) {
+      var qtyTxt = x.stockKnown ? String(x.tabananQty == null ? 0 : x.tabananQty) : 'not in the sheet copy yet';
+      stockLine = '<div class="biz-stock">Ready stock Tabanan: ' + esc(qtyTxt) +
+        (x.sku ? ' · SKU ' + esc(x.sku) : ' · no SKU in the item text') +
+        (x.suggested ? ' · Suggested: ' + esc(x.suggested) : '') + '</div>';
+      if (x.originUrl) stockLine += '<div class="sup"><a class="biz-origin" href="' + esc(x.originUrl) + '" target="_blank" rel="noopener">Origin</a>' +
+        (x.supplier ? ' · ' + esc(x.supplier) : '') + '</div>';
+    }
     var moved = '';
     if (x.work) {
       moved = '<div class="m">Moved here' + (x.work.by ? ' by ' + esc(x.work.by) : '') + (x.work.at ? ' · ' + esc(when(x.work.at)) : '') +
@@ -637,7 +661,7 @@
     }).join('') + '</div>';
     var fl = S.flash[x.key] ? '<div class="biz-flash' + (S.flash[x.key].bad ? ' bad' : '') + '">' + esc(S.flash[x.key].text) + '</div>' : '';
     return '<div class="biz-witem' + (x.tc ? ' tc' : '') + '">' + ph + '<div class="biz-it"><div class="t">' + esc(x.title) + '</div>' + detail +
-      '<div class="row">' + st + '</div><div class="m">' + meta + '</div>' + moved + btns + fl + '</div></div>';
+      '<div class="row">' + st + '</div><div class="m">' + meta + '</div>' + stockLine + moved + btns + fl + '</div></div>';
   }
   function workHtml(d) {
     var W = d.work;
@@ -691,6 +715,7 @@
       if (r.write === 'by_hand') t += ' The ' + tabName(x.src) + ' tab cannot be written automatically yet, so set ' + m.to + ' in the sheet by hand.';
       else if (r.write === 'queued') t += ' The sheet changes within the hour.';
       if (r.job && /not moved/.test(r.job)) t += ' Board: ' + r.job + '.';
+      if (r.stock) t += ' ' + r.stock;
       S.notice = { text: t, wundo: r.id };
       delete S.flash[key];
       load();
@@ -1178,6 +1203,7 @@
     if (b.dataset.addrPrint) { printLabel(b.dataset.addrPrint); return; }
     if (b.dataset.view) {
       S.view = b.dataset.view;
+      if (b.dataset.wtab) S.wtab = b.dataset.wtab;
       try { localStorage.setItem('biz-view', S.view); } catch (e2) { /* storage blocked */ }
       render(); return;
     }

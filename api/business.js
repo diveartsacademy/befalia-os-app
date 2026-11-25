@@ -20,7 +20,15 @@
 //                                                     already shipped, whole order
 //      My work, 14 Oct 2026:
 //        { action: 'work', src, row, invoice, slot, from, to }  Done on one product
-//                                                     line (WORK_FROM lists the moves)
+//                                                     line (WORK_FROM lists the moves).
+//                                                     25 Nov 2026: a blank, Pending
+//                                                     or Need to Create line may
+//                                                     move to Ready Stock, Ready
+//                                                     to be shipped, Design Needs
+//                                                     to Be Made, or Order from
+//                                                     3rd Party. Ready Stock logs
+//                                                     an out and does not edit
+//                                                     ready-stock counts.
 //        { action: 'tc_work', project, from, to }     a TailCraft design: done
 //                                                     (design_sent) or not going ahead
 //        { action: 'work_undo', id }                  undo either of those
