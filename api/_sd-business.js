@@ -35,14 +35,32 @@
 //     product (16 Nov 2026, SHOPEE - OL: the only open Shopee order was hidden
 //     that way, so the Shopee chip showed 0).
 //
-//   Ready to Buy (16 Nov 2026). Lines Befa still has to buy: Status Produksi
-//     in the third_todo group, plus Mahina lines (resold, no stock of our own;
-//     supplier Ocean King, or Freedive Collective) and Shopee or Tokopedia
-//     pre-order lines that are not DONE and not packed. Unpaid manual orders
-//     stay out of production work. The Bought button is only offered when
-//     WORK_FROM already allows Ordered. Otherwise the line is listed with a
-//     hint to set the status. Ordered lines stay on the existing third_ordered
-//     list, with Arrived, ready to pack.
+//   Ready to Buy (16 Nov 2026, widened 25 Nov 2026). Lines Befa still has to
+//     buy: Status Produksi in the third_todo group, plus Mahina lines (resold,
+//     no stock of our own; supplier Ocean King, or Freedive Collective),
+//     Shopee or Tokopedia pre-order lines that are not DONE and not packed,
+//     and Shopee or Tokopedia lines whose status is still blank when PRODUCT
+//     LIST SDT says the product's source is 3rd party. Each buy row carries
+//     the supplier and a clickable origin link from that list (the same
+//     columns as seadiva.v_product_source_links, plus the SKU). A manual
+//     order whose payment cell is blank is listed, with a "payment not
+//     confirmed" tag, so it is not hidden. Unpaid manual orders (WAITING FOR
+//     PAYMENT) stay out of production work. The Bought button is only offered
+//     when WORK_FROM already allows Ordered. Otherwise the line is listed
+//     with a hint to set the status. Ordered lines stay on the existing
+//     third_ordered list, with Arrived, ready to pack.
+//
+//   Fulfil from (25 Nov 2026). A new paid line whose Status Produksi is blank
+//     or Need to Create waits on Decide, not on "Made, ready to pack". The
+//     four choices write Status Produksi through the same closed WORK_FROM
+//     list: Ready stock Tabanan -> Ready Stock, Other source -> Ready to be
+//     shipped, Make new (custom, or out of stock, to the designer) -> Design
+//     Needs to Be Made, Buy from third party -> Order from 3rd Party. Ready
+//     stock shows the Tabanan quantity (READY STOCK - STUDIO TABANAN) and the
+//     Suggested word from ORDER ITEMS TO DECIDE. Products match by the SKU
+//     embedded in the item text. A ready-stock pick logs an out row for
+//     STOCK LOG - STUDIO and never edits the ready-stock counts. Pack and
+//     ship then only needs the tracking number.
 //
 //   "click ready to ship ... once I pack the order"
 //     Pack marks from the database (seadiva.pack_marks) are laid over the
@@ -470,10 +488,22 @@ export const WORK_FROM = {
   'ordered': ['Ready to be shipped'],
   'fluke filler making': ['Ready to be shipped'],
   'in the making': ['Ready to be shipped'],
-  'need to create': ['Ready to be shipped'],
+  /* Blank, Pending and Need to Create are not a making step. They are the
+     fulfil-from decision (25 Nov 2026). The same four targets, in the same
+     words, are the only ones seadiva._work_allowed accepts from these. */
+  '': ['Ready Stock', 'Ready to be shipped', 'Design Needs to Be Made', 'Order from 3rd Party'],
+  'pending': ['Ready Stock', 'Ready to be shipped', 'Design Needs to Be Made', 'Order from 3rd Party'],
+  'need to create': ['Ready Stock', 'Ready to be shipped', 'Design Needs to Be Made', 'Order from 3rd Party'],
   'printing': ['Sewing / Building', 'Ready to be shipped'],
   'sewing / building': ['Ready to be shipped']
 };
+/* [to, button label]. Same order on the DiveArts OS SDT section. */
+export const DECIDE_MOVES = [
+  ['Ready Stock', 'Ready stock Tabanan'],
+  ['Ready to be shipped', 'Other source'],
+  ['Design Needs to Be Made', 'Make new'],
+  ['Order from 3rd Party', 'Buy from third party']
+];
 /* [to, button label] per list. The design list offers Start only while the
    design has not been started. */
 export const WORK_MOVES = {
@@ -483,10 +513,11 @@ export const WORK_MOVES = {
   fluke: [['Ready to be shipped', 'Fluke filler done, ready to pack']],
   crown: [['Ready to be shipped', 'Crown done, ready to pack']],
   make: [['Ready to be shipped', 'Made, ready to pack']],
+  decide: DECIDE_MOVES,
   printing: [['Sewing / Building', 'Back from print, to sewing'], ['Ready to be shipped', 'Back from print, ready to pack']],
   sewing: [['Ready to be shipped', 'Sewn, ready to pack']]
 };
-export const WORK_MINE = ['design', 'order', 'ordered', 'fluke', 'crown', 'make'];
+export const WORK_MINE = ['decide', 'design', 'order', 'ordered', 'fluke', 'crown', 'make'];
 export const WORK_WAITING = ['printing', 'sewing'];
 export const TC_WORK_MOVES = [['design_sent', 'Design done, sent to customer'], ['lost', 'Not going ahead']];
 
@@ -499,8 +530,81 @@ const BUY_HINT = 'Set Status Produksi to Order from 3rd party to mark it bought 
 function lineText(l) {
   return [l && l.title, l && l.item].concat((l && l.detail) || []).filter(Boolean).join(' ');
 }
+
+/* SKU as written in an item cell: "SKU SDT-ARS-DAR-ONESIZ", or the same code
+   standing on its own. The label form wins in skuOf; the catalog scan in
+   matchSource catches a code with no label. Same rule in seadiva._ready_stock_out. */
+const SKU_LABELED = /(?:^|[^A-Za-z0-9._-])SKU\s+([A-Za-z0-9][A-Za-z0-9._-]{2,60})(?![A-Za-z0-9._-])/i;
+export function skuOf(text) {
+  const m = SKU_LABELED.exec(String(text || ''));
+  return m ? m[1].toUpperCase() : '';
+}
+function httpUrl(v) { return /^https?:\/\//i.test(String(v || '')) ? String(v).trim() : ''; }
+function catRow(raw) {
+  const sku = txt(raw && (raw.sku || raw.SKU)).toUpperCase();
+  return {
+    sku,
+    product: txt(raw && (raw.product || raw.name)),
+    sourceCategory: txt(raw && (raw.sourceCategory || raw.source_category)),
+    store: txt(raw && (raw.store || raw.store_1 || raw.store1)),
+    link: httpUrl(raw && (raw.link || raw.link_1 || raw.link1)),
+    store2: txt(raw && (raw.store2 || raw.store_2)),
+    link2: httpUrl(raw && (raw.link2 || raw.link_2))
+  };
+}
+/* Third party is the PRODUCT LIST source category, not the mere presence of a link. */
+export function isThirdParty(cat) { return /^3rd\s*party$/i.test(txt(cat)); }
+export function indexCatalog(list) {
+  const bySku = {}, byName = {};
+  (list || []).forEach((raw) => {
+    const row = catRow(raw);
+    if (!row.sku || bySku[row.sku]) return;
+    bySku[row.sku] = row;
+    const nk = low(row.product);
+    if (!nk) return;
+    const prev = byName[nk];
+    if (!prev) byName[nk] = row;
+    else if (low(prev.sourceCategory) !== low(row.sourceCategory)) byName[nk] = Object.assign({}, prev, { sourceCategory: '' });
+  });
+  return { bySku, byName };
+}
+/* Longest catalog SKU that is its own token in the text. A labelled SKU wins
+   even when that code is not on the product list yet, so the stock log can
+   still name it. */
+export function matchSource(index, text) {
+  const bySku = (index && index.bySku) || {};
+  const explicit = skuOf(text);
+  if (explicit) return bySku[explicit] || { sku: explicit, product: '', sourceCategory: '', store: '', link: '', store2: '', link2: '' };
+  const norm = ' ' + String(text || '').toUpperCase().replace(/[^A-Z0-9._-]+/g, ' ') + ' ';
+  let best = null;
+  Object.keys(bySku).forEach((sku) => {
+    if (sku.length < 6) return;
+    if (norm.indexOf(' ' + sku + ' ') >= 0 && (!best || sku.length > best.sku.length)) best = bySku[sku];
+  });
+  return best;
+}
+export function stockIndex(rows) {
+  const m = {};
+  (rows || []).forEach((r) => {
+    const sku = txt(r && r.sku).toUpperCase();
+    if (!sku) return;
+    const n = Number(String(r.qty == null ? '' : r.qty).replace(/[^0-9.\-]/g, ''));
+    if (isFinite(n)) m[sku] = n;
+  });
+  return m;
+}
+export function decideIndex(rows) {
+  const m = {};
+  (rows || []).forEach((r) => {
+    if (!r || !txt(r.invoice) || r.slot == null || r.slot === '') return;
+    m[txt(r.invoice) + '|' + Number(r.slot)] = txt(r.suggested);
+  });
+  return m;
+}
 /* Ready to Buy: the third_todo statuses, plus Mahina and marketplace
-   pre-orders that are not done, not packed and not already ordered. */
+   pre-orders that are not done, not packed and not already ordered, plus a
+   Shopee or Tokopedia line that is still blank when the product source is
+   third party. */
 export function wantsBuy(o, l) {
   if (!o || !l || l.physical === false || l.packed || l.inBox) return false;
   if (l.group === 'done' || l.group === 'ignore' || l.group === 'third_ordered') return false;
@@ -508,12 +612,15 @@ export function wantsBuy(o, l) {
   const text = lineText(l);
   if (MAHINA.test(text)) return true;
   if (MARKETPLACE[o.channel] && PREORDER.test(text)) return true;
+  if (MARKETPLACE[o.channel] && l.group === 'blank' && l.thirdParty) return true;
   return false;
 }
 function supplierOf(l) {
+  if (l && l.supplierName) return { name: l.supplierName, alt: l.supplierAlt || '' };
   return MAHINA.test(lineText(l)) ? { name: 'Ocean King', alt: 'Freedive Collective' } : { name: '', alt: '' };
 }
 
+const DECIDE_STATUS = { '': 1, 'need to create': 1, 'pending': 1 };
 export function workBucket(l) {
   /* Ticked "in the box" means it is made and in hand, whatever the sheet
      still says (Befa, 14 Oct 22:42: SDTJun26-23 was in the box and still
@@ -521,6 +628,9 @@ export function workBucket(l) {
   if (!l || l.physical === false || l.packed || l.inBox) return null;
   const st = low(l.status);
   const text = (l.title || '') + ' ' + (l.detail || []).join(' ');
+  /* Need to Create is the sheet's "not decided yet", not a making step.
+     A crown or a fluke that is already In the Making still uses those lists. */
+  if (DECIDE_STATUS[st]) return 'decide';
   if (l.group === 'design_todo' || l.group === 'design_wip') return 'design';
   if (l.group === 'third_todo') return 'order';
   if (l.group === 'third_ordered') return 'ordered';
@@ -583,6 +693,10 @@ function buildWork(orders, tcwork, now) {
         title: l.title, detail: l.detail, qty: l.qty, status: l.status, sheetStatus: l.sheetStatus || '',
         photo: l.photo, note: l.note, work: l.work || null,
         supplier: sup.name, supplierAlt: sup.alt,
+        sku: l.sku || '', originUrl: l.originUrl || '',
+        tabananQty: l.tabananQty == null ? null : l.tabananQty,
+        suggested: l.suggested || '', stockKnown: !!l.stockKnown,
+        paymentNotConfirmed: !!o.paymentNotConfirmed, decide: b === 'decide',
         moves: moves.map((m) => ({ to: m[0], label: m[1] }))
       });
     });
@@ -622,7 +736,9 @@ function buildWork(orders, tcwork, now) {
         title: l.title, detail: l.detail, qty: l.qty, status: l.status, sheetStatus: l.sheetStatus || '',
         photo: l.photo, note: l.note, work: l.work || null,
         supplier: sup.name, supplierAlt: sup.alt,
-        reason: l.group === 'third_todo' ? 'status' : (sup.name ? 'mahina' : 'preorder'),
+        sku: l.sku || '', originUrl: l.originUrl || '',
+        paymentNotConfirmed: !!o.paymentNotConfirmed,
+        reason: l.group === 'third_todo' ? 'status' : (l.group === 'blank' && l.thirdParty ? 'source' : (MAHINA.test(lineText(l)) ? 'mahina' : 'preorder')),
         hint,
         moves: moves.map((m) => ({ to: m[0], label: m[1] }))
       });
@@ -649,6 +765,17 @@ export function build(feed, products, now, opts) {
   const marks = markIndex(feed && feed.marks);
   const ticks = tickIndex(feed && feed.ticks);
   const work = workIndex(feed && feed.work);
+  /* Product source, Tabanan quantity and the sheet's Suggested column.
+     All three are empty until the feed carries them. Matching is by the SKU
+     in the item text, then by the product name on v_product_source_links. */
+  const catalog = indexCatalog(feed && feed.catalog);
+  const onHand = stockIndex(feed && feed.stock);
+  const suggestedBy = decideIndex(feed && feed.toDecide);
+  const linkIdx = SO.linkIndex((feed && feed.catalog || []).map((raw) => {
+    const row = catRow(raw);
+    return { product: row.product, store_1: row.store, link_1: row.link, store_2: row.store2, link_2: row.link2 };
+  }));
+  const stockKnown = !!(feed && feed.stockTab);
   /* Product notes (13 Oct 2026, 22:24): e.g. the customer changed size or
      colour after checkout. One per product line, shared by both dashboards. */
   const notes = {};
@@ -720,6 +847,10 @@ export function build(feed, products, now, opts) {
       /* Not paid yet, but production has started: shown, never packed. */
       include = true;
       stage = 'unpaid';
+    } else if (o.channel === 'manual' && o.pay === 'blank' && open.length && !o.shipped) {
+      /* The payment cell is empty. Shown with a payment-not-confirmed tag.
+         WAITING FOR PAYMENT stays the unpaid stage above and is not this. */
+      include = true;
     }
     if (!include) return;
     const physical = open.filter((l) => !nonPhysical(l.item));
@@ -738,22 +869,45 @@ export function build(feed, products, now, opts) {
     if (stage === 'packed' && ho) stage = ho.method === 'pickup' ? 'pickup' : 'to_send';
     if (stage === 'pickup' && opts.hidePickup) { pickupHidden++; return; }
     const show = open.length ? open : o.lines;
+    const paymentNotConfirmed = o.channel === 'manual' && o.pay === 'blank';
+    const fromReadyStock = physical.length > 0 && physical.every((l) => low(l.status) === 'ready stock');
     orders.push({
       channel: o.channel, src: o.src, row: o.row, invoice: o.invoice, customer: o.customer, date: o.date, dateText: o.dateText,
       days: o.days, pay: o.pay, payText: o.payText, country: o.country, stage, handoff: ho,
+      paymentNotConfirmed, fromReadyStock,
       shipBy: o.shipBy, shipByText: o.shipByText, shipByDays: o.shipByDays,
       doneCount: o.lines.length - open.length, lineCount: o.lines.length,
-      lines: show.map((l) => ({
-        slot: l.slot, title: l.title, detail: l.detail, qty: l.qty, qtyTitle: !!l.qtyTitle, status: l.status || '', group: l.group,
-        sheetStatus: l.sheetStatus || '', work: l.work || null,
-        markDone: o.pay !== 'unpaid' && l.group !== 'done' && nonPhysical(l.item),
-        physical: !nonPhysical(l.item),
-        canPack: stage !== 'unpaid' && l.group !== 'done' && l.group !== 'ignore' && !l.packed && !nonPhysical(l.item),
-        packed: l.packed || null,
-        inBox: l.inBox || null,
-        note: l.note || null,
-        photo: l.tailcraft ? null : photoFor(idx, o.channel, l)
-      }))
+      lines: show.map((l) => {
+        const text = lineText(l);
+        let hit = l.tailcraft ? null : matchSource(catalog, text);
+        if (!hit && !l.tailcraft) {
+          const link = SO.findLink(linkIdx, text);
+          if (link && link.how !== 'close') {
+            const named = catalog.byName[low(link.product)];
+            hit = named || { sku: '', product: link.product, sourceCategory: '', store: link.store || '', link: link.url || '', store2: '', link2: httpUrl(link.url2) };
+          }
+        }
+        hit = hit || { sku: '', product: '', sourceCategory: '', store: '', link: '', store2: '', link2: '' };
+        const thirdParty = isThirdParty(hit.sourceCategory);
+        let supplierName = hit.store || '', supplierAlt = hit.store2 || '';
+        if (!supplierName && MAHINA.test(text)) { supplierName = 'Ocean King'; supplierAlt = 'Freedive Collective'; }
+        const tabananQty = stockKnown && hit.sku ? (Object.prototype.hasOwnProperty.call(onHand, hit.sku) ? onHand[hit.sku] : 0) : null;
+        const physicalLine = !nonPhysical(l.item);
+        return {
+          slot: l.slot, title: l.title, detail: l.detail, qty: l.qty, qtyTitle: !!l.qtyTitle, status: l.status || '', group: l.group,
+          sheetStatus: l.sheetStatus || '', work: l.work || null,
+          markDone: o.pay !== 'unpaid' && l.group !== 'done' && nonPhysical(l.item),
+          physical: physicalLine,
+          canPack: stage !== 'unpaid' && !paymentNotConfirmed && l.group !== 'done' && l.group !== 'ignore' && !l.packed && physicalLine,
+          packed: l.packed || null,
+          inBox: l.inBox || null,
+          note: l.note || null,
+          sku: hit.sku, thirdParty, supplierName, supplierAlt, originUrl: hit.link || hit.link2 || '',
+          tabananQty, stockKnown, suggested: suggestedBy[o.invoice + '|' + l.slot] || '',
+          needsDecision: stage !== 'unpaid' && stage !== 'old_no_status' && physicalLine && !l.packed && !!DECIDE_STATUS[low(l.status)],
+          photo: l.tailcraft ? null : photoFor(idx, o.channel, l)
+        };
+      })
     });
   });
 

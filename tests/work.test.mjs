@@ -24,15 +24,18 @@ function feedWith(extra) {
   return Object.assign(f, extra || {});
 }
 const all = (w) => Object.keys(w.items).reduce((a, k) => a.concat(w.items[k].map((x) => Object.assign({ bucket: k }, x))), []);
-const find = (w, inv, slot) => all(w).filter((x) => x.invoice === inv && x.slot === slot);
+/* Ready to Buy repeats some lines. The job list is the other buckets. */
+const find = (w, inv, slot) => all(w).filter((x) => x.invoice === inv && x.slot === slot && x.bucket !== 'buy');
 
 test('every line lands in the right list', () => {
   const w = build(feedWith(), products, NOW).work;
   assert.deepEqual(find(w, 'SDTJun26-23', 1).map((x) => x.bucket), ['design']);
   assert.deepEqual(find(w, 'SDTJun26-23', 3).map((x) => x.bucket), ['printing'], 'Printing waits on Timur Jaya');
   assert.deepEqual(find(w, 'SDTMar26-2', 2).map((x) => x.bucket), ['order']);
-  assert.deepEqual(find(w, 'SDTMar26-2', 3).map((x) => x.bucket), ['make'], 'Need to Create');
-  assert.deepEqual(find(w, 'SDTOct26-09', 1).map((x) => x.bucket), ['crown'], 'a crown is caught by its name');
+  assert.deepEqual(find(w, 'SDTMar26-2', 3).map((x) => x.bucket), ['decide'], 'Need to Create waits for a fulfil-from decision');
+  assert.deepEqual(find(w, 'SDTOct26-09', 1)[0].moves.map((m) => m.to),
+    ['Ready Stock', 'Ready to be shipped', 'Design Needs to Be Made', 'Order from 3rd Party']);
+  assert.deepEqual(find(w, 'SDTOct26-09', 1).map((x) => x.bucket), ['decide'], 'Need to Create is a decision, even when the name is a crown');
   assert.deepEqual(find(w, 'SDTOct26-09', 2).map((x) => x.bucket), ['fluke'], 'a fluke filler is caught by its name');
   assert.deepEqual(find(w, 'SDTOct26-09', 3).map((x) => x.bucket), ['sewing'], 'Sewing waits on Pak Supri');
   assert.deepEqual(find(w, '#1069', 1).map((x) => x.bucket), ['order'], 'Shopify lines count too');
@@ -43,7 +46,7 @@ test('ready, shipping, DONE, blank, paperwork and QA lines are never work', () =
   assert.equal(find(w, 'SDTMar26-2', 1).length, 0, 'Ready to be shipped');
   assert.equal(find(w, 'SDTMar26-2', 4).length, 0, 'Shipping Process');
   assert.equal(find(w, 'SDTOct26-09', 4).length, 0, 'Custom Color is paperwork');
-  assert.equal(find(w, '#1071', 1).length, 0, 'no status');
+  assert.deepEqual(find(w, '#1071', 1).map((x) => x.bucket), ['decide'], 'a paid line with no status waits for a decision');
   assert.equal(all(w).some((x) => /^QA/i.test(x.invoice)), false);
   assert.equal(find(w, 'SDTOct26-02', 1).length, 0, 'ticked Shipped in the sheet');
 });
@@ -149,7 +152,7 @@ test('TailCraft designs sit in the same Designer list', () => {
 test('counts: mine and waiting on someone', () => {
   const w = build(feedWith(), products, NOW).work;
   const n = (k) => w.items[k].length;
-  assert.equal(w.counts.mine, n('design') + n('order') + n('ordered') + n('fluke') + n('crown') + n('make'));
+  assert.equal(w.counts.mine, n('decide') + n('design') + n('order') + n('ordered') + n('fluke') + n('crown') + n('make'));
   assert.equal(w.counts.waiting, n('printing') + n('sewing'));
   assert.equal(workBucket({ status: 'Ready Stock', group: 'ready', physical: true }), null);
 });
